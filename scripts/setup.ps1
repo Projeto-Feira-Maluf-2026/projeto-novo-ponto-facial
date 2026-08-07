@@ -6,8 +6,8 @@ $Web = Join-Path $Root "web"
 $Venv = Join-Path $Api ".venv"
 $VenvPython = Join-Path $Venv "Scripts\python.exe"
 
-if (!(Test-Path (Join-Path $Api ".env"))) {
-  Copy-Item (Join-Path $Api ".env.example") (Join-Path $Api ".env")
+if (!(Test-Path (Join-Path $Root ".env"))) {
+  Copy-Item (Join-Path $Root ".env.example") (Join-Path $Root ".env")
 }
 
 Write-Host "Instalando backend..." -ForegroundColor Yellow

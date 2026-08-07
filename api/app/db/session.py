@@ -9,6 +9,9 @@ from app.core.config import settings
 
 def normalize_database_url(value: str) -> str:
     """Convert provider-style Postgres URLs to SQLAlchemy's asyncpg format."""
+    if os.getenv("VERCEL") and value.startswith("sqlite+aiosqlite:///./"):
+        filename = value.removeprefix("sqlite+aiosqlite:///./")
+        return f"sqlite+aiosqlite:////tmp/{filename}"
     if value.startswith("postgres://"):
         value = "postgresql://" + value[len("postgres://") :]
     if value.startswith("postgresql://"):

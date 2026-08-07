@@ -46,7 +46,7 @@ function Test-BackendReady {
   return $LASTEXITCODE -eq 0
 }
 
-if (!(Test-BackendReady) -or !(Test-Path $ViteCommand) -or !(Test-Path (Join-Path $Api ".env"))) {
+if (!(Test-BackendReady) -or !(Test-Path $ViteCommand) -or !(Test-Path (Join-Path $Root ".env"))) {
   Write-Host "Dependencias ou configuracao ausentes. Executando o setup inicial..." -ForegroundColor Yellow
   & $SetupScript
 }
