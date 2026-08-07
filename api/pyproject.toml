@@ -1,0 +1,46 @@
+[project]
+name = "curitiba-empreiteira-ponto-api"
+version = "1.0.0"
+description = "API corporativa de controle de ponto facial da Curitiba Empreiteira"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.111.0",
+  "uvicorn[standard]>=0.30.0",
+  "sqlalchemy[asyncio]>=2.0.30",
+  "aiosqlite>=0.20.0",
+  "asyncpg>=0.29.0",
+  "alembic>=1.13.0",
+  "pydantic-settings>=2.2.0",
+  "python-multipart>=0.0.9",
+  "python-jose[cryptography]>=3.3.0",
+  "passlib[bcrypt]>=1.7.4",
+  "bcrypt<5",
+  "cryptography>=42.0.0",
+  "redis>=5.0.0",
+  "numpy>=1.26.0",
+  "pillow>=10.3.0",
+  "opencv-python-headless>=4.9.0.80",
+  "insightface>=0.7.3",
+  "onnxruntime>=1.18.0",
+  "pandas>=2.2.0",
+  "openpyxl>=3.1.0",
+  "reportlab>=4.2.0",
+  "email-validator>=2.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+  "pytest-asyncio>=0.23.0",
+  "httpx>=0.27.0",
+  "ruff>=0.5.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

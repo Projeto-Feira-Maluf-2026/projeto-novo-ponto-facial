@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install API
+        run: |
+          cd api
+          python -m pip install --upgrade pip
+          pip install ".[dev]"
+      - name: Test API
+        run: |
+          cd api
+          ruff check .
+          DATABASE_URL=sqlite+aiosqlite:///./ci.db python -m app.db.migrate
+          DATABASE_URL=sqlite+aiosqlite:///./ci.db alembic check
+          pytest
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build web
+        run: |
+          cd web
+          npm ci
+          npm run build

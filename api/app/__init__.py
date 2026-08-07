@@ -1,0 +1,2 @@
+"""Curitiba Empreiteira attendance API."""
+
