@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Sistema corporativo de controle de ponto facial da Curitiba Empreiteira",
   "scripts": {
+    "build": "npm run web:build",
     "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
     "start": "powershell -ExecutionPolicy Bypass -File scripts/start.ps1",
     "dev": "powershell -ExecutionPolicy Bypass -File scripts/start.ps1",
@@ -17,5 +18,8 @@
     "install:web": "cd web && npm install",
     "mobile:get": "cd mobile && flutter pub get"
   },
-  "workspaces": ["web"]
+  "workspaces": ["web"],
+  "engines": {
+    "node": "22.x"
+  }
 }

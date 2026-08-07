@@ -72,19 +72,26 @@ class AuthService:
         await self.session.commit()
         return TokenPair(access_token=access, refresh_token=new_refresh, expires_in=15 * 60)
 
-    async def ensure_default_admin(self) -> None:
-        exists = await self.session.scalar(select(User).where(User.email == "admin@curitibaempreiteira.com"))
+    async def ensure_admin(self, *, name: str, email: str, password: str) -> None:
+        exists = await self.session.scalar(select(User).where(User.email == email))
         if exists:
             return
         self.session.add(
             User(
-                name="Administrador",
-                email="admin@curitibaempreiteira.com",
-                password_hash=password_hash("Admin@12345"),
+                name=name,
+                email=email,
+                password_hash=password_hash(password),
                 role=UserRole.SUPER_ADMIN,
             )
         )
         await self.session.commit()
+
+    async def ensure_default_admin(self) -> None:
+        await self.ensure_admin(
+            name="Administrador",
+            email="admin@curitibaempreiteira.com",
+            password="Admin@12345",
+        )
 
     def to_read_model(self, user: User) -> UserRead:
         return UserRead(

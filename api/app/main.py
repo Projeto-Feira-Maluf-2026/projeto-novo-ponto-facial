@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -29,7 +30,8 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
     app.state.face_provider = get_face_provider()
-    await asyncio.to_thread(app.state.face_provider.initialize)
+    if settings.FACE_EAGER_INITIALIZE and not os.getenv("VERCEL"):
+        await asyncio.to_thread(app.state.face_provider.initialize)
     yield
     await engine.dispose()
 
@@ -122,6 +124,7 @@ async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResp
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

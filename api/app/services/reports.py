@@ -1,7 +1,7 @@
 import csv
 from io import BytesIO, StringIO
 
-import pandas as pd
+from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from sqlalchemy import select
@@ -65,7 +65,20 @@ class ReportService:
 
     def _xlsx(self, rows: list[dict]) -> bytes:
         output = BytesIO()
-        pd.DataFrame(rows).to_excel(output, index=False)
+        workbook = Workbook(write_only=True)
+        sheet = workbook.create_sheet("Ponto")
+        fieldnames = list(rows[0].keys()) if rows else [
+            "data_hora",
+            "funcionario",
+            "matricula",
+            "obra",
+            "tipo",
+            "status",
+        ]
+        sheet.append(fieldnames)
+        for row in rows:
+            sheet.append([row.get(field) for field in fieldnames])
+        workbook.save(output)
         return output.getvalue()
 
     def _pdf(self, rows: list[dict]) -> bytes:
@@ -86,4 +99,3 @@ class ReportService:
                 y = height - 40
         pdf.save()
         return output.getvalue()
-

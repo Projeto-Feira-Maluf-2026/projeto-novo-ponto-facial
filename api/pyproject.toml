@@ -2,7 +2,7 @@
 name = "curitiba-empreiteira-ponto-api"
 version = "1.0.0"
 description = "API corporativa de controle de ponto facial da Curitiba Empreiteira"
-requires-python = ">=3.11"
+requires-python = "==3.12.*"
 dependencies = [
   "fastapi>=0.111.0",
   "uvicorn[standard]>=0.30.0",
@@ -22,11 +22,14 @@ dependencies = [
   "opencv-python-headless>=4.9.0.80",
   "insightface>=0.7.3",
   "onnxruntime>=1.18.0",
-  "pandas>=2.2.0",
   "openpyxl>=3.1.0",
   "reportlab>=4.2.0",
   "email-validator>=2.1.0",
+  "vercel>=0.7.0,<1.0.0",
 ]
+
+[tool.vercel.scripts]
+build = "python -m app.db.migrate"
 
 [project.optional-dependencies]
 dev = [
@@ -43,4 +46,4 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"

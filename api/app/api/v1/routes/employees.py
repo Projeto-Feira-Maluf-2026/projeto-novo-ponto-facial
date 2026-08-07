@@ -1,9 +1,11 @@
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scopes
+from app.core.config import settings
 from app.core.errors import AppError
 from app.core.permissions import Scope
 from app.db.session import get_session
@@ -180,12 +182,33 @@ async def upload_employee_photo(
     employee = await session.get(Employee, employee_id)
     if not employee:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcionario nao encontrado")
-    upload_dir = Path("uploads/employees")
-    upload_dir.mkdir(parents=True, exist_ok=True)
     extension = Path(file.filename or "photo.jpg").suffix.lower() or ".jpg"
-    target = upload_dir / f"{employee_id}{extension}"
-    target.write_bytes(await file.read())
-    employee.photo_url = f"/uploads/employees/{target.name}"
+    contents = await file.read()
+    if len(contents) > settings.FACE_MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Imagem muito grande")
+    if settings.BLOB_READ_WRITE_TOKEN:
+        from vercel.blob import AsyncBlobClient
+
+        async with AsyncBlobClient(token=settings.BLOB_READ_WRITE_TOKEN) as client:
+            uploaded = await client.put(
+                f"employees/{employee_id}{extension}",
+                contents,
+                access="private",
+                content_type=file.content_type,
+                add_random_suffix=True,
+            )
+        employee.photo_url = uploaded.url
+    elif os.getenv("VERCEL"):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vercel Blob nao configurado",
+        )
+    else:
+        upload_dir = Path("uploads/employees")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        target = upload_dir / f"{employee_id}{extension}"
+        target.write_bytes(contents)
+        employee.photo_url = f"/uploads/employees/{target.name}"
     await session.commit()
     await session.refresh(employee)
     return EmployeeRead.model_validate(employee)

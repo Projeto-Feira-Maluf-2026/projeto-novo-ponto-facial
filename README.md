@@ -17,6 +17,7 @@ O modo local usa SQLite para facilitar o primeiro teste. O Docker Compose usa Po
 - Dockerizacao em `docker-compose.yml`.
 - Testes automatizados em `api/tests/`.
 - Plano de implantacao em `docs/deployment.md`.
+- Deploy na Vercel em `docs/vercel.md`.
 - Seguranca/LGPD em `docs/security-lgpd.md`.
 - Escalabilidade em `docs/scalability.md`.
 

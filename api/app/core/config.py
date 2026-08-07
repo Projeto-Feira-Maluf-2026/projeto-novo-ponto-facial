@@ -1,4 +1,5 @@
 from functools import cached_property
+import os
 from pathlib import Path
 
 from pydantic import Field, model_validator
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     REDIS_REQUIRED: bool = False
     HEALTHCHECK_TIMEOUT_SECONDS: float = 1.5
     AUTO_CREATE_TABLES: bool = False
+    FACE_EAGER_INITIALIZE: bool = True
 
     JWT_SECRET_KEY: str = Field(default="troque-esta-chave-em-producao")
     JWT_ALGORITHM: str = "HS256"
@@ -29,6 +31,12 @@ class Settings(BaseSettings):
     )
 
     CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:8080"
+    CORS_ORIGIN_REGEX: str | None = None
+    BLOB_READ_WRITE_TOKEN: str | None = None
+    BOOTSTRAP_ADMIN_TOKEN: str | None = None
+    INITIAL_ADMIN_NAME: str = "Administrador"
+    INITIAL_ADMIN_EMAIL: str | None = None
+    INITIAL_ADMIN_PASSWORD: str | None = None
 
     FACE_PROVIDER: str = "insightface"
     FACE_MODEL_NAME: str = "buffalo_l"
@@ -112,6 +120,8 @@ class Settings(BaseSettings):
 
     @cached_property
     def face_model_root(self) -> Path:
+        if os.getenv("VERCEL") and self.FACE_MODEL_ROOT == "~/.insightface":
+            return Path("/tmp/.insightface")
         return Path(self.FACE_MODEL_ROOT).expanduser().resolve()
 
     @model_validator(mode="after")
