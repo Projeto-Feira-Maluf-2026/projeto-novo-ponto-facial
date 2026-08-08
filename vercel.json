@@ -7,7 +7,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 300,
-      "excludeFiles": "{web/**,mobile/**,docs/**,api/tests/**,models/**}"
+      "excludeFiles": "{.git/**,.github/**,.pytest_cache/**,.ruff_cache/**,**/__pycache__/**,**/.venv/**,node_modules/**,dist/**,web/**,mobile/**,docs/**,api/tests/**,models/**,logs/**,scripts/**,supabase/**,.env*}"
     }
   },
   "rewrites": [

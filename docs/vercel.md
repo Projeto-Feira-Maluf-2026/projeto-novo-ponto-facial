@@ -19,3 +19,16 @@ VITE_API_URL=/api/v1
 
 Aplique a migration Supabase antes do deploy. Nunca exponha `SUPABASE_SECRET_KEY` em uma
 variavel `VITE_*`.
+
+## Dependencias de reconhecimento facial
+
+O `requirements.txt` da raiz contem apenas as dependencias do runtime serverless da
+Vercel. `insightface` e `onnxruntime` ficam no extra `ai` de `api/pyproject.toml`, pois a
+cadeia transitiva dessas bibliotecas ultrapassa o limite padrao do bundle Python.
+O servidor Uvicorn e o SDK Python da Vercel tambem nao fazem parte desse manifesto, pois
+a Function ASGI nao importa nenhum deles.
+
+O setup local e a imagem Docker ja instalam `.[ai]`. Para executar inferencia facial em
+producao, use o container da API com os modelos montados em `FACE_MODEL_ROOT`, ou habilite
+Large Functions no projeto da Vercel e adapte o provisionamento dos modelos. A Vercel nao
+recebe os binarios em `models/` neste deploy.
