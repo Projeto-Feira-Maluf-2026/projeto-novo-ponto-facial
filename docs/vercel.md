@@ -1,6 +1,7 @@
 # Deploy na Vercel
 
-Cadastre todas as variaveis de `.env.example` em **Settings > Environment Variables**.
+Mantenha **Root Directory** vazio para usar a raiz do repositorio. Cadastre todas as
+variaveis de `.env.example` em **Settings > Environment Variables**.
 Use a connection string do pooler em modo transaction fornecida por **Connect** no
 Supabase para `DATABASE_URL`, pois Functions possuem conexoes curtas.
 

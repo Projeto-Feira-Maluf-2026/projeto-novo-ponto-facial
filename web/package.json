@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5174",
     "build": "tsc && vite build",
+    "build:vercel": "tsc && vite build --outDir ../dist --emptyOutDir",
     "preview": "vite preview --port 4174"
   },
   "dependencies": {
