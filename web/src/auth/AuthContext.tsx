@@ -20,14 +20,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
 
-    void supabase.auth.getSession().then(({ data }) => {
+    void supabase.auth.getSession().then(async ({ data, error: sessionError }) => {
       if (!active) return;
-      setSession(data.session);
+      if (sessionError || !data.session) {
+        setSession(null);
+        setLoading(false);
+        return;
+      }
+
+      const { data: verified, error } = await supabase.auth.getUser();
+      if (!active) return;
+      if (error || !verified.user) {
+        await supabase.auth.signOut({ scope: 'local' });
+        if (!active) return;
+        setSession(null);
+      } else {
+        setSession(data.session);
+      }
+      setLoading(false);
+    }).catch(() => {
+      if (!active) return;
+      setSession(null);
       setLoading(false);
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
+      // The initial locally cached session is verified by getUser above before
+      // protected routes are rendered.
+      if (event === 'INITIAL_SESSION') return;
       setSession(nextSession);
       setLoading(false);
     });
