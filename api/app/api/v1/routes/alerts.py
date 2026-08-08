@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_scopes
 from app.core.permissions import Scope
 from app.db.session import get_session
-from app.models.entities import SuspiciousAttempt, User
+from app.models.entities import SuspiciousAttempt
+from app.schemas.auth import UserRead
 
 router = APIRouter()
 
@@ -13,7 +14,7 @@ router = APIRouter()
 @router.get("")
 async def alerts(
     limit: int = Query(default=50, ge=1, le=200),
-    _: User = Depends(require_scopes(Scope.ALERTS_READ)),
+    _: UserRead = Depends(require_scopes(Scope.ALERTS_READ)),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
     result = await session.scalars(select(SuspiciousAttempt).order_by(desc(SuspiciousAttempt.created_at)).limit(limit))
@@ -32,4 +33,3 @@ async def alerts(
         }
         for item in result
     ]
-

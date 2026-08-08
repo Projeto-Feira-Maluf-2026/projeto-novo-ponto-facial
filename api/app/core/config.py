@@ -20,17 +20,15 @@ class Settings(BaseSettings):
     BUILD_ID: str = "local"
     ENVIRONMENT: str = "development"
     API_V1_PREFIX: str = "/api/v1"
-    DATABASE_URL: str = "sqlite+aiosqlite:///./ponto_facial.db"
+    DATABASE_URL: str
+    SUPABASE_URL: str
+    SUPABASE_PUBLISHABLE_KEY: str
+    SUPABASE_SECRET_KEY: str
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_REQUIRED: bool = False
     HEALTHCHECK_TIMEOUT_SECONDS: float = 1.5
-    AUTO_CREATE_TABLES: bool = False
     FACE_EAGER_INITIALIZE: bool = True
 
-    JWT_SECRET_KEY: str = Field(default="troque-esta-chave-em-producao")
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 15
     PASSWORD_PEPPER: str = Field(default="troque-este-pepper-em-producao")
     FIELD_ENCRYPTION_KEY: str = Field(
         default="n2CX2N9Bq1V0VOjUQ_2dT2cXLsRRj1SRj3o8e4nGmcM="
@@ -39,7 +37,6 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:8080"
     CORS_ORIGIN_REGEX: str | None = None
     BLOB_READ_WRITE_TOKEN: str | None = None
-    BOOTSTRAP_ADMIN_TOKEN: str | None = None
     INITIAL_ADMIN_NAME: str = "Administrador"
     INITIAL_ADMIN_EMAIL: str | None = None
     INITIAL_ADMIN_PASSWORD: str | None = None
@@ -140,8 +137,15 @@ class Settings(BaseSettings):
         self.ENVIRONMENT = environment
         self.FACE_PROVIDER = provider
 
-        if self.AUTO_CREATE_TABLES and environment != "development":
-            raise ValueError("AUTO_CREATE_TABLES so pode ser ativado em development")
+        if not self.DATABASE_URL.startswith(("postgres://", "postgresql://", "postgresql+asyncpg://")):
+            raise ValueError("DATABASE_URL deve apontar para o PostgreSQL do Supabase")
+        if not self.SUPABASE_URL.startswith("https://") or ".supabase.co" not in self.SUPABASE_URL:
+            raise ValueError("SUPABASE_URL invalida")
+        if not self.SUPABASE_PUBLISHABLE_KEY.startswith("sb_publishable_"):
+            raise ValueError("SUPABASE_PUBLISHABLE_KEY invalida")
+        if not self.SUPABASE_SECRET_KEY.startswith("sb_secret_"):
+            raise ValueError("SUPABASE_SECRET_KEY invalida")
+
         if provider == "fake" and environment != "test":
             raise ValueError("FACE_PROVIDER=fake so pode ser usado com ENVIRONMENT=test")
         if environment in {"staging", "production"} and provider != "insightface":

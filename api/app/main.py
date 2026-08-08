@@ -15,10 +15,8 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
-from app.db.session import AsyncSessionLocal, database_url, engine
-from app.models.entities import Base
+from app.db.session import engine
 from app.services.ai.facial_service import get_face_provider
-from app.services.auth import AuthService
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +24,6 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
-    serverless_sqlite = bool(os.getenv("VERCEL")) and database_url.startswith("sqlite")
-    if settings.AUTO_CREATE_TABLES or serverless_sqlite:
-        logger.warning("AUTO_CREATE_TABLES ativo em development; use Alembic como fluxo principal")
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
-    if serverless_sqlite:
-        async with AsyncSessionLocal() as session:
-            await AuthService(session).ensure_default_admin()
     app.state.face_provider = get_face_provider()
     if settings.FACE_EAGER_INITIALIZE and not os.getenv("VERCEL"):
         await asyncio.to_thread(app.state.face_provider.initialize)

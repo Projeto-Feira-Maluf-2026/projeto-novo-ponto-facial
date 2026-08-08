@@ -3,7 +3,6 @@ from datetime import date, datetime, time
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.models.entities import AttendanceRecord, CaptureDevice, Employee, SuspiciousAttempt, Worksite
 from app.models.enums import AttendanceStatus, EmployeeStatus
 from app.schemas.dashboard import DashboardMetrics
@@ -44,11 +43,7 @@ class DashboardService:
         )
         by_worksite = [{"name": name, "records": count} for name, count in by_worksite_rows.all()]
 
-        hour_bucket = (
-            func.strftime("%Y-%m-%d %H:00:00", AttendanceRecord.occurred_at)
-            if settings.DATABASE_URL.startswith("sqlite")
-            else func.date_trunc("hour", AttendanceRecord.occurred_at)
-        )
+        hour_bucket = func.date_trunc("hour", AttendanceRecord.occurred_at)
         timeline_rows = await self.session.execute(
             select(hour_bucket, func.count(AttendanceRecord.id))
             .where(AttendanceRecord.occurred_at.between(start, end))

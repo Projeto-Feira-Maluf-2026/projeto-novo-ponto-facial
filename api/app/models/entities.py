@@ -27,7 +27,6 @@ from app.models.enums import (
     EnrollmentState,
     FraudType,
     PunchType,
-    UserRole,
 )
 
 
@@ -47,32 +46,6 @@ class TimestampMixin:
         onupdate=datetime.utcnow,
         nullable=False,
     )
-
-
-class User(Base, TimestampMixin):
-    __tablename__ = "users"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    name: Mapped[str] = mapped_column(String(160), nullable=False)
-    email: Mapped[str] = mapped_column(String(190), unique=True, nullable=False, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False, default=UserRole.SUPERVISOR)
-    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user")
-
-
-class RefreshToken(Base, TimestampMixin):
-    __tablename__ = "refresh_tokens"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
-    device_label: Mapped[str | None] = mapped_column(String(120))
-
-    user: Mapped[User] = relationship(back_populates="refresh_tokens")
 
 
 class Department(Base, TimestampMixin):
@@ -305,7 +278,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    actor_user_id: Mapped[str | None] = mapped_column(String(36))
     action: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     entity: Mapped[str | None] = mapped_column(String(80))
     entity_id: Mapped[str | None] = mapped_column(String(36))

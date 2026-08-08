@@ -8,6 +8,11 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:test@db.example.supabase.co:5432/postgres
+      SUPABASE_URL: https://example.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
+      SUPABASE_SECRET_KEY: sb_secret_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,8 +27,6 @@ jobs:
         run: |
           cd api
           ruff check .
-          DATABASE_URL=sqlite+aiosqlite:///./ci.db python -m app.db.migrate
-          DATABASE_URL=sqlite+aiosqlite:///./ci.db alembic check
           pytest
 
   web:

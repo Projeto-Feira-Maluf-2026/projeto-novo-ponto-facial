@@ -12,10 +12,11 @@ import {
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { apiClient } from '../services/api';
+import { useAuth } from '../auth/AuthContext';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -28,7 +29,7 @@ export function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await apiClient.login(email.trim(), password);
+      await signIn(email.trim(), password);
       navigate('/');
     } catch {
       setError('E-mail ou senha incorretos. Verifique os dados e tente novamente.');

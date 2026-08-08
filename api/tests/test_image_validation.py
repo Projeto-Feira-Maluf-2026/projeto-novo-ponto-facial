@@ -19,9 +19,12 @@ from app.services.ai.image_validation import FaceImageValidator, FaceQualityReas
 def make_test_settings(**overrides) -> Settings:
     values = {
         "_env_file": None,
+        "DATABASE_URL": "postgresql://postgres:test@db.example.supabase.co:5432/postgres",
+        "SUPABASE_URL": "https://example.supabase.co",
+        "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_test",
+        "SUPABASE_SECRET_KEY": "sb_secret_test",
         "ENVIRONMENT": "test",
         "FACE_PROVIDER": "fake",
-        "AUTO_CREATE_TABLES": False,
         "FACE_MIN_BLUR_VARIANCE": 1.0,
         "FACE_MIN_CONTRAST": 1.0,
         "FACE_MIN_QUALITY": 0.1,

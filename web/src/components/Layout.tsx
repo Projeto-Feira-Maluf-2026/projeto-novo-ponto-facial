@@ -4,6 +4,7 @@ import {
   Camera,
   ClipboardList,
   HardDrive,
+  LogOut,
   Moon,
   ShieldCheck,
   Sun,
@@ -57,6 +58,7 @@ const pageCopy: Record<string, { title: string; description: string }> = {
 
 interface LayoutProps {
   dark: boolean;
+  onLogout: () => Promise<void>;
   onToggleTheme: () => void;
   children: React.ReactNode;
 }
@@ -66,7 +68,7 @@ function isActivePath(pathname: string, target: string) {
   return pathname.startsWith(target);
 }
 
-export function Layout({ dark, onToggleTheme, children }: LayoutProps) {
+export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps) {
   const location = useLocation();
   const current = pageCopy[location.pathname] ?? pageCopy['/'];
   const isTerminal = location.pathname === '/terminal-facial';
@@ -124,6 +126,10 @@ export function Layout({ dark, onToggleTheme, children }: LayoutProps) {
           <button onClick={onToggleTheme} className="sidebar-theme" type="button">
             {dark ? <Sun size={17} /> : <Moon size={17} />}
             {dark ? 'Usar tema claro' : 'Usar tema escuro'}
+          </button>
+          <button onClick={() => void onLogout()} className="sidebar-theme" type="button">
+            <LogOut size={17} />
+            Sair
           </button>
         </div>
       </aside>

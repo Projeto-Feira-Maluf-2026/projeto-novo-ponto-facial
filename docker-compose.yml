@@ -1,21 +1,4 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: ponto-postgres
-    environment:
-      POSTGRES_USER: ponto
-      POSTGRES_PASSWORD: ponto
-      POSTGRES_DB: ponto_facial
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ponto -d ponto_facial"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     container_name: ponto-redis
@@ -35,17 +18,16 @@ services:
       context: ./api
     container_name: ponto-api
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+asyncpg://ponto:ponto@postgres:5432/ponto_facial
+      DATABASE_URL: ${DATABASE_URL:?Configure DATABASE_URL do Supabase no .env}
+      SUPABASE_URL: ${SUPABASE_URL:?Configure SUPABASE_URL no .env}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Configure SUPABASE_PUBLISHABLE_KEY no .env}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?Configure SUPABASE_SECRET_KEY no .env}
       REDIS_URL: redis://redis:6379/0
       REDIS_REQUIRED: "true"
-      AUTO_CREATE_TABLES: "false"
-      JWT_SECRET_KEY: troque-em-producao
       PASSWORD_PEPPER: troque-em-producao
       CORS_ORIGINS: http://localhost:5174,http://localhost:8080
       FACE_PROVIDER: insightface
@@ -75,6 +57,5 @@ services:
       - "8080:80"
 
 volumes:
-  postgres-data:
   redis-data:
   api-uploads:

@@ -30,10 +30,6 @@ if (!(Test-Path $VenvPython)) {
 Push-Location $Api
 & $VenvPython -m pip install -U pip
 & $VenvPython -m pip install -e ".[dev]"
-& $VenvPython -m app.db.migrate
-if ($LASTEXITCODE -ne 0) {
-  throw "Falha ao aplicar migrations do backend."
-}
 Pop-Location
 
 Write-Host "Instalando frontend..." -ForegroundColor Yellow

@@ -9,7 +9,8 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.permissions import Scope
 from app.db.session import get_session
-from app.models.entities import Employee, User
+from app.models.entities import Employee
+from app.schemas.auth import UserRead
 from app.schemas.common import Page
 from app.schemas.employees import (
     EmployeeCreate,
@@ -36,7 +37,7 @@ async def list_employees(
     search: str | None = None,
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_READ)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_READ)),
     session: AsyncSession = Depends(get_session),
 ) -> Page[EmployeeRead]:
     items, total = await EmployeeService(session).list(search=search, page=page, size=size)
@@ -46,7 +47,7 @@ async def list_employees(
 @router.post("", response_model=EmployeeRead, status_code=status.HTTP_201_CREATED)
 async def create_employee(
     payload: EmployeeCreate,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EmployeeRead:
     try:
@@ -59,7 +60,7 @@ async def create_employee(
 @router.get("/{employee_id}", response_model=EmployeeRead)
 async def get_employee(
     employee_id: str,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_READ)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_READ)),
     session: AsyncSession = Depends(get_session),
 ) -> EmployeeRead:
     employee = await session.get(Employee, employee_id)
@@ -72,7 +73,7 @@ async def get_employee(
 async def update_employee(
     employee_id: str,
     payload: EmployeeUpdate,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EmployeeRead:
     try:
@@ -85,7 +86,7 @@ async def update_employee(
 @router.delete("/{employee_id}", status_code=204)
 async def delete_employee(
     employee_id: str,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     try:
@@ -98,7 +99,7 @@ async def delete_employee(
 async def deprecated_enroll_faces(
     employee_id: str,
     _: FaceEnrollmentRequest,
-    __: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    __: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
 ) -> None:
     raise AppError(
         "ENROLLMENT_SESSION_REQUIRED",
@@ -115,7 +116,7 @@ async def deprecated_enroll_faces(
 )
 async def start_face_enrollment(
     employee_id: str,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentSessionResponse:
     return await FaceEnrollmentService(session).start(employee_id)
@@ -129,7 +130,7 @@ async def validate_face_enrollment_capture(
     employee_id: str,
     enrollment_id: str,
     payload: EnrollmentCaptureRequest,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentCaptureResponse:
     return await FaceEnrollmentService(session).validate_capture(
@@ -147,7 +148,7 @@ async def finalize_face_enrollment(
     employee_id: str,
     enrollment_id: str,
     payload: EnrollmentFinalizeRequest,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentFinalizeResponse:
     return await FaceEnrollmentService(session).finalize(
@@ -164,7 +165,7 @@ async def finalize_face_enrollment(
 async def cancel_face_enrollment(
     employee_id: str,
     enrollment_id: str,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentCancelResponse:
     return await FaceEnrollmentService(session).cancel(employee_id, enrollment_id)
@@ -174,7 +175,7 @@ async def cancel_face_enrollment(
 async def upload_employee_photo(
     employee_id: str,
     file: UploadFile = File(...),
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EmployeeRead:
     if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:

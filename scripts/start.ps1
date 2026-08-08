@@ -59,14 +59,6 @@ if (!(Test-Path $ViteCommand)) {
   throw "O frontend nao esta pronto. Execute 'npm run setup' e consulte os erros exibidos."
 }
 
-Push-Location $Api
-& $VenvPython -m app.db.migrate
-$MigrationExitCode = $LASTEXITCODE
-Pop-Location
-if ($MigrationExitCode -ne 0) {
-  throw "Falha ao aplicar migrations. O servico nao sera iniciado."
-}
-
 $NpmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if ($null -eq $NpmCommand) {
   $NpmCommand = Get-Command npm -ErrorAction Stop
@@ -106,13 +98,6 @@ try {
   throw
 }
 
-try {
-  Invoke-WebRequest -Uri "http://localhost:8000/api/v1/auth/bootstrap-admin" -Method POST -UseBasicParsing | Out-Null
-} catch {
-  Write-Host "Admin demo ja existe ou nao pode ser criado automaticamente." -ForegroundColor DarkYellow
-}
-
 Write-Host "Sistema iniciado. Abra http://localhost:5174/login" -ForegroundColor Green
 Write-Host "Swagger: http://localhost:8000/docs" -ForegroundColor Green
-Write-Host "Login: admin@curitibaempreiteira.com / Admin@12345" -ForegroundColor Green
 Write-Host "Para encerrar tudo: npm run stop" -ForegroundColor Cyan

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_scopes
 from app.core.permissions import Scope
 from app.db.session import get_session
-from app.models.entities import User
+from app.schemas.auth import UserRead
 from app.schemas.attendance import AttendanceDecision, AttendanceRead, PunchCreate
 from app.services.attendance import AttendanceService
 
@@ -16,7 +16,7 @@ router = APIRouter()
 @router.post("/punch", response_model=AttendanceDecision)
 async def punch(
     payload: PunchCreate,
-    _: User = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> AttendanceDecision:
     try:
@@ -31,9 +31,8 @@ async def history(
     worksite_id: str | None = None,
     starts_at: datetime | None = Query(default=None),
     ends_at: datetime | None = Query(default=None),
-    _: User = Depends(require_scopes(Scope.ATTENDANCE_READ)),
+    _: UserRead = Depends(require_scopes(Scope.ATTENDANCE_READ)),
     session: AsyncSession = Depends(get_session),
 ) -> list[AttendanceRead]:
     records = await AttendanceService(session).history(employee_id, worksite_id, starts_at, ends_at)
     return [AttendanceRead.model_validate(record) for record in records]
-

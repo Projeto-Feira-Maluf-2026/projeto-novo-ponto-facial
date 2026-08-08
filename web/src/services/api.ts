@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+import { supabase } from './supabase';
+
 import type {
   AttendanceDecision,
   CameraConfig,
@@ -25,13 +27,24 @@ const api = axios.create({
 
 const enableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
+api.interceptors.request.use(async (config) => {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      await supabase.auth.signOut({ scope: 'local' });
+    }
+    return Promise.reject(error);
+  },
+);
 
 const fallbackMetrics: DashboardMetrics = {
   total_employees: 1264,
@@ -147,12 +160,6 @@ export interface PunchPayload {
 }
 
 export const apiClient = {
-  login: async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password, device_label: 'web-admin' });
-    localStorage.setItem('access_token', response.data.access_token);
-    localStorage.setItem('refresh_token', response.data.refresh_token);
-    return response.data;
-  },
   dashboard: () => fallback(api.get<DashboardMetrics>('/dashboard'), fallbackMetrics),
   employees: () => fallback(api.get<Page<Employee>>('/employees?size=20'), fallbackEmployees),
   worksites: () => fallback(api.get<Page<Worksite>>('/worksites?size=20'), fallbackWorksites),

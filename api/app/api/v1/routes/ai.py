@@ -9,7 +9,8 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.permissions import Scope
 from app.db.session import get_session
-from app.models.entities import Employee, EmployeeWorksite, FaceTemplate, User
+from app.models.entities import Employee, EmployeeWorksite, FaceTemplate
+from app.schemas.auth import UserRead
 from app.models.enums import EmployeeStatus
 from app.schemas.ai import (
     FaceAnalyzeRequest,
@@ -152,7 +153,7 @@ async def analyze_face(payload: FaceAnalyzeRequest, request: Request) -> FaceAna
 async def identify_face(
     payload: FaceIdentifyRequest,
     request: Request,
-    _: User = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> FaceIdentifyResponse:
     processed = FaceEmbeddingService().from_image_base64(payload.image_base64)
@@ -261,7 +262,7 @@ async def identify_face(
 async def verify_face(
     payload: FaceVerifyRequest,
     request: Request,
-    _: User = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> FaceVerifyResponse:
     employee = await session.get(Employee, payload.employee_id)
@@ -341,7 +342,7 @@ async def verify_face(
 
 @router.get("/template-versions", response_model=list[FaceTemplateVersionResponse])
 async def list_template_versions(
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_READ)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_READ)),
     session: AsyncSession = Depends(get_session),
 ) -> list[FaceTemplateVersionResponse]:
     statement = (
@@ -392,7 +393,7 @@ async def list_template_versions(
 )
 async def invalidate_template_version(
     payload: FaceTemplateVersionInvalidateRequest,
-    _: User = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> FaceTemplateVersionInvalidateResponse:
     conditions = (

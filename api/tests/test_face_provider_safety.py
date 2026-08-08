@@ -20,33 +20,31 @@ from app.services.ai.insightface_provider import (
 )
 
 
+SUPABASE_SETTINGS = {
+    "DATABASE_URL": "postgresql://postgres:test@db.example.supabase.co:5432/postgres",
+    "SUPABASE_URL": "https://example.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_test",
+    "SUPABASE_SECRET_KEY": "sb_secret_test",
+}
+
+
 def test_fake_provider_is_blocked_outside_tests() -> None:
     with pytest.raises(ValidationError, match="FACE_PROVIDER=fake"):
         Settings(
             _env_file=None,
+            **SUPABASE_SETTINGS,
             ENVIRONMENT="production",
             FACE_PROVIDER="fake",
-            AUTO_CREATE_TABLES=False,
-        )
-
-
-def test_auto_create_tables_is_blocked_outside_development() -> None:
-    with pytest.raises(ValidationError, match="AUTO_CREATE_TABLES"):
-        Settings(
-            _env_file=None,
-            ENVIRONMENT="staging",
-            FACE_PROVIDER="insightface",
-            AUTO_CREATE_TABLES=True,
         )
 
 
 def test_detection_sizes_are_parsed_as_ordered_square_scales() -> None:
     config = Settings(
         _env_file=None,
+        **SUPABASE_SETTINGS,
         ENVIRONMENT="test",
         FACE_PROVIDER="fake",
         FACE_DETECTION_SIZES="320, 640,1280",
-        AUTO_CREATE_TABLES=False,
     )
 
     assert config.face_detection_sizes == [
@@ -60,10 +58,10 @@ def test_detection_sizes_reject_unsafe_values() -> None:
     with pytest.raises(ValidationError, match="FACE_DETECTION_SIZES"):
         Settings(
             _env_file=None,
+            **SUPABASE_SETTINGS,
             ENVIRONMENT="test",
             FACE_PROVIDER="fake",
             FACE_DETECTION_SIZES="96,1920",
-            AUTO_CREATE_TABLES=False,
         )
 
 
@@ -71,11 +69,11 @@ def test_secondary_face_threshold_cannot_be_lower_than_detector_floor() -> None:
     with pytest.raises(ValidationError, match="Thresholds de deteccao facial"):
         Settings(
             _env_file=None,
+            **SUPABASE_SETTINGS,
             ENVIRONMENT="test",
             FACE_PROVIDER="fake",
             FACE_MIN_DETECTION_CONFIDENCE=0.50,
             FACE_SECONDARY_FACE_CONFIDENCE=0.40,
-            AUTO_CREATE_TABLES=False,
         )
 
 
@@ -146,10 +144,10 @@ def test_fake_provider_is_explicitly_marked_as_not_real() -> None:
 def test_production_operations_are_blocked_without_calibrated_thresholds() -> None:
     config = Settings(
         _env_file=None,
+        **SUPABASE_SETTINGS,
         ENVIRONMENT="production",
         FACE_PROVIDER="insightface",
         FACE_THRESHOLDS_CALIBRATED=False,
-        AUTO_CREATE_TABLES=False,
     )
     service = FaceEmbeddingService(
         FakeFaceProvider(),

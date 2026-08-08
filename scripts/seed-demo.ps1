@@ -1,16 +1,28 @@
 $ErrorActionPreference = "Stop"
 
+$Root = Split-Path -Parent $PSScriptRoot
 $Base = "http://localhost:8000/api/v1"
+$Values = @{}
+Get-Content (Join-Path $Root ".env") | ForEach-Object {
+  if ($_ -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+    $Values[$Matches[1]] = $Matches[2]
+  }
+}
 
-Invoke-WebRequest -Uri "$Base/auth/bootstrap-admin" -Method POST -UseBasicParsing | Out-Null
+& (Join-Path $PSScriptRoot "bootstrap-admin.ps1")
 
 $loginBody = @{
-  email = "admin@curitibaempreiteira.com"
-  password = "Admin@12345"
-  device_label = "seed-demo"
+  email = $Values["INITIAL_ADMIN_EMAIL"]
+  password = $Values["INITIAL_ADMIN_PASSWORD"]
 } | ConvertTo-Json
 
-$token = (Invoke-RestMethod -Uri "$Base/auth/login" -Method POST -Body $loginBody -ContentType "application/json").access_token
+$AuthBase = $Values["SUPABASE_URL"].TrimEnd("/")
+$token = (Invoke-RestMethod `
+  -Uri "$AuthBase/auth/v1/token?grant_type=password" `
+  -Method Post `
+  -Headers @{ apikey = $Values["SUPABASE_PUBLISHABLE_KEY"] } `
+  -Body $loginBody `
+  -ContentType "application/json").access_token
 $headers = @{ Authorization = "Bearer $token" }
 
 $worksiteBody = @{

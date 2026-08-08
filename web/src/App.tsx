@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
+import { useAuth } from './auth/AuthContext';
 import { Layout } from './components/Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { DevicesPage } from './pages/DevicesPage';
@@ -11,6 +12,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { WorksitesPage } from './pages/WorksitesPage';
 
 export default function App() {
+  const { loading, session, signOut } = useAuth();
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
 
   useEffect(() => {
@@ -18,13 +20,21 @@ export default function App() {
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
+  if (loading) {
+    return <main className="login-page" aria-label="Carregando sessao" />;
+  }
+
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={session ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route
         path="/*"
         element={
-          <Layout dark={dark} onToggleTheme={() => setDark((value) => !value)}>
+          session ? <Layout
+            dark={dark}
+            onLogout={signOut}
+            onToggleTheme={() => setDark((value) => !value)}
+          >
             <Routes>
               <Route index element={<DashboardPage />} />
               <Route path="funcionarios" element={<EmployeesPage />} />
@@ -34,10 +44,9 @@ export default function App() {
               <Route path="relatorios" element={<ReportsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-          </Layout>
+          </Layout> : <Navigate to="/login" replace />
         }
       />
     </Routes>
   );
 }
-
