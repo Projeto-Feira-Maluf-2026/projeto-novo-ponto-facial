@@ -99,5 +99,5 @@ try {
 }
 
 Write-Host "Sistema iniciado. Abra http://localhost:5174/login" -ForegroundColor Green
-Write-Host "Swagger: http://localhost:8000/docs" -ForegroundColor Green
+Write-Host "Swagger: http://localhost:8000/api/docs" -ForegroundColor Green
 Write-Host "Para encerrar tudo: npm run stop" -ForegroundColor Cyan

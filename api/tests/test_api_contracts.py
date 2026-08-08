@@ -9,6 +9,17 @@ from app.schemas.enrollment import EnrollmentCaptureRequest
 from app.services.ai.facial_service import get_face_provider
 
 
+@pytest.mark.asyncio
+async def test_vercel_api_prefix_reaches_fastapi() -> None:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        health = await client.get("/api/health/live")
+        protected = await client.get("/api/v1/dashboard")
+
+    assert health.status_code == 200
+    assert protected.status_code == 401
+
+
 def test_identification_and_verification_contracts_are_separate() -> None:
     with pytest.raises(ValidationError):
         FaceIdentifyRequest(image_base64="data:image/jpeg;base64,abc", employee_id="employee-1")

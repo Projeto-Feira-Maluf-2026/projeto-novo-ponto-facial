@@ -7,12 +7,46 @@ import type { DashboardMetrics } from '../types/domain';
 
 export function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    apiClient.dashboard().then(setMetrics);
-    const timer = window.setInterval(() => apiClient.dashboard().then(setMetrics), 20_000);
-    return () => window.clearInterval(timer);
+    let active = true;
+    const load = async () => {
+      try {
+        const nextMetrics = await apiClient.dashboard();
+        if (!active) return;
+        setMetrics(nextMetrics);
+        setError(false);
+      } catch {
+        if (active) setError(true);
+      }
+    };
+
+    void load();
+    const timer = window.setInterval(() => void load(), 20_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
+
+  if (error && !metrics) {
+    return (
+      <div className="app-card p-6" role="alert">
+        <h2 className="text-base font-semibold">Nao foi possivel carregar o dashboard</h2>
+        <p className="mt-2 text-sm text-steel dark:text-slate-400">
+          A API nao respondeu corretamente. Aguarde o novo deploy e tente novamente.
+        </p>
+        <button
+          className="mt-4 rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+          type="button"
+          onClick={() => window.location.reload()}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   if (!metrics) {
     return (

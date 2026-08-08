@@ -35,6 +35,8 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.APP_VERSION,
     description="Controle corporativo de ponto com reconhecimento facial e geofencing.",
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
 
@@ -126,4 +128,5 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(health_router, prefix="/api")
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)

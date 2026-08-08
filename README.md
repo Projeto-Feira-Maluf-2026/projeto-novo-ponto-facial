@@ -49,7 +49,7 @@ Abra:
 
 - Web: `http://localhost:5174/login`
 - API: `http://localhost:8000`
-- Swagger: `http://localhost:8000/docs`
+- Swagger: `http://localhost:8000/api/docs`
 
 ## Comandos
 
