@@ -37,10 +37,16 @@ api.interceptors.request.use(async (config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const contentType = String(response.headers['content-type'] ?? '');
+    if (contentType.includes('text/html')) {
+      return Promise.reject(new Error('API_ROUTE_RETURNED_HTML'));
+    }
+    return response;
+  },
   async (error) => {
     if (error.response?.status === 401) {
-      await supabase.auth.signOut({ scope: 'local' });
+      void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
     }
     return Promise.reject(error);
   },

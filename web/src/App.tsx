@@ -21,7 +21,16 @@ export default function App() {
   }, [dark]);
 
   if (loading) {
-    return <main className="login-page" aria-label="Carregando sessao" />;
+    return (
+      <main className="login-page" aria-label="Carregando sessão">
+        <section className="auth-loading-card" role="status" aria-live="polite">
+          <div className="auth-loading-mark">CE</div>
+          <div className="auth-loading-spinner" aria-hidden="true" />
+          <h1>Preparando seu acesso</h1>
+          <p>Validando a sessão com segurança.</p>
+        </section>
+      </main>
+    );
   }
 
   return (

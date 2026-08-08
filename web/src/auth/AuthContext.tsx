@@ -12,6 +12,33 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const AUTH_REQUEST_TIMEOUT_MS = 10_000;
+const ALLOWED_ROLES = new Set([
+  'SUPER_ADMIN',
+  'RH',
+  'GESTOR_OBRA',
+  'SUPERVISOR',
+  'FUNCIONARIO',
+]);
+
+function hasAccessProfile(user: User | null): boolean {
+  const role = user?.app_metadata?.role;
+  return typeof role === 'string' && ALLOWED_ROLES.has(role);
+}
+
+function withTimeout<T>(operation: PromiseLike<T>, timeoutMs = AUTH_REQUEST_TIMEOUT_MS): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(
+      () => reject(new Error('AUTH_REQUEST_TIMEOUT')),
+      timeoutMs,
+    );
+  });
+
+  return Promise.race([Promise.resolve(operation), timeout]).finally(() => {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  });
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -20,29 +47,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
 
-    void supabase.auth.getSession().then(async ({ data, error: sessionError }) => {
-      if (!active) return;
-      if (sessionError || !data.session) {
-        setSession(null);
-        setLoading(false);
-        return;
-      }
-
-      const { data: verified, error } = await supabase.auth.getUser();
-      if (!active) return;
-      if (error || !verified.user) {
-        await supabase.auth.signOut({ scope: 'local' });
+    const initialize = async () => {
+      try {
+        const { data, error: sessionError } = await withTimeout(supabase.auth.getSession());
         if (!active) return;
-        setSession(null);
-      } else {
-        setSession(data.session);
+        if (sessionError || !data.session) {
+          setSession(null);
+          return;
+        }
+
+        const { data: verified, error } = await withTimeout(supabase.auth.getUser());
+        if (!active) return;
+        if (error || !verified.user || !hasAccessProfile(verified.user)) {
+          await supabase.auth.signOut({ scope: 'local' });
+          if (!active) return;
+          setSession(null);
+        } else {
+          setSession(data.session);
+        }
+      } catch {
+        if (!active) return;
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        if (active) setSession(null);
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
-    }).catch(() => {
-      if (!active) return;
-      setSession(null);
-      setLoading(false);
-    });
+    };
+
+    void initialize();
 
     const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
@@ -64,12 +96,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     user: session?.user ?? null,
     signIn: async (email: string, password: string) => {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+      );
       if (error) throw error;
+      if (!data.session) throw new Error('AUTH_SESSION_NOT_CREATED');
+      if (!hasAccessProfile(data.user)) {
+        await supabase.auth.signOut({ scope: 'local' });
+        throw new Error('AUTH_PROFILE_MISSING');
+      }
+      setSession(data.session);
+      setLoading(false);
     },
     signOut: async () => {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      try {
+        const { error } = await withTimeout(supabase.auth.signOut({ scope: 'local' }));
+        if (error) throw error;
+      } finally {
+        setSession(null);
+        setLoading(false);
+      }
     },
   }), [loading, session]);
 

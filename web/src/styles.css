@@ -179,6 +179,12 @@ textarea::placeholder {
   }
 }
 
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @layer components {
   .app-view-transition,
   .page-motion {
@@ -1026,6 +1032,72 @@ textarea::placeholder {
     border-radius: 26px;
     background: #fff;
     box-shadow: 0 28px 70px rgb(15 23 42 / 0.13);
+  }
+
+  .auth-loading-card,
+  .app-fatal-error {
+    display: flex;
+    width: min(420px, 100%);
+    min-height: 320px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    border: 1px solid rgb(15 23 42 / 0.08);
+    border-radius: 24px;
+    background: #fff;
+    box-shadow: 0 24px 60px rgb(15 23 42 / 0.12);
+    padding: 36px;
+    text-align: center;
+  }
+
+  .auth-loading-mark {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    border-radius: 14px;
+    background: #121a24;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 750;
+    letter-spacing: 0.03em;
+  }
+
+  .auth-loading-spinner {
+    width: 28px;
+    height: 28px;
+    margin-top: 28px;
+    border: 3px solid #dbe6e2;
+    border-top-color: #17745a;
+    border-radius: 50%;
+    animation: auth-spin 700ms linear infinite;
+  }
+
+  .auth-loading-card h1,
+  .app-fatal-error h1 {
+    margin: 22px 0 0;
+    color: #111827;
+    font-size: 1.35rem;
+    font-weight: 680;
+    letter-spacing: -0.025em;
+  }
+
+  .auth-loading-card p,
+  .app-fatal-error p {
+    margin: 8px 0 0;
+    color: #6b7280;
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+
+  .app-fatal-error button {
+    margin-top: 24px;
+    border-radius: 12px;
+    background: #17745a;
+    color: #fff;
+    padding: 11px 18px;
+    font-size: 0.82rem;
+    font-weight: 680;
   }
 
   .login-context {
