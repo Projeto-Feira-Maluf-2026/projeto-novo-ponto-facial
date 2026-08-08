@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scopes
+from app.core.errors import AppError
 from app.core.permissions import Scope
+from app.core.runtime import is_lightweight_serverless
 from app.db.session import get_session
 from app.schemas.auth import UserRead
 from app.schemas.attendance import AttendanceDecision, AttendanceRead, PunchCreate
@@ -19,6 +21,12 @@ async def punch(
     _: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> AttendanceDecision:
+    if is_lightweight_serverless():
+        raise AppError(
+            "FACE_RUNTIME_NOT_INSTALLED",
+            "Batida biometrica exige o backend de IA em container",
+            503,
+        )
     try:
         return await AttendanceService(session).register_punch(payload)
     except LookupError as exc:

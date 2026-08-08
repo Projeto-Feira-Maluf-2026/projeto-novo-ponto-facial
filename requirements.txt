@@ -8,9 +8,6 @@ passlib[bcrypt]>=1.7.4
 bcrypt<5
 cryptography>=42.0.0
 redis>=5.0.0
-numpy>=1.26.0
-pillow>=10.3.0
-opencv-python-headless>=4.9.0.80
 openpyxl>=3.1.0
 reportlab>=4.2.0
 email-validator>=2.1.0

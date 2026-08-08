@@ -1,6 +1,12 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import ai, alerts, attendance, auth, dashboard, devices, employees, reports, worksites
+from app.api.v1.routes import alerts, attendance, auth, dashboard, devices, employees, reports, worksites
+from app.core.runtime import is_lightweight_serverless
+
+if is_lightweight_serverless():
+    from app.api.v1.routes import ai_lite as ai
+else:
+    from app.api.v1.routes import ai
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])

@@ -23,8 +23,9 @@ variavel `VITE_*`.
 ## Dependencias de reconhecimento facial
 
 O `requirements.txt` da raiz contem apenas as dependencias do runtime serverless da
-Vercel. `insightface` e `onnxruntime` ficam no extra `ai` de `api/pyproject.toml`, pois a
-cadeia transitiva dessas bibliotecas ultrapassa o limite padrao do bundle Python.
+Vercel. `numpy`, `pillow`, `opencv-python-headless`, `insightface` e `onnxruntime` ficam
+fora desse manifesto, pois a cadeia de processamento facial ultrapassa o limite do bundle
+Python. Essas dependencias permanecem no `api/pyproject.toml`.
 O servidor Uvicorn e o SDK Python da Vercel tambem nao fazem parte desse manifesto, pois
 a Function ASGI nao importa nenhum deles.
 
@@ -32,3 +33,8 @@ O setup local e a imagem Docker ja instalam `.[ai]`. Para executar inferencia fa
 producao, use o container da API com os modelos montados em `FACE_MODEL_ROOT`, ou habilite
 Large Functions no projeto da Vercel e adapte o provisionamento dos modelos. A Vercel nao
 recebe os binarios em `models/` neste deploy.
+
+Na Function serverless leve, autenticacao, cadastros, dashboard, relatorios, dispositivos
+e consultas continuam disponiveis. Inferencia, matricula facial e batida biometrica
+respondem `503 FACE_RUNTIME_NOT_INSTALLED`; `/api/v1/ai/capabilities` descreve essa
+limitacao sem tentar importar as bibliotecas nativas.

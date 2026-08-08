@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -15,8 +14,8 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
+from app.core.runtime import is_lightweight_serverless
 from app.db.session import engine
-from app.services.ai.facial_service import get_face_provider
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +23,13 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
-    app.state.face_provider = get_face_provider()
-    if settings.FACE_EAGER_INITIALIZE and not os.getenv("VERCEL"):
-        await asyncio.to_thread(app.state.face_provider.initialize)
+    app.state.face_provider = None
+    if not is_lightweight_serverless():
+        from app.services.ai.facial_service import get_face_provider
+
+        app.state.face_provider = get_face_provider()
+        if settings.FACE_EAGER_INITIALIZE:
+            await asyncio.to_thread(app.state.face_provider.initialize)
     yield
     await engine.dispose()
 

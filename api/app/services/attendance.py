@@ -13,14 +13,6 @@ from app.models.entities import (
 )
 from app.models.enums import AlertSeverity, AttendanceStatus, FraudType, PunchType
 from app.schemas.attendance import AttendanceDecision, AttendanceRead, PunchCreate
-from app.services.ai.facial_service import (
-    FaceEmbeddingService,
-    TemplateCandidate,
-    face_match_confidence_score,
-    face_match_margin,
-    is_face_match_ambiguous,
-    rank_identity_candidates,
-)
 from app.services.geofencing import is_inside_geofence
 
 
@@ -47,12 +39,21 @@ class AttendanceService:
     def __init__(
         self,
         session: AsyncSession,
-        face_embeddings: FaceEmbeddingService | None = None,
+        face_embeddings=None,
     ) -> None:
         self.session = session
-        self.face_embeddings = face_embeddings or FaceEmbeddingService()
+        self.face_embeddings = face_embeddings
+
+    def _face_embeddings(self):
+        if self.face_embeddings is None:
+            from app.services.ai.facial_service import FaceEmbeddingService
+
+            self.face_embeddings = FaceEmbeddingService()
+        return self.face_embeddings
 
     async def register_punch(self, payload: PunchCreate) -> AttendanceDecision:
+        from app.services.ai.facial_service import face_match_margin
+
         worksite = await self.session.get(Worksite, payload.worksite_id)
         if not worksite or not worksite.active:
             raise LookupError("Obra nao encontrada ou inativa")
@@ -60,7 +61,7 @@ class AttendanceService:
         quality_score = max(0.0, float(payload.face.quality_score or 0.0))
         vectors: list[tuple[list[float], float]] = []
         if payload.face.image_base64:
-            processed = self.face_embeddings.from_image_base64(payload.face.image_base64)
+            processed = self._face_embeddings().from_image_base64(payload.face.image_base64)
             if processed.quality.accepted and processed.inference.embedding is not None:
                 quality_score = processed.quality.quality_score
                 vectors.append(
@@ -263,7 +264,14 @@ class AttendanceService:
         vectors: list[tuple[list[float], float]],
         employee_id: str | None,
     ) -> tuple[Employee | None, float, float | None, float, str | None]:
-        provider_info = self.face_embeddings.provider.info()
+        from app.services.ai.facial_service import (
+            TemplateCandidate,
+            face_match_confidence_score,
+            is_face_match_ambiguous,
+            rank_identity_candidates,
+        )
+
+        provider_info = self._face_embeddings().provider.info()
         statement = select(FaceTemplate).where(
             FaceTemplate.active.is_(True),
             FaceTemplate.model_name == provider_info.model_name,

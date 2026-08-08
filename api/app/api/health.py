@@ -7,9 +7,8 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.core.runtime import is_lightweight_serverless
 from app.db.session import engine
-from app.services.ai.base import FaceProviderState
-from app.services.ai.facial_service import get_face_provider
 
 router = APIRouter(tags=["health"])
 
@@ -42,8 +41,54 @@ async def _redis_health() -> dict[str, Any]:
 
 async def health_snapshot() -> dict[str, Any]:
     database, redis_health = await asyncio.gather(_database_health(), _redis_health())
-    provider = get_face_provider().info()
-    face_ready = provider.state == FaceProviderState.READY and provider.is_real_model
+    if is_lightweight_serverless():
+        face_ready = False
+        face_provider = {
+            "healthy": False,
+            "state": "RUNTIME_NOT_INSTALLED",
+            "provider": settings.FACE_PROVIDER,
+            "real_model": False,
+            "model_name": None,
+            "model_version": None,
+            "detector_name": None,
+            "normalization_version": None,
+            "execution_provider": None,
+            "embedding_dimension": None,
+            "warmup_ms": None,
+            "failure": {
+                "code": "RUNTIME_NOT_INSTALLED",
+                "message": "Runtime facial nao faz parte da Function serverless leve",
+                "details": {"deployment": "vercel"},
+            },
+        }
+    else:
+        from app.services.ai.base import FaceProviderState
+        from app.services.ai.facial_service import get_face_provider
+
+        provider = get_face_provider().info()
+        face_ready = provider.state == FaceProviderState.READY and provider.is_real_model
+        face_provider = {
+            "healthy": face_ready,
+            "state": provider.state.value,
+            "provider": provider.provider_name,
+            "real_model": provider.is_real_model,
+            "model_name": provider.model_name,
+            "model_version": provider.model_version,
+            "detector_name": provider.detector_name,
+            "normalization_version": provider.normalization_version,
+            "execution_provider": provider.execution_provider,
+            "embedding_dimension": provider.embedding_dimension,
+            "warmup_ms": provider.warmup_ms,
+            "failure": (
+                {
+                    "code": provider.failure.code.value,
+                    "message": provider.failure.message,
+                    "details": provider.failure.details,
+                }
+                if provider.failure
+                else None
+            ),
+        }
     thresholds_ready = settings.FACE_THRESHOLDS_CALIBRATED or settings.ENVIRONMENT in {
         "development",
         "test",
@@ -65,28 +110,7 @@ async def health_snapshot() -> dict[str, Any]:
         },
         "database": database,
         "redis": redis_health,
-        "face_provider": {
-            "healthy": face_ready,
-            "state": provider.state.value,
-            "provider": provider.provider_name,
-            "real_model": provider.is_real_model,
-            "model_name": provider.model_name,
-            "model_version": provider.model_version,
-            "detector_name": provider.detector_name,
-            "normalization_version": provider.normalization_version,
-            "execution_provider": provider.execution_provider,
-            "embedding_dimension": provider.embedding_dimension,
-            "warmup_ms": provider.warmup_ms,
-            "failure": (
-                {
-                    "code": provider.failure.code.value,
-                    "message": provider.failure.message,
-                    "details": provider.failure.details,
-                }
-                if provider.failure
-                else None
-            ),
-        },
+        "face_provider": face_provider,
         "thresholds": {
             "profile": settings.FACE_THRESHOLD_PROFILE,
             "calibrated": settings.FACE_THRESHOLDS_CALIBRATED,

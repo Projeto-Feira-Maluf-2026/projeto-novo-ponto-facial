@@ -8,6 +8,7 @@ from app.api.deps import require_scopes
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.permissions import Scope
+from app.core.runtime import is_lightweight_serverless
 from app.db.session import get_session
 from app.models.entities import Employee
 from app.schemas.auth import UserRead
@@ -27,9 +28,20 @@ from app.schemas.enrollment import (
     EnrollmentSessionResponse,
 )
 from app.services.employees import EmployeeService
-from app.services.enrollment import FaceEnrollmentService
 
 router = APIRouter()
+
+
+def _face_enrollment_service(session: AsyncSession):
+    if is_lightweight_serverless():
+        raise AppError(
+            "FACE_RUNTIME_NOT_INSTALLED",
+            "Matricula facial exige o backend de IA em container",
+            503,
+        )
+    from app.services.enrollment import FaceEnrollmentService
+
+    return FaceEnrollmentService(session)
 
 
 @router.get("", response_model=Page[EmployeeRead])
@@ -119,7 +131,7 @@ async def start_face_enrollment(
     _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentSessionResponse:
-    return await FaceEnrollmentService(session).start(employee_id)
+    return await _face_enrollment_service(session).start(employee_id)
 
 
 @router.post(
@@ -133,7 +145,7 @@ async def validate_face_enrollment_capture(
     _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentCaptureResponse:
-    return await FaceEnrollmentService(session).validate_capture(
+    return await _face_enrollment_service(session).validate_capture(
         employee_id,
         enrollment_id,
         payload,
@@ -151,7 +163,7 @@ async def finalize_face_enrollment(
     _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentFinalizeResponse:
-    return await FaceEnrollmentService(session).finalize(
+    return await _face_enrollment_service(session).finalize(
         employee_id,
         enrollment_id,
         payload,
@@ -168,7 +180,7 @@ async def cancel_face_enrollment(
     _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentCancelResponse:
-    return await FaceEnrollmentService(session).cancel(employee_id, enrollment_id)
+    return await _face_enrollment_service(session).cancel(employee_id, enrollment_id)
 
 
 @router.post("/{employee_id}/photo", response_model=EmployeeRead)
