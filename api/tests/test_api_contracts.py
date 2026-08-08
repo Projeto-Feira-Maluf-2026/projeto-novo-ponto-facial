@@ -3,7 +3,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import settings
-from app.main import app
+# Do not expose this import as `app`: Vercel scans Python files under api/ for ASGI entries.
+from app.main import app as application_under_test
 from app.schemas.ai import FaceIdentifyRequest, FaceVerifyRequest
 from app.schemas.enrollment import EnrollmentCaptureRequest
 from app.services.ai.facial_service import get_face_provider
@@ -11,7 +12,7 @@ from app.services.ai.facial_service import get_face_provider
 
 @pytest.mark.asyncio
 async def test_vercel_api_prefix_reaches_fastapi() -> None:
-    transport = httpx.ASGITransport(app=app)
+    transport = httpx.ASGITransport(app=application_under_test)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         health = await client.get("/api/health/live")
         protected = await client.get("/api/v1/dashboard")
@@ -70,8 +71,8 @@ async def test_structured_face_error_and_request_id(monkeypatch) -> None:
     monkeypatch.setattr(settings, "FACE_PROVIDER", "fake")
     get_face_provider.cache_clear()
     try:
-        transport = httpx.ASGITransport(app=app)
-        async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=application_under_test)
+        async with application_under_test.router.lifespan_context(application_under_test):
             async with httpx.AsyncClient(
                 transport=transport,
                 base_url="http://testserver",
@@ -102,8 +103,8 @@ async def test_fake_provider_never_makes_readiness_healthy(monkeypatch) -> None:
     monkeypatch.setattr(settings, "FACE_PROVIDER", "fake")
     get_face_provider.cache_clear()
     try:
-        transport = httpx.ASGITransport(app=app)
-        async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=application_under_test)
+        async with application_under_test.router.lifespan_context(application_under_test):
             async with httpx.AsyncClient(
                 transport=transport,
                 base_url="http://testserver",
