@@ -29,7 +29,7 @@ if (!(Test-Path $VenvPython)) {
 
 Push-Location $Api
 & $VenvPython -m pip install -U pip
-& $VenvPython -m pip install -e ".[dev]"
+& $VenvPython -m pip install -e ".[dev,ai]"
 Pop-Location
 
 Write-Host "Instalando frontend..." -ForegroundColor Yellow
