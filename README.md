@@ -76,7 +76,7 @@ docker compose up --build
 ```bash
 cd api
 pytest
-ruff check .
+ruff check app ../tests
 
 cd ../web
 npm run build

@@ -67,7 +67,7 @@ $NpmPath = $NpmCommand.Source
 
 if (!(Test-Port 8000)) {
   Start-Process -FilePath $VenvPython `
-    -ArgumentList @("-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000") `
+    -ArgumentList @("-m", "uvicorn", "app.main:application", "--host", "127.0.0.1", "--port", "8000") `
     -WorkingDirectory $Api `
     -RedirectStandardOutput (Join-Path $Logs "api.out.log") `
     -RedirectStandardError (Join-Path $Logs "api.err.log") `

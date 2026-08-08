@@ -3,8 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import settings
-# Do not expose this import as `app`: Vercel scans Python files under api/ for ASGI entries.
-from app.main import app as application_under_test
+from app.main import application as application_under_test
 from app.schemas.ai import FaceIdentifyRequest, FaceVerifyRequest
 from app.schemas.enrollment import EnrollmentCaptureRequest
 from app.services.ai.facial_service import get_face_provider

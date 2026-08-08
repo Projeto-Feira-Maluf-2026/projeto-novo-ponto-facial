@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
-app = FastAPI(
+application = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.APP_VERSION,
     description="Controle corporativo de ponto com reconhecimento facial e geofencing.",
@@ -44,7 +44,7 @@ app = FastAPI(
 )
 
 
-@app.middleware("http")
+@application.middleware("http")
 async def request_context(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
     request.state.request_id = request_id
@@ -64,7 +64,7 @@ def _error_payload(request: Request, code: str, message: str, details: object = 
     }
 
 
-@app.exception_handler(AppError)
+@application.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
@@ -72,7 +72,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-@app.exception_handler(RequestValidationError)
+@application.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     errors = [
         {
@@ -93,7 +93,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     )
 
 
-@app.exception_handler(HTTPException)
+@application.exception_handler(HTTPException)
 async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
     message = exc.detail if isinstance(exc.detail, str) else "A requisicao nao pode ser processada"
     details = exc.detail if isinstance(exc.detail, dict) else {}
@@ -104,7 +104,7 @@ async def http_error_handler(request: Request, exc: HTTPException) -> JSONRespon
     )
 
 
-@app.exception_handler(Exception)
+@application.exception_handler(Exception)
 async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception(
         "Erro nao tratado request_id=%s exception_type=%s",
@@ -121,7 +121,7 @@ async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResp
     )
 
 
-app.add_middleware(
+application.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_origin_regex=settings.CORS_ORIGIN_REGEX,
@@ -130,6 +130,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(health_router)
-app.include_router(health_router, prefix="/api")
-app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+application.include_router(health_router)
+application.include_router(health_router, prefix="/api")
+application.include_router(api_router, prefix=settings.API_V1_PREFIX)
