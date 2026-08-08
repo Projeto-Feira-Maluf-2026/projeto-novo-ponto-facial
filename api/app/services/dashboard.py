@@ -50,7 +50,13 @@ class DashboardService:
             .group_by(hour_bucket)
             .order_by(hour_bucket)
         )
-        timeline = [{"hour": str(hour), "records": count} for hour, count in timeline_rows.all()]
+        timeline = [
+            {
+                "hour": hour.strftime("%H:%M") if isinstance(hour, datetime) else str(hour),
+                "records": count,
+            }
+            for hour, count in timeline_rows.all()
+        ]
 
         total = int(total_employees or 0)
         present_count = int(present or 0)
