@@ -1,6 +1,7 @@
 import os
 from collections.abc import AsyncGenerator
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -30,6 +31,11 @@ database_url = normalize_database_url(settings.DATABASE_URL)
 engine_options = {"pool_pre_ping": True, "pool_recycle": 300}
 if os.getenv("VERCEL"):
     engine_options["poolclass"] = NullPool
+    engine_options["connect_args"] = {
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    }
 else:
     engine_options.update({"pool_size": 10, "max_overflow": 20})
 
