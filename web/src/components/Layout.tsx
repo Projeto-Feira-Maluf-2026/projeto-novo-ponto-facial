@@ -7,7 +7,6 @@ import {
   HardDrive,
   LogOut,
   Menu,
-  MoreHorizontal,
   Moon,
   ShieldCheck,
   Sun,
@@ -23,51 +22,26 @@ import { useAuth } from '../auth/AuthContext';
 interface NavItem {
   to: string;
   label: string;
+  code: string;
   icon: LucideIcon;
 }
 
 const navItems: NavItem[] = [
-  { to: '/', label: 'Visão geral', icon: BarChart3 },
-  { to: '/terminal-facial', label: 'Ponto automático', icon: Camera },
-  { to: '/funcionarios', label: 'Funcionários', icon: Users },
-  { to: '/obras', label: 'Obras', icon: Building2 },
-  { to: '/dispositivos', label: 'Câmeras', icon: HardDrive },
-  { to: '/relatorios', label: 'Relatórios', icon: ClipboardList },
+  { to: '/', label: 'Painel', code: '01', icon: BarChart3 },
+  { to: '/terminal-facial', label: 'Ponto facial', code: '02', icon: Camera },
+  { to: '/funcionarios', label: 'Funcionários', code: '03', icon: Users },
+  { to: '/obras', label: 'Obras', code: '04', icon: Building2 },
+  { to: '/dispositivos', label: 'Câmeras', code: '05', icon: HardDrive },
+  { to: '/relatorios', label: 'Relatórios', code: '06', icon: ClipboardList },
 ];
 
-const mobileNavItems = navItems.slice(0, 4);
-
-const pageCopy: Record<string, { title: string; description: string; eyebrow: string }> = {
-  '/': {
-    title: 'Visão geral',
-    description: 'Presença, registros e disponibilidade de toda a operação em um só lugar.',
-    eyebrow: 'Central operacional',
-  },
-  '/terminal-facial': {
-    title: 'Ponto automático',
-    description: 'Terminal autônomo de reconhecimento e registro.',
-    eyebrow: 'Operação em campo',
-  },
-  '/funcionarios': {
-    title: 'Funcionários',
-    description: 'Equipe, vínculos e cadastros biométricos.',
-    eyebrow: 'Gestão de pessoas',
-  },
-  '/obras': {
-    title: 'Obras',
-    description: 'Locais de trabalho, responsáveis e áreas permitidas.',
-    eyebrow: 'Estrutura operacional',
-  },
-  '/dispositivos': {
-    title: 'Câmeras',
-    description: 'Fontes de vídeo e disponibilidade dos equipamentos.',
-    eyebrow: 'Infraestrutura',
-  },
-  '/relatorios': {
-    title: 'Relatórios',
-    description: 'Consolide registros para conferência e fechamento.',
-    eyebrow: 'Inteligência de dados',
-  },
+const pageCopy: Record<string, { title: string; description: string; section: string; code: string }> = {
+  '/': { title: 'Centro de controle', description: 'Leitura consolidada da operação de hoje.', section: 'OPERAÇÃO', code: '01' },
+  '/terminal-facial': { title: 'Ponto facial', description: 'Reconhecimento e registro automático em campo.', section: 'TERMINAL', code: '02' },
+  '/funcionarios': { title: 'Funcionários', description: 'Equipe e cadastros biométricos.', section: 'PESSOAS', code: '03' },
+  '/obras': { title: 'Obras', description: 'Canteiros, responsáveis e perímetros.', section: 'ESTRUTURA', code: '04' },
+  '/dispositivos': { title: 'Câmeras', description: 'Fontes de vídeo ligadas à operação.', section: 'DISPOSITIVOS', code: '05' },
+  '/relatorios': { title: 'Relatórios', description: 'Exportação e conferência dos registros.', section: 'DADOS', code: '06' },
 };
 
 interface LayoutProps {
@@ -78,8 +52,7 @@ interface LayoutProps {
 }
 
 function isActivePath(pathname: string, target: string) {
-  if (target === '/') return pathname === '/';
-  return pathname.startsWith(target);
+  return target === '/' ? pathname === '/' : pathname.startsWith(target);
 }
 
 export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps) {
@@ -88,206 +61,119 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   const current = pageCopy[location.pathname] ?? pageCopy['/'];
   const isTerminal = location.pathname === '/terminal-facial';
   const [online, setOnline] = useState(navigator.onLine);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const displayName = useMemo(() => {
-    const metadataName = user?.user_metadata?.name;
-    if (typeof metadataName === 'string' && metadataName.trim()) return metadataName.trim();
+    const name = user?.user_metadata?.name;
+    if (typeof name === 'string' && name.trim()) return name.trim();
     return user?.email?.split('@')[0] || 'Operador';
   }, [user]);
 
-  const initials = displayName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
-
-  const currentDate = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date());
+  const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  const today = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date());
 
   useEffect(() => {
-    const updateConnection = () => setOnline(navigator.onLine);
-    window.addEventListener('online', updateConnection);
-    window.addEventListener('offline', updateConnection);
-    return () => {
-      window.removeEventListener('online', updateConnection);
-      window.removeEventListener('offline', updateConnection);
-    };
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
   }, []);
 
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
+  useEffect(() => setMenuOpen(false), [location.pathname]);
 
   useEffect(() => {
-    if (!mobileMenuOpen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileMenuOpen(false);
-    };
+    if (!menuOpen) return undefined;
+    const previous = document.body.style.overflow;
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
     document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [mobileMenuOpen]);
-
-  const moreActive = navItems.slice(4).some((item) => isActivePath(location.pathname, item.to));
+    window.addEventListener('keydown', escape);
+    return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', escape); };
+  }, [menuOpen]);
 
   return (
-    <div className="app-shell">
+    <div className="ops-shell">
       <a href="#main-content" className="skip-link">Pular para o conteúdo</a>
 
-      <aside className="app-sidebar" data-open={mobileMenuOpen}>
-        <div className="sidebar-brand-row">
-          <NavLink to="/" viewTransition className="brand-lockup">
-            <span className="brand-mark" aria-hidden="true">CE</span>
-            <span>
-              <strong>Curitiba Empreiteira</strong>
-              <small>Presença inteligente</small>
-            </span>
-          </NavLink>
-          <button
-            className="sidebar-close"
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-label="Fechar menu"
-          >
-            <X size={19} />
-          </button>
+      <aside className="ops-navigation" data-open={menuOpen}>
+        <div className="ops-rail">
+          <NavLink to="/" className="ops-symbol" aria-label="Curitiba Empreiteira">CE</NavLink>
+          <div className="ops-rail-line" />
+          <span className="ops-rail-code">CTRL<br />02.26</span>
+          <div className="ops-rail-actions">
+            <button type="button" onClick={onToggleTheme} aria-label={dark ? 'Usar tema claro' : 'Usar tema escuro'}>
+              {dark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button type="button" onClick={() => void onLogout()} aria-label="Encerrar sessão"><LogOut size={18} /></button>
+          </div>
         </div>
 
-        <div className="sidebar-section-label">Operação</div>
-        <nav className="sidebar-nav" aria-label="Navegação principal">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActivePath(location.pathname, item.to);
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                viewTransition
-                className="sidebar-link"
-                data-active={active}
-              >
-                <span className="sidebar-link-icon"><Icon size={18} strokeWidth={1.9} /></span>
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="sidebar-security">
-            <span className="sidebar-security-icon"><ShieldCheck size={18} /></span>
-            <span>
-              <strong>Ambiente protegido</strong>
-              <small>Biometria com acesso restrito</small>
-            </span>
+        <div className="ops-menu">
+          <div className="ops-menu-header">
+            <span><strong>Curitiba</strong><small>Empreiteira</small></span>
+            <button className="ops-menu-close" type="button" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X size={19} /></button>
           </div>
-          <button onClick={onToggleTheme} className="sidebar-theme" type="button">
-            {dark ? <Sun size={17} /> : <Moon size={17} />}
-            {dark ? 'Usar tema claro' : 'Usar tema escuro'}
-          </button>
-          <button onClick={() => void onLogout()} className="sidebar-theme" type="button">
-            <LogOut size={17} />
-            Encerrar sessão
-          </button>
+
+          <span className="ops-menu-label">NAVEGAÇÃO</span>
+          <nav aria-label="Navegação principal">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink key={item.to} to={item.to} viewTransition data-active={isActivePath(location.pathname, item.to)}>
+                  <span className="ops-nav-code">{item.code}</span>
+                  <Icon size={18} strokeWidth={1.7} />
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
+
+          <div className="ops-menu-status">
+            <ShieldCheck size={18} />
+            <span><strong>Ambiente protegido</strong><small>Controle biométrico restrito</small></span>
+          </div>
         </div>
       </aside>
 
-      {mobileMenuOpen && (
-        <button
-          className="sidebar-scrim"
-          type="button"
-          aria-label="Fechar menu"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
+      {menuOpen && <button className="ops-scrim" type="button" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
 
-      <div className="app-workspace">
-        <header className="app-topbar">
-          <button
-            className="topbar-menu"
-            type="button"
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label="Abrir menu"
-            aria-expanded={mobileMenuOpen}
-          >
+      <div className="ops-workspace">
+        <header className="ops-topbar">
+          <button className="ops-menu-trigger" type="button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu" aria-expanded={menuOpen}>
             <Menu size={20} />
           </button>
-          <div className="topbar-brand-mobile">
-            <span className="brand-mark">CE</span>
+          <div className="ops-topbar-title">
+            <span>{current.section} / {current.code}</span>
+            <strong>{current.title}</strong>
           </div>
-          <div className="min-w-0">
-            <p className="topbar-context">{current.eyebrow}</p>
-            <h1 className="topbar-title">{current.title}</h1>
-          </div>
-          <div className="topbar-actions">
-            <span className="topbar-date">
-              <CalendarDays size={15} />
-              {currentDate}
-            </span>
-            <span className={`connection-badge ${online ? 'is-online' : 'is-offline'}`}>
-              <span className="connection-dot" />
-              {online ? 'Conectado' : 'Sem conexão'}
-            </span>
-            <button onClick={onToggleTheme} className="topbar-icon" type="button" aria-label={dark ? 'Usar tema claro' : 'Usar tema escuro'}>
-              {dark ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-            <div className="topbar-profile" title={user?.email ?? undefined}>
-              <span className="topbar-avatar">{initials || 'OP'}</span>
-              <span>
-                <strong>{displayName}</strong>
-                <small>{user?.email ?? 'Acesso corporativo'}</small>
-              </span>
+          <div className="ops-topbar-meta">
+            <span className="ops-date"><CalendarDays size={15} />{today}</span>
+            <span className="ops-connection" data-online={online}><i />{online ? 'CONECTADO' : 'OFFLINE'}</span>
+            <div className="ops-user">
+              <span>{initials || 'OP'}</span>
+              <div><strong>{displayName}</strong><small>{user?.email ?? 'Acesso corporativo'}</small></div>
             </div>
           </div>
         </header>
 
-        <main id="main-content" tabIndex={-1} className={isTerminal ? 'app-main app-main-terminal' : 'app-main'}>
+        <main id="main-content" tabIndex={-1} className={isTerminal ? 'ops-main ops-main-terminal' : 'ops-main'}>
           {!isTerminal && (
-            <section className="page-heading">
-              <div>
-                <span className="page-heading-kicker">{current.eyebrow}</span>
-                <h2>{current.title}</h2>
-                <p>{current.description}</p>
-              </div>
-              <span className={`page-status ${online ? 'is-online' : 'is-offline'}`}>
-                <span className="status-dot" />
-                {online ? 'Rede disponível' : 'Trabalhando offline'}
-              </span>
-            </section>
+            <header className="ops-page-header">
+              <div className="ops-page-index"><span>{current.code}</span><i /></div>
+              <div><span>{current.section}</span><h1>{current.title}</h1><p>{current.description}</p></div>
+              <div className="ops-page-state" data-online={online}><span />{online ? 'SISTEMA OPERACIONAL' : 'SEM CONEXÃO'}</div>
+            </header>
           )}
           {children}
         </main>
-      </div>
 
-      <nav className="mobile-nav" aria-label="Navegação móvel">
-        {mobileNavItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActivePath(location.pathname, item.to);
-          return (
-            <NavLink key={item.to} to={item.to} viewTransition data-active={active}>
-              <Icon size={19} strokeWidth={1.9} />
-              <span>{item.label.split(' ')[0]}</span>
-            </NavLink>
-          );
-        })}
-        <button
-          type="button"
-          data-active={moreActive || mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(true)}
-          aria-label="Abrir mais opções"
-        >
-          <MoreHorizontal size={20} strokeWidth={1.9} />
-          <span>Mais</span>
-        </button>
-      </nav>
+        <nav className="ops-mobile-nav" aria-label="Navegação móvel">
+          {navItems.slice(0, 4).map((item) => {
+            const Icon = item.icon;
+            return <NavLink key={item.to} to={item.to} data-active={isActivePath(location.pathname, item.to)}><Icon size={19} /><span>{item.label.split(' ')[0]}</span></NavLink>;
+          })}
+          <button type="button" onClick={() => setMenuOpen(true)}><Menu size={19} /><span>Menu</span></button>
+        </nav>
+      </div>
     </div>
   );
 }

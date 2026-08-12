@@ -1,20 +1,18 @@
 import {
   ArrowRight,
-  Building2,
-  Camera,
-  CheckCircle2,
   Eye,
   EyeOff,
+  Fingerprint,
   LoaderCircle,
   LockKeyhole,
   Mail,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
+import { ConstructionScene3D } from '../components/ConstructionScene3D';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -49,89 +47,79 @@ export function LoginPage() {
 
   return (
     <main className="login-page">
-      <div className="login-window">
-        <aside className="login-context">
-          <div className="login-context-grid" aria-hidden="true" />
-          <div className="login-brand">
-            <div className="login-brand-mark">CE</div>
-            <div>
-              <strong>Curitiba Empreiteira</strong>
-              <span>Presença inteligente</span>
-            </div>
-          </div>
-
-          <div className="login-context-content">
-            <span className="login-context-label"><Sparkles size={14} /> Central operacional</span>
-            <h1>A operação começa com quem faz acontecer.</h1>
-            <p>Pessoas, obras e pontos faciais em uma visão segura, atualizada e pronta para a rotina de campo.</p>
-
-            <div className="login-operation-card">
-              <div className="login-operation-header">
-                <div><span>Proteção e controle</span><strong>Recursos da plataforma</strong></div>
-                <span className="login-live-indicator"><ShieldCheck size={14} /> Acesso seguro</span>
-              </div>
-              <div className="login-operation-list">
-                <div><Camera size={17} /><span>Terminais faciais</span><CheckCircle2 size={17} /></div>
-                <div><Building2 size={17} /><span>Gestão por obra</span><CheckCircle2 size={17} /></div>
-                <div><ShieldCheck size={17} /><span>Acesso monitorado</span><CheckCircle2 size={17} /></div>
-              </div>
-            </div>
-          </div>
-
-          <p className="login-context-footer"><ShieldCheck size={15} /> Ambiente corporativo · acesso restrito</p>
-        </aside>
-
-        <section className="login-access">
-          <div className="login-mobile-brand">
-            <div className="login-brand-mark">CE</div>
+      <section className="login-visual" aria-label="Curitiba Empreiteira">
+        <header className="login-brand">
+          <span className="login-brand-mark">CE</span>
+          <span>
             <strong>Curitiba Empreiteira</strong>
+            <small>Controle operacional</small>
+          </span>
+        </header>
+
+        <div className="login-visual-copy">
+          <span className="login-index">PLATAFORMA / 01</span>
+          <h1>Precisão na obra.<br />Controle em campo.</h1>
+          <p>Presença facial, equipes e canteiros conectados à mesma operação.</p>
+        </div>
+
+        <ConstructionScene3D className="login-construction-scene" />
+
+        <footer className="login-visual-footer">
+          <span><Fingerprint size={15} /> Biometria protegida</span>
+          <span>CURITIBA · PR</span>
+        </footer>
+      </section>
+
+      <section className="login-access">
+        <div className="login-access-grid" aria-hidden="true" />
+        <div className="login-mobile-brand">
+          <span className="login-brand-mark">CE</span>
+          <strong>Curitiba Empreiteira</strong>
+        </div>
+
+        <form onSubmit={onSubmit} className="login-form" noValidate>
+          <div className="login-form-heading">
+            <span className="login-form-kicker">ACESSO RESTRITO</span>
+            <h2>Central de operação</h2>
+            <p>Entre com as credenciais fornecidas pela empresa.</p>
           </div>
 
-          <form onSubmit={onSubmit} className="login-form" noValidate>
-            <div className="login-form-icon"><LockKeyhole size={21} /></div>
-            <div className="login-form-heading">
-              <span className="login-form-kicker">Portal administrativo</span>
-              <h2>Acesse sua central</h2>
-              <p>Use sua conta corporativa para continuar.</p>
+          <label className={`login-field ${error ? 'is-invalid' : ''}`} htmlFor="login-email">
+            <span>E-mail corporativo</span>
+            <div>
+              <Mail size={18} aria-hidden="true" />
+              <input
+                id="login-email"
+                type="email"
+                value={email}
+                onChange={(event) => { setEmail(event.target.value); if (error) setError(''); }}
+                placeholder="nome@empresa.com"
+                autoComplete="email"
+                inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? 'login-error' : undefined}
+                required
+              />
             </div>
+          </label>
 
-            <div className={`login-input ${error ? 'is-invalid' : ''}`}>
-              <Mail size={19} aria-hidden="true" />
-              <label htmlFor="login-email">
-                <span>E-mail corporativo</span>
-                <input
-                  id="login-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => { setEmail(event.target.value); if (error) setError(''); }}
-                  placeholder="nome@empresa.com"
-                  autoComplete="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? 'login-error' : undefined}
-                  required
-                />
-              </label>
-            </div>
-
-            <div className={`login-input ${error ? 'is-invalid' : ''}`}>
-              <LockKeyhole size={19} aria-hidden="true" />
-              <label htmlFor="login-password">
-                <span>Senha</span>
-                <input
-                  id="login-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(event) => { setPassword(event.target.value); if (error) setError(''); }}
-                  placeholder="Digite sua senha"
-                  autoComplete="current-password"
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? 'login-error' : undefined}
-                  required
-                />
-              </label>
+          <label className={`login-field ${error ? 'is-invalid' : ''}`} htmlFor="login-password">
+            <span>Senha</span>
+            <div>
+              <LockKeyhole size={18} aria-hidden="true" />
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => { setPassword(event.target.value); if (error) setError(''); }}
+                placeholder="Digite sua senha"
+                autoComplete="current-password"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? 'login-error' : undefined}
+                required
+              />
               <button
                 type="button"
                 className="login-password-toggle"
@@ -141,18 +129,20 @@ export function LoginPage() {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+          </label>
 
-            {error && <div id="login-error" className="login-error" role="alert">{error}</div>}
+          {error && <div id="login-error" className="login-error" role="alert">{error}</div>}
 
-            <button type="submit" className="login-submit" disabled={loading || !email.trim() || !password}>
-              <span>{loading ? 'Validando acesso...' : 'Entrar no sistema'}</span>
-              {loading ? <LoaderCircle className="login-spinner" size={18} /> : <ArrowRight size={18} />}
-            </button>
+          <button type="submit" className="login-submit" disabled={loading || !email.trim() || !password}>
+            <span>{loading ? 'Validando acesso...' : 'Acessar plataforma'}</span>
+            {loading ? <LoaderCircle className="login-spinner" size={18} /> : <ArrowRight size={18} />}
+          </button>
 
-            <p className="login-privacy"><ShieldCheck size={14} /> Suas ações administrativas são registradas para segurança.</p>
-          </form>
-        </section>
-      </div>
+          <p className="login-privacy"><ShieldCheck size={14} /> Ambiente monitorado e protegido</p>
+        </form>
+
+        <span className="login-version">SISTEMA 02.26</span>
+      </section>
     </main>
   );
 }
