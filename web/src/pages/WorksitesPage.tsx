@@ -1,10 +1,12 @@
-import { Building2, MapPin, Plus, ShieldCheck } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { Box, Building2, ChevronRight, MapPin, Plus, ShieldCheck } from 'lucide-react';
+import { FormEvent, lazy, Suspense, useEffect, useState } from 'react';
 
 import { DataTable } from '../components/DataTable';
 import { MetricCard } from '../components/MetricCard';
 import { apiClient } from '../services/api';
 import type { Worksite } from '../types/domain';
+
+const WorksiteWorld3D = lazy(() => import('../components/WorksiteWorld3D').then((module) => ({ default: module.WorksiteWorld3D })));
 
 const initialForm = {
   name: '',
@@ -22,6 +24,9 @@ export function WorksitesPage() {
   const [form, setForm] = useState(initialForm);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [selectedWorksiteId, setSelectedWorksiteId] = useState('');
+
+  const selectedWorksite = worksites.find((item) => item.id === selectedWorksiteId) ?? worksites[0] ?? null;
 
   const loadWorksites = () => {
     apiClient
@@ -143,6 +148,77 @@ export function WorksitesPage() {
         <MetricCard label="Raio médio" value={`${Math.round(worksites.reduce((acc, item) => acc + item.geofence_radius_meters, 0) / Math.max(worksites.length, 1))}m`} icon={MapPin} tone="blue" />
       </section>
 
+      <section className="worksite-3d-section app-card" aria-labelledby="worksite-world-heading">
+        <header className="worksite-3d-header">
+          <div>
+            <span className="section-eyebrow"><Box size={14} /> Ambiente tridimensional</span>
+            <h2 id="worksite-world-heading">Explore cada obra como um mundo</h2>
+            <p>Gire, aproxime e percorra o canteiro. Cada cadastro gera uma estrutura 3D própria.</p>
+          </div>
+          <span className="worksite-3d-sync"><i /> Vinculado às obras</span>
+        </header>
+
+        {selectedWorksite ? (
+          <div className="worksite-3d-layout">
+            <div className="worksite-world-selector" role="tablist" aria-label="Escolher obra para visualizar">
+              <div className="worksite-selector-heading">
+                <span>Obras disponíveis</span>
+                <strong>{String(worksites.length).padStart(2, '0')}</strong>
+              </div>
+              <div className="worksite-selector-list">
+                {worksites.map((worksite, index) => {
+                  const selected = worksite.id === selectedWorksite.id;
+                  return (
+                    <button
+                      key={worksite.id}
+                      id={`worksite-tab-${worksite.id}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      aria-controls="worksite-world-panel"
+                      className="worksite-selector-item"
+                      data-active={selected}
+                      onClick={() => setSelectedWorksiteId(worksite.id)}
+                    >
+                      <span className="worksite-selector-index">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="worksite-selector-copy">
+                        <strong>{worksite.name}</strong>
+                        <small>{worksite.code} · {worksite.geofence_radius_meters}m</small>
+                      </span>
+                      <span className="worksite-selector-state" data-online={worksite.active} aria-label={worksite.active ? 'Obra ativa' : 'Obra inativa'} />
+                      <ChevronRight size={16} aria-hidden="true" />
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="worksite-selector-note"><MouseHint /> Arraste o cenário para mudar o ponto de vista.</p>
+            </div>
+
+            <div
+              id="worksite-world-panel"
+              className="worksite-world-panel"
+              role="tabpanel"
+              aria-labelledby={`worksite-tab-${selectedWorksite.id}`}
+            >
+              <Suspense fallback={<WorldLoading />}>
+                <WorksiteWorld3D key={selectedWorksite.id} worksite={selectedWorksite} />
+              </Suspense>
+              <dl className="worksite-world-metadata">
+                <div><dt>Endereço</dt><dd>{selectedWorksite.address}</dd></div>
+                <div><dt>Responsável</dt><dd>{selectedWorksite.manager_name || 'Não informado'}</dd></div>
+                <div><dt>Geofence</dt><dd>{selectedWorksite.geofence_radius_meters} metros</dd></div>
+              </dl>
+            </div>
+          </div>
+        ) : (
+          <div className="worksite-world-empty">
+            <span><Building2 size={24} /></span>
+            <div><strong>Nenhuma obra para visualizar</strong><p>Cadastre a primeira obra para criar seu ambiente 3D.</p></div>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(true)}><Plus size={17} /> Cadastrar obra</button>
+          </div>
+        )}
+      </section>
+
       <DataTable
         ariaLabel="Obras cadastradas"
         rows={worksites}
@@ -164,6 +240,22 @@ export function WorksitesPage() {
           },
         ]}
       />
+    </div>
+  );
+}
+
+function MouseHint() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+      <path d="M12 2a5 5 0 0 0-5 5v5a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5Zm0 0v5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function WorldLoading() {
+  return (
+    <div className="worksite-world-frame" aria-label="Carregando ambiente tridimensional">
+      <div className="worksite-world-loading"><span /> Carregando motor 3D</div>
     </div>
   );
 }
