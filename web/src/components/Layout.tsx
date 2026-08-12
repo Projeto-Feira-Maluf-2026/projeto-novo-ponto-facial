@@ -1,18 +1,24 @@
 import {
   BarChart3,
   Building2,
+  CalendarDays,
   Camera,
   ClipboardList,
   HardDrive,
   LogOut,
+  Menu,
+  MoreHorizontal,
   Moon,
   ShieldCheck,
   Sun,
   Users,
+  X,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+
+import { useAuth } from '../auth/AuthContext';
 
 interface NavItem {
   to: string;
@@ -29,30 +35,38 @@ const navItems: NavItem[] = [
   { to: '/relatorios', label: 'Relatórios', icon: ClipboardList },
 ];
 
-const pageCopy: Record<string, { title: string; description: string }> = {
+const mobileNavItems = navItems.slice(0, 4);
+
+const pageCopy: Record<string, { title: string; description: string; eyebrow: string }> = {
   '/': {
     title: 'Visão geral',
-    description: 'Acompanhe presença, registros e disponibilidade da operação.',
+    description: 'Presença, registros e disponibilidade de toda a operação em um só lugar.',
+    eyebrow: 'Central operacional',
   },
   '/terminal-facial': {
     title: 'Ponto automático',
     description: 'Terminal autônomo de reconhecimento e registro.',
+    eyebrow: 'Operação em campo',
   },
   '/funcionarios': {
     title: 'Funcionários',
     description: 'Equipe, vínculos e cadastros biométricos.',
+    eyebrow: 'Gestão de pessoas',
   },
   '/obras': {
     title: 'Obras',
     description: 'Locais de trabalho, responsáveis e áreas permitidas.',
+    eyebrow: 'Estrutura operacional',
   },
   '/dispositivos': {
     title: 'Câmeras',
     description: 'Fontes de vídeo e disponibilidade dos equipamentos.',
+    eyebrow: 'Infraestrutura',
   },
   '/relatorios': {
     title: 'Relatórios',
     description: 'Consolide registros para conferência e fechamento.',
+    eyebrow: 'Inteligência de dados',
   },
 };
 
@@ -70,9 +84,29 @@ function isActivePath(pathname: string, target: string) {
 
 export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps) {
   const location = useLocation();
+  const { user } = useAuth();
   const current = pageCopy[location.pathname] ?? pageCopy['/'];
   const isTerminal = location.pathname === '/terminal-facial';
   const [online, setOnline] = useState(navigator.onLine);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const displayName = useMemo(() => {
+    const metadataName = user?.user_metadata?.name;
+    if (typeof metadataName === 'string' && metadataName.trim()) return metadataName.trim();
+    return user?.email?.split('@')[0] || 'Operador';
+  }, [user]);
+
+  const initials = displayName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+
+  const currentDate = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+  }).format(new Date());
 
   useEffect(() => {
     const updateConnection = () => setOnline(navigator.onLine);
@@ -84,16 +118,48 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
     };
   }, []);
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [mobileMenuOpen]);
+
+  const moreActive = navItems.slice(4).some((item) => isActivePath(location.pathname, item.to));
+
   return (
     <div className="app-shell">
-      <aside className="app-sidebar">
-        <NavLink to="/" viewTransition className="brand-lockup">
-          <span className="brand-mark">CE</span>
-          <span>
-            <strong>Curitiba Empreiteira</strong>
-            <small>Controle de ponto</small>
-          </span>
-        </NavLink>
+      <a href="#main-content" className="skip-link">Pular para o conteúdo</a>
+
+      <aside className="app-sidebar" data-open={mobileMenuOpen}>
+        <div className="sidebar-brand-row">
+          <NavLink to="/" viewTransition className="brand-lockup">
+            <span className="brand-mark" aria-hidden="true">CE</span>
+            <span>
+              <strong>Curitiba Empreiteira</strong>
+              <small>Presença inteligente</small>
+            </span>
+          </NavLink>
+          <button
+            className="sidebar-close"
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Fechar menu"
+          >
+            <X size={19} />
+          </button>
+        </div>
 
         <div className="sidebar-section-label">Operação</div>
         <nav className="sidebar-nav" aria-label="Navegação principal">
@@ -108,7 +174,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
                 className="sidebar-link"
                 data-active={active}
               >
-                <Icon size={18} strokeWidth={1.8} />
+                <span className="sidebar-link-icon"><Icon size={18} strokeWidth={1.9} /></span>
                 <span>{item.label}</span>
               </NavLink>
             );
@@ -117,10 +183,10 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
 
         <div className="sidebar-footer">
           <div className="sidebar-security">
-            <ShieldCheck size={18} />
+            <span className="sidebar-security-icon"><ShieldCheck size={18} /></span>
             <span>
               <strong>Ambiente protegido</strong>
-              <small>Dados biométricos restritos</small>
+              <small>Biometria com acesso restrito</small>
             </span>
           </div>
           <button onClick={onToggleTheme} className="sidebar-theme" type="button">
@@ -129,21 +195,43 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
           </button>
           <button onClick={() => void onLogout()} className="sidebar-theme" type="button">
             <LogOut size={17} />
-            Sair
+            Encerrar sessão
           </button>
         </div>
       </aside>
 
+      {mobileMenuOpen && (
+        <button
+          className="sidebar-scrim"
+          type="button"
+          aria-label="Fechar menu"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       <div className="app-workspace">
         <header className="app-topbar">
+          <button
+            className="topbar-menu"
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Abrir menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            <Menu size={20} />
+          </button>
           <div className="topbar-brand-mobile">
             <span className="brand-mark">CE</span>
           </div>
           <div className="min-w-0">
-            <p className="topbar-context">Controle de ponto</p>
+            <p className="topbar-context">{current.eyebrow}</p>
             <h1 className="topbar-title">{current.title}</h1>
           </div>
           <div className="topbar-actions">
+            <span className="topbar-date">
+              <CalendarDays size={15} />
+              {currentDate}
+            </span>
             <span className={`connection-badge ${online ? 'is-online' : 'is-offline'}`}>
               <span className="connection-dot" />
               {online ? 'Conectado' : 'Sem conexão'}
@@ -151,16 +239,28 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             <button onClick={onToggleTheme} className="topbar-icon" type="button" aria-label={dark ? 'Usar tema claro' : 'Usar tema escuro'}>
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+            <div className="topbar-profile" title={user?.email ?? undefined}>
+              <span className="topbar-avatar">{initials || 'OP'}</span>
+              <span>
+                <strong>{displayName}</strong>
+                <small>{user?.email ?? 'Acesso corporativo'}</small>
+              </span>
+            </div>
           </div>
         </header>
 
-        <main className={isTerminal ? 'app-main app-main-terminal' : 'app-main'}>
+        <main id="main-content" tabIndex={-1} className={isTerminal ? 'app-main app-main-terminal' : 'app-main'}>
           {!isTerminal && (
             <section className="page-heading">
               <div>
+                <span className="page-heading-kicker">{current.eyebrow}</span>
                 <h2>{current.title}</h2>
                 <p>{current.description}</p>
               </div>
+              <span className={`page-status ${online ? 'is-online' : 'is-offline'}`}>
+                <span className="status-dot" />
+                {online ? 'Rede disponível' : 'Trabalhando offline'}
+              </span>
             </section>
           )}
           {children}
@@ -168,16 +268,25 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
       </div>
 
       <nav className="mobile-nav" aria-label="Navegação móvel">
-        {navItems.map((item) => {
+        {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const active = isActivePath(location.pathname, item.to);
           return (
             <NavLink key={item.to} to={item.to} viewTransition data-active={active}>
-              <Icon size={19} strokeWidth={1.8} />
+              <Icon size={19} strokeWidth={1.9} />
               <span>{item.label.split(' ')[0]}</span>
             </NavLink>
           );
         })}
+        <button
+          type="button"
+          data-active={moreActive || mobileMenuOpen}
+          onClick={() => setMobileMenuOpen(true)}
+          aria-label="Abrir mais opções"
+        >
+          <MoreHorizontal size={20} strokeWidth={1.9} />
+          <span>Mais</span>
+        </button>
       </nav>
     </div>
   );

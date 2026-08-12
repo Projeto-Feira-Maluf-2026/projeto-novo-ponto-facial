@@ -78,7 +78,7 @@ export function WorksitesPage() {
 
   return (
     <div className="app-view-transition space-y-5">
-      <section className="flex justify-end">
+      <section className="page-actions">
         <button
           onClick={() => setShowForm((value) => !value)}
           className="btn btn-primary"
@@ -89,7 +89,7 @@ export function WorksitesPage() {
       </section>
 
       {message && (
-        <div className="app-card app-view-transition p-3 text-sm font-semibold text-steel dark:text-slate-200">
+        <div className="feedback-banner app-view-transition" role="status">
           {message}
         </div>
       )}
@@ -144,6 +144,7 @@ export function WorksitesPage() {
       </section>
 
       <DataTable
+        ariaLabel="Obras cadastradas"
         rows={worksites}
         columns={[
           { key: 'code', header: 'Código' },

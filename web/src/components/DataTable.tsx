@@ -1,19 +1,25 @@
+import { Inbox } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface DataTableProps<T> {
   columns: Array<{ key: keyof T | string; header: string; render?: (row: T) => ReactNode }>;
   rows: T[];
+  ariaLabel?: string;
 }
 
-export function DataTable<T extends { id: string }>({ columns, rows }: DataTableProps<T>) {
+export function DataTable<T extends { id: string }>({
+  columns,
+  rows,
+  ariaLabel = 'Tabela de dados',
+}: DataTableProps<T>) {
   return (
     <div className="table-shell app-view-transition">
       <div className="overflow-x-auto">
-        <table className="data-table">
+        <table className="data-table" aria-label={ariaLabel}>
           <thead>
             <tr>
               {columns.map((column) => (
-                <th key={String(column.key)}>
+                <th key={String(column.key)} scope="col">
                   {column.header}
                 </th>
               ))}
@@ -22,8 +28,14 @@ export function DataTable<T extends { id: string }>({ columns, rows }: DataTable
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-sm font-semibold text-steel dark:text-slate-400">
-                  Nenhum registro encontrado.
+                <td colSpan={columns.length}>
+                  <div className="data-table-empty">
+                    <span className="data-table-empty-icon" aria-hidden="true">
+                      <Inbox size={21} />
+                    </span>
+                    <strong>Nenhum registro encontrado</strong>
+                    <small>Os dados aparecerão aqui assim que forem cadastrados.</small>
+                  </div>
                 </td>
               </tr>
             )}

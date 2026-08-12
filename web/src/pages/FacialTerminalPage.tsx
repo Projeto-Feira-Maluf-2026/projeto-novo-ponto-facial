@@ -568,49 +568,52 @@ export function FacialTerminalPage() {
     <div className="terminal-shell">
       <section className="terminal-camera-card">
         <div className="terminal-toolbar">
-          <div>
-            <strong className="block text-sm">Terminal de acesso</strong>
-            <span className="mt-0.5 block text-xs text-steel">
-              {selectedWorksite ? `${selectedWorksite.code} · ${selectedWorksite.name}` : 'Obra não configurada'}
+          <div className="terminal-toolbar-identity">
+            <div>
+              <strong className="block text-sm">Terminal de acesso</strong>
+              <span className="mt-0.5 block text-xs text-steel">
+                {selectedWorksite ? `${selectedWorksite.code} · ${selectedWorksite.name}` : 'Obra não configurada'}
+              </span>
+            </div>
+            <span className={`status-pill ${autoEnabled ? 'status-pill-online' : 'status-pill-neutral'}`}>
+              <span className="status-dot status-dot-pulse" />
+              {autoEnabled ? 'Leitura automática' : 'Pausado'}
             </span>
           </div>
-          <span className={`status-pill ${autoEnabled ? 'status-pill-online' : 'status-pill-neutral'}`}>
-            <span className="status-dot status-dot-pulse" />
-            {autoEnabled ? 'Leitura automática' : 'Pausado'}
-          </span>
-          <div className="terminal-toolbar-spacer" />
-          <label className="sr-only" htmlFor="terminal-worksite">Obra deste terminal</label>
-          <select
-            id="terminal-worksite"
-            value={worksiteId}
-            onChange={(event) => setWorksiteId(event.target.value)}
-            className="input-field max-w-[220px]"
-          >
-            <option value="">Selecionar obra</option>
-            {worksites.map((worksite) => (
-              <option key={worksite.id} value={worksite.id}>
-                {worksite.code} · {worksite.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => setAutoEnabled((current) => !current)}
-            className="icon-button"
-            aria-label={autoEnabled ? 'Pausar leitura automática' : 'Iniciar leitura automática'}
-            title={autoEnabled ? 'Pausar leitura' : 'Iniciar leitura'}
-          >
-            {autoEnabled ? <Pause size={17} /> : <Play size={17} />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setFullscreen((current) => !current)}
-            className="icon-button"
-            aria-label={fullscreen ? 'Sair da tela cheia' : 'Usar tela cheia'}
-            title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-          >
-            {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
-          </button>
+          <div className="terminal-toolbar-actions">
+            <label className="sr-only" htmlFor="terminal-worksite">Obra deste terminal</label>
+            <select
+              id="terminal-worksite"
+              value={worksiteId}
+              onChange={(event) => setWorksiteId(event.target.value)}
+              className="input-field"
+            >
+              <option value="">Selecionar obra</option>
+              {worksites.map((worksite) => (
+                <option key={worksite.id} value={worksite.id}>
+                  {worksite.code} · {worksite.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setAutoEnabled((current) => !current)}
+              className="icon-button"
+              aria-label={autoEnabled ? 'Pausar leitura automática' : 'Iniciar leitura automática'}
+              title={autoEnabled ? 'Pausar leitura' : 'Iniciar leitura'}
+            >
+              {autoEnabled ? <Pause size={17} /> : <Play size={17} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFullscreen((current) => !current)}
+              className="icon-button"
+              aria-label={fullscreen ? 'Sair da tela cheia' : 'Usar tela cheia'}
+              title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+            >
+              {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+            </button>
+          </div>
         </div>
 
         <div className="terminal-camera-frame">
@@ -700,7 +703,7 @@ export function FacialTerminalPage() {
           </div>
 
           {recentRecords.length === 0 ? (
-            <div className="mt-4 rounded-md border border-dashed border-clay p-4 text-center text-xs text-steel dark:border-slate-700">
+            <div className="terminal-empty-events">
               Os registros aparecerão aqui após a confirmação.
             </div>
           ) : (

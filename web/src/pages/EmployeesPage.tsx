@@ -34,6 +34,19 @@ const initialForm = {
   worksite_id: '',
 };
 
+const employeeStatusLabels: Record<Employee['status'], string> = {
+  ACTIVE: 'Ativo',
+  ON_LEAVE: 'Afastado',
+  INACTIVE: 'Inativo',
+};
+
+const employeeStatusFilters = [
+  { value: 'ALL' as const, label: 'Todos' },
+  { value: 'ACTIVE' as const, label: 'Ativos' },
+  { value: 'ON_LEAVE' as const, label: 'Afastados' },
+  { value: 'INACTIVE' as const, label: 'Inativos' },
+];
+
 const poseInstructions: Record<EnrollmentPose, string> = {
   FRONTAL: 'Olhe de frente para a câmera',
   TURN_LEFT: 'Vire um pouco o rosto para a esquerda',
@@ -346,7 +359,7 @@ export function EmployeesPage() {
 
   return (
     <div className="app-view-transition space-y-5">
-      <section className="flex justify-end">
+      <section className="page-actions">
         <button
           onClick={() => setShowForm((value) => !value)}
           className="btn btn-primary"
@@ -357,7 +370,7 @@ export function EmployeesPage() {
       </section>
 
       {message && (
-        <div className="app-card app-view-transition p-3 text-sm font-semibold text-steel dark:text-slate-200">
+        <div className="feedback-banner app-view-transition" role="status">
           {message}
         </div>
       )}
@@ -408,6 +421,7 @@ export function EmployeesPage() {
         <label className="search-field">
           <Search size={17} className="text-steel" />
           <input
+            aria-label="Buscar funcionário"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="w-full bg-transparent text-sm outline-none"
@@ -415,20 +429,23 @@ export function EmployeesPage() {
           />
         </label>
         <div className="segmented-control">
-          {(['ALL', 'ACTIVE', 'ON_LEAVE', 'INACTIVE'] as const).map((item) => (
+          {employeeStatusFilters.map((item) => (
             <button
-              key={item}
-              onClick={() => setStatus(item)}
+              key={item.value}
+              type="button"
+              onClick={() => setStatus(item.value)}
               className="segmented-button"
-              data-active={status === item}
+              data-active={status === item.value}
+              aria-pressed={status === item.value}
             >
-              {item === 'ALL' ? 'Todos' : item}
+              {item.label}
             </button>
           ))}
         </div>
       </section>
 
       <DataTable
+        ariaLabel="Funcionários cadastrados"
         rows={filtered}
         columns={[
           { key: 'registration', header: 'Matrícula' },
@@ -440,7 +457,7 @@ export function EmployeesPage() {
             render: (row) => (
               <span className={`status-pill ${row.status === 'ACTIVE' ? 'status-pill-online' : row.status === 'ON_LEAVE' ? 'status-pill-warn' : 'status-pill-neutral'}`}>
                 <span className="status-dot" />
-                {row.status}
+                {employeeStatusLabels[row.status]}
               </span>
             ),
           },
@@ -449,7 +466,7 @@ export function EmployeesPage() {
             header: 'Face',
             render: (row) => (
               <span className="inline-flex items-center gap-2 text-sm font-semibold">
-                {row.consent_biometric_at && !row.biometric_reenrollment_required ? <CheckCircle2 size={16} className="text-emerald-700 dark:text-emerald-300" /> : <Camera size={16} className="text-steel" />}
+                {row.consent_biometric_at && !row.biometric_reenrollment_required ? <CheckCircle2 size={16} className="text-limeSafe" /> : <Camera size={16} className="text-steel" />}
                 {row.biometric_reenrollment_required ? 'Recadastro' : row.consent_biometric_at ? 'Ativa' : 'Pendente'}
               </span>
             ),
@@ -459,13 +476,13 @@ export function EmployeesPage() {
             header: '',
             render: (row) => (
               <div className="flex justify-end gap-2">
-                <button onClick={() => openEnrollment(row)} className="icon-button h-8 w-8" title="Cadastrar face">
+                <button type="button" onClick={() => openEnrollment(row)} className="icon-button" title="Cadastrar face" aria-label={`Cadastrar face de ${row.name}`}>
                   <Camera size={16} />
                 </button>
-                <button className="icon-button h-8 w-8" title="Editar">
+                <button type="button" className="icon-button" title="Editar" aria-label={`Editar ${row.name}`}>
                   <Edit3 size={16} />
                 </button>
-                <button className="icon-button h-8 w-8 text-red-700 dark:text-red-300" title="Inativar">
+                <button type="button" className="icon-button text-red-700 dark:text-red-300" title="Inativar" aria-label={`Inativar ${row.name}`}>
                   <Trash2 size={16} />
                 </button>
               </div>

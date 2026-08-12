@@ -216,7 +216,7 @@ export function DevicesPage() {
 
   return (
     <div className="app-view-transition space-y-5">
-      <section className="flex justify-end">
+      <section className="page-actions">
         <button onClick={() => selected && loadPreview(selected)} className="btn btn-primary">
           <RefreshCcw size={18} />
           Atualizar prévia
@@ -224,7 +224,7 @@ export function DevicesPage() {
       </section>
 
       {message && (
-        <div className="app-card app-view-transition p-3 text-sm font-semibold text-steel dark:text-slate-200">
+        <div className="feedback-banner app-view-transition" role="status">
           {message}
         </div>
       )}
@@ -237,13 +237,13 @@ export function DevicesPage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <form onSubmit={saveCamera} className="app-card app-view-transition space-y-4 p-4">
+        <form onSubmit={saveCamera} className="app-card configuration-panel app-view-transition space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold">Configurar câmera</h3>
               <p className="text-sm text-steel dark:text-slate-400">Etapa {step} de 5</p>
             </div>
-            {testResult?.ok && <CheckCircle2 className="text-emerald-700 dark:text-emerald-300" size={24} />}
+            {testResult?.ok && <CheckCircle2 className="text-limeSafe" size={24} />}
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -252,11 +252,9 @@ export function DevicesPage() {
                 type="button"
                 key={item.value}
                 onClick={() => chooseType(item.value)}
-                className={`flex h-11 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition ${
-                  form.camera.camera_type === item.value
-                    ? 'border-emerald-700 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-emerald-200'
-                    : 'border-slate-200 bg-white text-steel hover:border-slate-400 hover:text-ink dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-slate-600'
-                }`}
+                className="choice-card"
+                data-active={form.camera.camera_type === item.value}
+                aria-pressed={form.camera.camera_type === item.value}
               >
                 {item.value === 'WEBCAM' ? <Camera size={17} /> : <Router size={17} />}
                 {item.label}
@@ -338,6 +336,7 @@ export function DevicesPage() {
 
         <div className="space-y-4">
           <DataTable
+            ariaLabel="Câmeras cadastradas"
             rows={devices}
             columns={[
               { key: 'name', header: 'Câmera' },
@@ -366,10 +365,10 @@ export function DevicesPage() {
                 header: '',
                 render: (row) => (
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => loadPreview(row)} className="icon-button h-8 w-8" title="Ver prévia">
+                    <button type="button" onClick={() => loadPreview(row)} className="icon-button" title="Ver prévia" aria-label={`Ver prévia de ${row.name}`}>
                       <Eye size={16} />
                     </button>
-                    <button onClick={() => testSavedCamera(row)} className="icon-button h-8 w-8" title="Testar câmera">
+                    <button type="button" onClick={() => testSavedCamera(row)} className="icon-button" title="Testar câmera" aria-label={`Testar ${row.name}`}>
                       <RefreshCcw size={16} />
                     </button>
                   </div>

@@ -639,7 +639,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         <button
           type="button"
           onClick={start}
-          className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-md border border-white/20 bg-slate-950/75 text-white backdrop-blur hover:border-white/40 hover:bg-slate-900"
+          className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-xl border border-white/20 bg-black/75 text-white backdrop-blur hover:border-white/40 hover:bg-black/90"
           title="Reiniciar câmera"
           aria-label="Reiniciar câmera"
         >
@@ -647,7 +647,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         </button>
 
         {error && (
-          <div className="absolute inset-x-4 bottom-4 rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white shadow-panel">
+          <div className="absolute inset-x-4 bottom-4 rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white shadow-panel">
             {error}
           </div>
         )}
