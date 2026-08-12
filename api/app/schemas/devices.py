@@ -23,7 +23,7 @@ class DeviceCreate(BaseModel):
     worksite_id: str
     name: str = Field(min_length=2, max_length=120)
     serial_number: str = Field(min_length=3, max_length=120)
-    api_key: str = Field(default="camera-local-dev-key", min_length=16)
+    api_key: str = Field(min_length=32, max_length=128)
     status: DeviceStatus = DeviceStatus.ACTIVE
     camera: CameraConfig | None = None
     metadata_json: dict | None = None

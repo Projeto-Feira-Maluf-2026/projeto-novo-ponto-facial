@@ -64,15 +64,16 @@ class DeviceService:
 
 def sanitize_device_metadata(metadata: dict | None) -> dict | None:
     if not metadata:
-        return metadata
-    safe = dict(metadata)
-    camera = safe.get("camera")
-    if isinstance(camera, dict):
-        safe_camera = dict(camera)
-        if safe_camera.get("password"):
-            safe_camera["password"] = "********"
-        safe["camera"] = safe_camera
-    return safe
+        return None
+    camera = metadata.get("camera")
+    if not isinstance(camera, dict):
+        return None
+    safe_camera = {
+        key: camera[key]
+        for key in ("camera_type", "location_label", "recognition_enabled")
+        if key in camera
+    }
+    return {"camera": safe_camera}
 
 
 def camera_config_from_metadata(metadata: dict | None) -> CameraConfig:
@@ -106,24 +107,21 @@ def build_camera_source(config: CameraConfig) -> str | int:
 
 def describe_camera_source(source: str | int) -> str:
     if isinstance(source, int):
-        return f"webcam:{source}"
-    if "@" not in source:
-        return source
-    scheme, rest = source.split("://", 1) if "://" in source else ("", source)
-    _, host = rest.split("@", 1)
-    return f"{scheme}://***:***@{host}" if scheme else f"***:***@{host}"
+        return "local-camera"
+    scheme = source.split("://", 1)[0].lower() if "://" in source else "remote"
+    return f"{scheme}-camera"
 
 
 def test_camera_connection(config: CameraConfig) -> CameraTestResponse:
     source = build_camera_source(config)
     try:
         import cv2
-    except Exception as exc:
+    except Exception:
         return CameraTestResponse(
             ok=False,
             status=DeviceStatus.MAINTENANCE,
             source=describe_camera_source(source),
-            message=f"OpenCV indisponivel: {exc}",
+            message="Runtime de camera indisponivel.",
         )
 
     capture = cv2.VideoCapture(source)

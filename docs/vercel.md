@@ -11,14 +11,15 @@ Variaveis obrigatorias:
 DATABASE_URL=postgresql+asyncpg://...
 SUPABASE_URL=https://SEU-PROJETO.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-SUPABASE_SECRET_KEY=sb_secret_...
+PASSWORD_PEPPER=segredo-aleatorio-com-ao-menos-32-caracteres
+FIELD_ENCRYPTION_KEY=chave-fernet-valida
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 VITE_API_URL=/api/v1
 ```
 
-Aplique a migration Supabase antes do deploy. Nunca exponha `SUPABASE_SECRET_KEY` em uma
-variavel `VITE_*`.
+Aplique a migration Supabase antes do deploy. `SUPABASE_SECRET_KEY` nao e necessaria na
+Vercel; ela deve existir somente no ambiente local usado pelo script administrativo.
 
 ## Dependencias de reconhecimento facial
 

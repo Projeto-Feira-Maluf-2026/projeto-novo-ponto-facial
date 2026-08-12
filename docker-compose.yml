@@ -25,10 +25,10 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Configure DATABASE_URL do Supabase no .env}
       SUPABASE_URL: ${SUPABASE_URL:?Configure SUPABASE_URL no .env}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Configure SUPABASE_PUBLISHABLE_KEY no .env}
-      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?Configure SUPABASE_SECRET_KEY no .env}
       REDIS_URL: redis://redis:6379/0
       REDIS_REQUIRED: "true"
-      PASSWORD_PEPPER: troque-em-producao
+      PASSWORD_PEPPER: ${PASSWORD_PEPPER:?Configure PASSWORD_PEPPER no .env}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?Configure FIELD_ENCRYPTION_KEY no .env}
       CORS_ORIGINS: http://localhost:5174,http://localhost:8080
       FACE_PROVIDER: insightface
       FACE_MODEL_ROOT: /models

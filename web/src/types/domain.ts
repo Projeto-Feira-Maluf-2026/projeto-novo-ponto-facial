@@ -52,8 +52,7 @@ export interface Device {
   status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
   last_seen_at?: string | null;
   metadata_json?: {
-    camera?: CameraConfig;
-    [key: string]: unknown;
+    camera?: Pick<CameraConfig, 'camera_type' | 'location_label' | 'recognition_enabled'>;
   } | null;
 }
 

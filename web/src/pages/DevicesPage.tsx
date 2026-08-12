@@ -42,13 +42,22 @@ const initialCamera: CameraConfig = {
   developer_debug: false,
 };
 
-const initialForm = {
-  name: '',
-  serial_number: '',
-  worksite_id: '',
-  api_key: 'camera-local-dev-key',
-  camera: initialCamera,
-};
+function generateDeviceApiKey(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function createInitialForm() {
+  return {
+    name: '',
+    serial_number: '',
+    worksite_id: '',
+    api_key: generateDeviceApiKey(),
+    camera: { ...initialCamera },
+  };
+}
+
+type CameraForm = ReturnType<typeof createInitialForm>;
 
 function statusPill(status: Device['status']) {
   if (status === 'ACTIVE') return 'status-pill-online';
@@ -59,7 +68,7 @@ function statusPill(status: Device['status']) {
 export function DevicesPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState<CameraForm>(() => createInitialForm());
   const [selected, setSelected] = useState<Device | null>(null);
   const [message, setMessage] = useState('');
   const [testResult, setTestResult] = useState<CameraTestResponse | null>(null);
@@ -107,7 +116,7 @@ export function DevicesPage() {
     return 5;
   }, [form, testResult]);
 
-  const setField = (field: keyof typeof initialForm, value: string) => {
+  const setField = (field: keyof CameraForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -158,7 +167,7 @@ export function DevicesPage() {
         camera: form.camera,
       });
       setSelected(saved);
-      setForm(initialForm);
+      setForm(createInitialForm());
       setTestResult(null);
       setMessage('Câmera salva e pronta para leitura facial.');
       loadDevices();

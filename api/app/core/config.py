@@ -2,6 +2,7 @@ from functools import cached_property
 import os
 from pathlib import Path
 
+from cryptography.fernet import Fernet
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,24 +24,17 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SUPABASE_URL: str
     SUPABASE_PUBLISHABLE_KEY: str
-    SUPABASE_SECRET_KEY: str
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_REQUIRED: bool = False
     HEALTHCHECK_TIMEOUT_SECONDS: float = 1.5
     FACE_EAGER_INITIALIZE: bool = True
 
-    PASSWORD_PEPPER: str = Field(default="troque-este-pepper-em-producao")
-    FIELD_ENCRYPTION_KEY: str = Field(
-        default="n2CX2N9Bq1V0VOjUQ_2dT2cXLsRRj1SRj3o8e4nGmcM="
-    )
+    PASSWORD_PEPPER: str = Field(min_length=32)
+    FIELD_ENCRYPTION_KEY: str = Field(min_length=44, max_length=44)
 
     CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:8080"
     CORS_ORIGIN_REGEX: str | None = None
     BLOB_READ_WRITE_TOKEN: str | None = None
-    INITIAL_ADMIN_NAME: str = "Administrador"
-    INITIAL_ADMIN_EMAIL: str | None = None
-    INITIAL_ADMIN_PASSWORD: str | None = None
-
     FACE_PROVIDER: str = "insightface"
     FACE_MODEL_NAME: str = "buffalo_l"
     FACE_MODEL_ROOT: str = "~/.insightface"
@@ -143,9 +137,10 @@ class Settings(BaseSettings):
             raise ValueError("SUPABASE_URL invalida")
         if not self.SUPABASE_PUBLISHABLE_KEY.startswith("sb_publishable_"):
             raise ValueError("SUPABASE_PUBLISHABLE_KEY invalida")
-        if not self.SUPABASE_SECRET_KEY.startswith("sb_secret_"):
-            raise ValueError("SUPABASE_SECRET_KEY invalida")
-
+        try:
+            Fernet(self.FIELD_ENCRYPTION_KEY.encode("ascii"))
+        except (UnicodeError, ValueError, TypeError) as exc:
+            raise ValueError("FIELD_ENCRYPTION_KEY deve ser uma chave Fernet valida") from exc
         if provider == "fake" and environment != "test":
             raise ValueError("FACE_PROVIDER=fake so pode ser usado com ENVIRONMENT=test")
         if environment in {"staging", "production"} and provider != "insightface":

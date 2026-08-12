@@ -38,8 +38,9 @@ application = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.APP_VERSION,
     description="Controle corporativo de ponto com reconhecimento facial e geofencing.",
-    docs_url="/api/docs",
-    openapi_url="/api/openapi.json",
+    docs_url=None if settings.ENVIRONMENT == "production" else "/api/docs",
+    redoc_url=None if settings.ENVIRONMENT == "production" else "/api/redoc",
+    openapi_url=None if settings.ENVIRONMENT == "production" else "/api/openapi.json",
     lifespan=lifespan,
 )
 
@@ -50,6 +51,11 @@ async def request_context(request: Request, call_next):
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
 

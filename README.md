@@ -9,9 +9,10 @@ PostgreSQL, Redis e InsightFace/ArcFace.
 - Supabase Auth gerencia usuarios, senhas, sessoes e renovacao de tokens.
 - Supabase PostgreSQL armazena os dados operacionais.
 - O frontend usa somente a chave `publishable`.
-- O backend valida cada access token no Supabase e aplica RBAC pelo campo seguro
-  `app_metadata.role`.
-- A chave `secret` existe apenas no backend e nos scripts administrativos.
+- O backend valida cada access token diretamente no Supabase e concede acesso integral
+  a todo usuario autenticado.
+- A chave `secret` e usada somente pelo script administrativo local e nao faz parte do
+  runtime implantado.
 - O Data API permanece bloqueado por RLS; dados biometricos passam pela API FastAPI.
 
 O projeto nao possui banco local, usuario/senha proprio nem tabela de refresh tokens.
@@ -23,11 +24,13 @@ Copie `.env.example` para `.env` e preencha:
 - `DATABASE_URL`: connection string PostgreSQL exibida em **Connect** no Supabase.
 - `SUPABASE_URL`: URL do projeto.
 - `SUPABASE_PUBLISHABLE_KEY`: chave permitida no navegador.
-- `SUPABASE_SECRET_KEY`: chave exclusiva do backend.
+- `SUPABASE_SECRET_KEY`: somente para `npm run bootstrap-admin`, nunca para a Vercel.
+- `PASSWORD_PEPPER` e `FIELD_ENCRYPTION_KEY`: segredos obrigatorios e exclusivos da API.
 - `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`: equivalentes do frontend.
 - `INITIAL_ADMIN_*`: credenciais usadas uma unica vez pelo bootstrap administrativo.
 
-Nunca crie uma variavel `VITE_*` com a chave `secret`.
+Nunca crie uma variavel `VITE_*` com a chave `secret` e mantenha o cadastro publico
+desativado em **Authentication > General Configuration > Allow new users to sign up**.
 
 ## Preparar o Supabase
 

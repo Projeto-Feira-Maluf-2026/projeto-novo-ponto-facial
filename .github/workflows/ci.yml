@@ -12,7 +12,8 @@ jobs:
       DATABASE_URL: postgresql://postgres:test@db.example.supabase.co:5432/postgres
       SUPABASE_URL: https://example.supabase.co
       SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
-      SUPABASE_SECRET_KEY: sb_secret_test
+      PASSWORD_PEPPER: ci-only-password-pepper-value-1234567890
+      FIELD_ENCRYPTION_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

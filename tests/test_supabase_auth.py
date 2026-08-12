@@ -1,5 +1,3 @@
-import pytest
-
 from app.models.enums import UserRole
 from app.services.auth import AuthService
 
@@ -16,7 +14,7 @@ def user_payload(**overrides) -> dict:
     return payload
 
 
-def test_role_comes_from_protected_app_metadata() -> None:
+def test_authenticated_user_receives_full_access() -> None:
     user = AuthService._to_read_model(user_payload())
 
     assert user.role == UserRole.SUPER_ADMIN
@@ -24,11 +22,14 @@ def test_role_comes_from_protected_app_metadata() -> None:
     assert "audit:read" in user.scopes
 
 
-def test_user_metadata_cannot_grant_a_role() -> None:
+def test_user_without_role_metadata_receives_full_access() -> None:
     payload = user_payload(
         app_metadata={},
         user_metadata={"name": "Usuario", "role": "SUPER_ADMIN"},
     )
 
-    with pytest.raises(PermissionError, match="perfil de acesso"):
-        AuthService._to_read_model(payload)
+    user = AuthService._to_read_model(payload)
+
+    assert user.role == UserRole.SUPER_ADMIN
+    assert "audit:read" in user.scopes
+    assert "employees:write" in user.scopes
