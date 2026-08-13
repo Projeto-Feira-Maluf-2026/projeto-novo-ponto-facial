@@ -11,12 +11,14 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useLoginMotion } from '../animations/useMotion';
 import { useAuth } from '../auth/AuthContext';
 
 export function LoginPage() {
+  const loginRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -24,6 +26,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  useLoginMotion(loginRef);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -48,10 +51,40 @@ export function LoginPage() {
   };
 
   return (
-    <main className="login-page">
+    <main ref={loginRef} className="login-page">
       <div className="login-window">
         <aside className="login-context">
           <div className="login-context-grid" aria-hidden="true" />
+          <div className="login-architecture" aria-hidden="true">
+            <svg viewBox="0 0 700 800" preserveAspectRatio="xMidYMid slice" focusable="false">
+              <g className="login-blueprint-city">
+                <path className="login-blueprint-line" d="M24 694H676M44 724H654" />
+                <path className="login-blueprint-volume" d="M28 694V532h112v162M54 532v-48h61v48M152 694V578h92v116" />
+                <path className="login-blueprint-volume" d="M506 694V498h140v196M535 498v-66h76v66" />
+
+                <g className="login-blueprint-building">
+                  <path className="login-blueprint-volume login-blueprint-main" d="M255 694V214l42-34h210v514Z" />
+                  <path className="login-blueprint-line" d="M297 180v514M507 214 297 180M355 190v504M418 199v495M476 208v486" />
+                  <path className="login-blueprint-line" d="M255 694h274v20H236v-20ZM281 180v-26h242v540" />
+                  <path className="login-blueprint-floor" d="M255 618h252" />
+                  <path className="login-blueprint-floor" d="M255 550h252" />
+                  <path className="login-blueprint-floor" d="M255 482h252" />
+                  <path className="login-blueprint-floor" d="M255 414h252" />
+                  <path className="login-blueprint-floor" d="M255 346h252" />
+                  <path className="login-blueprint-floor" d="M255 278h252" />
+                  <path className="login-blueprint-floor" d="M271 228h236" />
+                  <path className="login-blueprint-accent" d="M320 618v-48h58v48M436 550v-48h44v48M373 414v-48h62v48" />
+                </g>
+
+                <g className="login-blueprint-crane">
+                  <path className="login-blueprint-line" d="M560 694V142M548 694h24M552 142h16M560 142H262M560 156h84M282 142l-34 20M319 142l-34 20M356 142l-34 20M393 142l-34 20M430 142l-34 20" />
+                  <path className="login-blueprint-line" d="M302 142v180M295 322h14M626 156v94M618 250h16" />
+                </g>
+
+                <path className="login-blueprint-scan" d="M176 96V736" />
+              </g>
+            </svg>
+          </div>
           <div className="login-brand">
             <div className="login-brand-mark">CE</div>
             <div>

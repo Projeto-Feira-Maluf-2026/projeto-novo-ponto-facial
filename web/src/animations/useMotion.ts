@@ -1,7 +1,15 @@
 import { animate } from 'animejs';
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 
-import { createMetricMotion, createModalMotion, createTableMotion, motionTokens } from './motion';
+import { createLoginMotion, createMetricMotion, createModalMotion, createTableMotion, motionTokens } from './motion';
+
+export function useLoginMotion(ref: RefObject<HTMLElement>) {
+  useLayoutEffect(() => {
+    if (!ref.current) return undefined;
+    const scope = createLoginMotion(ref.current);
+    return () => scope.revert();
+  }, [ref]);
+}
 
 export function useTableMotion(ref: RefObject<HTMLElement>, changeKey: string) {
   useLayoutEffect(() => {

@@ -4095,6 +4095,169 @@ textarea::placeholder {
 }
 
 /* Centralized motion surfaces driven by Anime.js */
+.login-page {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.login-page::before,
+.login-page::after {
+  position: fixed;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+}
+
+.login-page::before {
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(90 76 55 / 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(90 76 55 / 0.055) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: radial-gradient(circle at 50% 45%, black, transparent 78%);
+}
+
+.login-page::after {
+  top: -30vh;
+  right: -13vw;
+  width: 42vw;
+  height: 150vh;
+  border-left: 1px solid rgb(161 98 7 / 0.2);
+  background: linear-gradient(90deg, rgb(161 98 7 / 0.035), transparent 65%);
+  transform: rotate(13deg);
+  transform-origin: center;
+}
+
+.login-window {
+  position: relative;
+  z-index: 1;
+}
+
+.login-context::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgb(25 23 20 / 0.72) 0%, rgb(25 23 20 / 0.42) 48%, transparent 82%),
+    linear-gradient(0deg, rgb(25 23 20 / 0.5), transparent 38%);
+  content: "";
+  pointer-events: none;
+}
+
+.login-context-grid {
+  z-index: 0;
+}
+
+.login-architecture {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent 2%, rgb(0 0 0 / 0.6) 35%, black 70%);
+}
+
+.login-architecture svg {
+  position: absolute;
+  top: -2%;
+  right: -9%;
+  width: 112%;
+  height: 106%;
+  overflow: visible;
+}
+
+.login-blueprint-line,
+.login-blueprint-floor,
+.login-blueprint-volume,
+.login-blueprint-accent,
+.login-blueprint-scan {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.login-blueprint-line {
+  stroke: rgb(255 255 255 / 0.2);
+  stroke-width: 1;
+}
+
+.login-blueprint-floor {
+  stroke: rgb(255 255 255 / 0.28);
+  stroke-width: 1;
+}
+
+.login-blueprint-volume {
+  fill: rgb(255 255 255 / 0.018);
+  stroke: rgb(255 255 255 / 0.2);
+  stroke-width: 1;
+}
+
+.login-blueprint-main {
+  fill: rgb(205 160 78 / 0.035);
+  stroke: rgb(223 178 94 / 0.38);
+}
+
+.login-blueprint-accent {
+  stroke: rgb(223 178 94 / 0.62);
+  stroke-width: 1.25;
+}
+
+.login-blueprint-scan {
+  opacity: 0;
+  stroke: rgb(240 195 109 / 0.7);
+  stroke-width: 1;
+}
+
+.login-brand,
+.login-context-content,
+.login-context-footer {
+  z-index: 2;
+}
+
+.login-context-content > h1 {
+  text-shadow: 0 12px 34px rgb(0 0 0 / 0.34);
+}
+
+.login-operation-card {
+  border-color: rgb(255 255 255 / 0.14);
+  background: rgb(22 20 17 / 0.5);
+  box-shadow: 0 18px 42px rgb(0 0 0 / 0.18), inset 0 1px rgb(255 255 255 / 0.045);
+  backdrop-filter: blur(12px);
+}
+
+.login-input > svg,
+.login-submit svg,
+.login-password-toggle svg,
+.login-form-icon {
+  transition: transform 180ms var(--ease-out), color 180ms var(--ease-standard);
+}
+
+.login-input:focus-within > svg {
+  color: #a16207;
+  transform: translateY(-1px) scale(1.06);
+}
+
+.login-submit {
+  transition:
+    transform 180ms var(--ease-out),
+    background-color 180ms var(--ease-standard),
+    box-shadow 180ms var(--ease-standard);
+}
+
+.login-submit:hover:not(:disabled) {
+  box-shadow: 0 14px 30px rgb(28 25 23 / 0.25);
+  transform: translateY(-2px);
+}
+
+.login-submit:hover:not(:disabled) > svg {
+  transform: translateX(4px);
+}
+
+.login-submit:active:not(:disabled) {
+  box-shadow: 0 7px 16px rgb(28 25 23 / 0.18);
+  transform: translateY(0) scale(0.985);
+}
+
 .sidebar-nav,
 .mobile-nav {
   position: relative;
