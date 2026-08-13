@@ -19,3 +19,6 @@ web/dist/
 *.db.bak
 models/**/*.onnx
 models/**/*.zip
+
+.env.local
+.env.*.local
