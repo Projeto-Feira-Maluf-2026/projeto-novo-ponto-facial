@@ -33,12 +33,12 @@ router = APIRouter()
 
 
 def _face_enrollment_service(session: AsyncSession):
-    if is_lightweight_serverless():
-        raise AppError(
-            "FACE_RUNTIME_NOT_INSTALLED",
-            "Matricula facial exige o backend de IA em container",
-            503,
-        )
+    # if is_lightweight_serverless():
+    #     raise AppError(
+    #         "FACE_RUNTIME_NOT_INSTALLED",
+    #         "Matricula facial exige o backend de IA em container",
+    #         503,
+    #     )
     from app.services.enrollment import FaceEnrollmentService
 
     return FaceEnrollmentService(session)
