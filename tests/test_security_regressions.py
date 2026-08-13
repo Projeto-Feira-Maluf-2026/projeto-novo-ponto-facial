@@ -2,9 +2,12 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from app.main import application as application_under_test
+from app.application import create_application
 from app.schemas.devices import DeviceCreate
 from app.services.devices import describe_camera_source, sanitize_device_metadata
+
+
+application_under_test = create_application()
 
 
 def test_device_responses_never_expose_connection_secrets() -> None:

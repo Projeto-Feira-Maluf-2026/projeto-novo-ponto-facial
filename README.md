@@ -27,6 +27,9 @@ Copie `.env.example` para `.env` e preencha:
 - `SUPABASE_SECRET_KEY`: somente para `npm run bootstrap-admin`, nunca para a Vercel.
 - `PASSWORD_PEPPER` e `FIELD_ENCRYPTION_KEY`: segredos obrigatorios e exclusivos da API.
 - `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`: equivalentes do frontend.
+- `VITE_API_URL`: mantenha `/api/v1` para a API comum hospedada junto ao frontend.
+- `VITE_FACE_API_URL`: URL HTTPS publica, terminada em `/api/v1`, do container que
+  executa InsightFace. Nao use `localhost` em deploy.
 - `INITIAL_ADMIN_*`: credenciais usadas uma unica vez pelo bootstrap administrativo.
 
 Nunca crie uma variavel `VITE_*` com a chave `secret` e mantenha o cadastro publico
@@ -73,6 +76,10 @@ em `.env`.
 ```bash
 docker compose up --build
 ```
+
+Em producao, a Vercel hospeda o frontend e a API comum. A matricula e a batida facial
+devem apontar para a imagem `api/Dockerfile` publicada em um host de containers. Veja
+`docs/vercel.md` para as variaveis e os testes de saude desse backend.
 
 ## Validacao
 

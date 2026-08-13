@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosInstance } from 'axios';
 
 import { supabase } from './supabase';
 
@@ -14,6 +14,7 @@ import type {
   EnrollmentFinalizeResponse,
   EnrollmentSessionResponse,
   FaceAnalyzeResponse,
+  FaceCapabilitiesResponse,
   FaceIdentifyResponse,
   FaceVerifyResponse,
   Page,
@@ -21,36 +22,75 @@ import type {
   Worksite,
 } from '../types/domain';
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? '/api/v1',
-});
+const DEFAULT_API_URL = '/api/v1';
+
+function isLoopbackHost(hostname: string) {
+  const normalized = hostname.toLowerCase();
+  return normalized === 'localhost'
+    || normalized === '127.0.0.1'
+    || normalized === '::1'
+    || normalized === '[::1]';
+}
+
+export function resolveApiBaseUrl(configured: string | undefined, fallback: string) {
+  const candidate = (configured?.trim() || fallback).replace(/\/+$/, '');
+  if (!candidate.startsWith('/') && !/^https?:\/\//i.test(candidate)) {
+    console.warn(`URL de API invalida; usando ${fallback}.`);
+    return fallback;
+  }
+  if (typeof window === 'undefined') return candidate;
+
+  const target = new URL(candidate, window.location.origin);
+  const pageIsLoopback = isLoopbackHost(window.location.hostname);
+  if (!pageIsLoopback && isLoopbackHost(target.hostname)) {
+    console.warn(`API configurada para ${target.hostname} fora do ambiente local; usando ${fallback}.`);
+    return fallback;
+  }
+  if (window.location.protocol === 'https:' && target.protocol === 'http:') {
+    console.warn(`API HTTP bloqueada em pagina HTTPS; usando ${fallback}.`);
+    return fallback;
+  }
+  return candidate;
+}
+
+const apiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_URL, DEFAULT_API_URL);
+const faceApiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_FACE_API_URL, apiBaseUrl);
+
+function createApi(baseURL: string): AxiosInstance {
+  const client = axios.create({ baseURL });
+
+  client.interceptors.request.use(async (config) => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  });
+
+  client.interceptors.response.use(
+    (response) => {
+      const contentType = String(response.headers['content-type'] ?? '');
+      if (contentType.includes('text/html')) {
+        return Promise.reject(new Error('API_ROUTE_RETURNED_HTML'));
+      }
+      return response;
+    },
+    async (error) => {
+      if (error.response?.status === 401) {
+        void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      }
+      return Promise.reject(error);
+    },
+  );
+
+  return client;
+}
+
+const api = createApi(apiBaseUrl);
+const faceApi = createApi(faceApiBaseUrl);
 
 const enableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
-
-api.interceptors.request.use(async (config) => {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => {
-    const contentType = String(response.headers['content-type'] ?? '');
-    if (contentType.includes('text/html')) {
-      return Promise.reject(new Error('API_ROUTE_RETURNED_HTML'));
-    }
-    return response;
-  },
-  async (error) => {
-    if (error.response?.status === 401) {
-      void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-    }
-    return Promise.reject(error);
-  },
-);
 
 const fallbackMetrics: DashboardMetrics = {
   total_employees: 1264,
@@ -194,28 +234,32 @@ export const apiClient = {
     const response = await api.post<Worksite>('/worksites', payload);
     return response.data;
   },
+  faceCapabilities: async () => {
+    const response = await faceApi.get<FaceCapabilitiesResponse>('/ai/capabilities');
+    return response.data;
+  },
   analyzeFace: async (imageBase64: string) => {
-    const response = await api.post<FaceAnalyzeResponse>('/ai/analyze-face', {
+    const response = await faceApi.post<FaceAnalyzeResponse>('/ai/analyze-face', {
       image_base64: imageBase64,
     });
     return response.data;
   },
   identifyFace: async (imageBase64: string, worksiteId?: string | null, signal?: AbortSignal) => {
-    const response = await api.post<FaceIdentifyResponse>('/ai/identify-face', {
+    const response = await faceApi.post<FaceIdentifyResponse>('/ai/identify-face', {
       image_base64: imageBase64,
       worksite_id: worksiteId || null,
     }, { signal });
     return response.data;
   },
   verifyFace: async (imageBase64: string, employeeId: string, signal?: AbortSignal) => {
-    const response = await api.post<FaceVerifyResponse>('/ai/verify-face', {
+    const response = await faceApi.post<FaceVerifyResponse>('/ai/verify-face', {
       image_base64: imageBase64,
       employee_id: employeeId,
     }, { signal });
     return response.data;
   },
   startFaceEnrollment: async (employeeId: string) => {
-    const response = await api.post<EnrollmentSessionResponse>(
+    const response = await faceApi.post<EnrollmentSessionResponse>(
       `/employees/${employeeId}/face-enrollment-sessions`,
     );
     return response.data;
@@ -225,7 +269,7 @@ export const apiClient = {
     sessionId: string,
     payload: EnrollmentCapturePayload,
   ) => {
-    const response = await api.post<EnrollmentCaptureResponse>(
+    const response = await faceApi.post<EnrollmentCaptureResponse>(
       `/employees/${employeeId}/face-enrollment-sessions/${sessionId}/captures`,
       payload,
     );
@@ -236,20 +280,20 @@ export const apiClient = {
     sessionId: string,
     captures: EnrollmentCapturePayload[],
   ) => {
-    const response = await api.post<EnrollmentFinalizeResponse>(
+    const response = await faceApi.post<EnrollmentFinalizeResponse>(
       `/employees/${employeeId}/face-enrollment-sessions/${sessionId}/finalize`,
       { captures },
     );
     return response.data;
   },
   cancelFaceEnrollment: async (employeeId: string, sessionId: string) => {
-    const response = await api.delete(
+    const response = await faceApi.delete(
       `/employees/${employeeId}/face-enrollment-sessions/${sessionId}`,
     );
     return response.data;
   },
   punch: async (payload: PunchPayload) => {
-    const response = await api.post<AttendanceDecision>('/attendance/punch', payload);
+    const response = await faceApi.post<AttendanceDecision>('/attendance/punch', payload);
     return response.data;
   },
   exportReport: (format: 'pdf' | 'xlsx' | 'csv') =>

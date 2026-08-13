@@ -1,5 +1,6 @@
 node_modules/
 .vercel/
+.vercel_python_packages/
 .ruff_cache/
 *.egg-info/
 .env

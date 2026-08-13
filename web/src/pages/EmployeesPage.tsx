@@ -71,10 +71,23 @@ function wait(milliseconds: number) {
 
 function enrollmentError(error: unknown, fallback: string) {
   const payload = error as {
+    code?: string;
+    message?: string;
     response?: { data?: { error?: { code?: string; message?: string; details?: { reasons?: string[] } } } };
   };
   const apiError = payload.response?.data?.error;
-  if (!apiError) return fallback;
+  if (apiError?.code === 'FACE_RUNTIME_NOT_INSTALLED') {
+    return 'O backend de IA facial não está publicado. Configure VITE_FACE_API_URL com uma URL HTTPS acessível por todos os computadores.';
+  }
+  if (!apiError) {
+    if (payload.message === 'API_ROUTE_RETURNED_HTML') {
+      return 'A URL configurada respondeu com o site em vez da API. Verifique VITE_FACE_API_URL.';
+    }
+    if (payload.code === 'ERR_NETWORK') {
+      return 'Não foi possível acessar o backend facial. Verifique a URL HTTPS, o CORS e se o serviço está online.';
+    }
+    return fallback;
+  }
   const reasons = apiError.details?.reasons;
   const suffix = reasons?.length ? ` (${reasons.join(', ')})` : '';
   return `${apiError.message || fallback}${apiError.code ? ` [${apiError.code}]` : ''}${suffix}`;
@@ -194,6 +207,14 @@ export function EmployeesPage() {
     setMessage('');
     setEnrollSaving(true);
     try {
+      const capabilities = await apiClient.faceCapabilities();
+      if (!capabilities.provider_ready) {
+        setCaptureRejected(true);
+        setEnrollmentFeedback(
+          'O backend de IA facial não está disponível neste deploy. Configure VITE_FACE_API_URL com a URL HTTPS do backend em container.',
+        );
+        return;
+      }
       const started = await apiClient.startFaceEnrollment(employee.id);
       setEnrollmentSession(started);
       setEnrollmentFeedback('Entre no enquadramento e olhe de frente. A captura será automática.');
@@ -516,13 +537,14 @@ export function EmployeesPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`status-pill ${autoCaptureEnabled ? 'status-pill-online' : 'status-pill-neutral'}`}>
-                  <span className={`status-dot ${autoCaptureEnabled ? 'status-dot-pulse' : ''}`} />
-                  {autoCaptureEnabled ? 'Automático' : 'Pausado'}
+                <span className={`status-pill ${enrollmentSession && autoCaptureEnabled ? 'status-pill-online' : 'status-pill-neutral'}`}>
+                  <span className={`status-dot ${enrollmentSession && autoCaptureEnabled ? 'status-dot-pulse' : ''}`} />
+                  {enrollmentSession ? (autoCaptureEnabled ? 'Automático' : 'Pausado') : 'Aguardando API'}
                 </span>
                 <button
                   type="button"
                   onClick={() => setAutoCaptureEnabled((current) => !current)}
+                  disabled={!enrollmentSession}
                   className="icon-button"
                   title={autoCaptureEnabled ? 'Pausar captura' : 'Retomar captura'}
                 >
@@ -536,27 +558,39 @@ export function EmployeesPage() {
 
             <div className="enrollment-dialog-body">
               <div className="enrollment-camera-column">
-                <CameraCapture
-                  ref={cameraRef}
-                  className="enrollment-camera"
-                  onReadyChange={setEnrollmentCameraReady}
-                  onFacePresenceChange={setEnrollmentFacePresent}
-                  faceOverlay={{
-                    label: currentEnrollmentPose
-                      ? poseInstructions[currentEnrollmentPose]
-                      : enrollmentComplete
-                        ? 'Cadastro concluído'
-                        : 'Preparando câmera',
-                    detail: enrollmentSession
-                      ? `${Math.min(captures.length + 1, enrollmentStepCount)}/${enrollmentStepCount}`
-                      : undefined,
-                    tone: captureRejected
-                      ? 'warning'
-                      : enrollmentComplete
-                        ? 'success'
-                        : 'tracking',
-                  }}
-                />
+                {enrollmentSession ? (
+                  <CameraCapture
+                    ref={cameraRef}
+                    className="enrollment-camera"
+                    onReadyChange={setEnrollmentCameraReady}
+                    onFacePresenceChange={setEnrollmentFacePresent}
+                    faceOverlay={{
+                      label: currentEnrollmentPose
+                        ? poseInstructions[currentEnrollmentPose]
+                        : enrollmentComplete
+                          ? 'Cadastro concluído'
+                          : 'Preparando câmera',
+                      detail: `${Math.min(captures.length + 1, enrollmentStepCount)}/${enrollmentStepCount}`,
+                      tone: captureRejected
+                        ? 'warning'
+                        : enrollmentComplete
+                          ? 'success'
+                          : 'tracking',
+                    }}
+                  />
+                ) : (
+                  <div className="enrollment-camera grid place-items-center bg-slate-950 px-8 text-center text-white">
+                    <div className="grid max-w-sm justify-items-center gap-3">
+                      {enrollSaving
+                        ? <LoaderCircle size={32} className="animate-spin" />
+                        : <AlertCircle size={32} className="text-amber-300" />}
+                      <strong>{enrollSaving ? 'Verificando o backend facial' : 'Câmera não iniciada'}</strong>
+                      <span className="text-sm text-slate-300">
+                        A câmera só será aberta depois que a API confirmar que o modelo facial está pronto.
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div className="enrollment-camera-caption">
                   <div className="flex items-center gap-2">
                     <span
@@ -565,16 +599,22 @@ export function EmployeesPage() {
                       }`}
                     />
                     <strong>
-                      {!enrollmentCameraReady
-                        ? 'Iniciando câmera'
-                        : enrollmentFacePresent
-                          ? enrollSaving
-                            ? 'Capturando'
-                            : 'Rosto detectado'
-                          : 'Entre no enquadramento'}
+                      {!enrollmentSession
+                        ? enrollSaving ? 'Verificando backend' : 'Backend facial indisponível'
+                        : !enrollmentCameraReady
+                          ? 'Iniciando câmera'
+                          : enrollmentFacePresent
+                            ? enrollSaving
+                              ? 'Capturando'
+                              : 'Rosto detectado'
+                            : 'Entre no enquadramento'}
                     </strong>
                   </div>
-                  <span>O rosto é aproximado e ajustado automaticamente.</span>
+                  <span>
+                    {enrollmentSession
+                      ? 'O rosto é aproximado e ajustado automaticamente.'
+                      : 'Nenhuma imagem foi capturada ou enviada.'}
+                  </span>
                 </div>
               </div>
 

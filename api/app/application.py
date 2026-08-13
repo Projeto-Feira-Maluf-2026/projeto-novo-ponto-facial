@@ -1,3 +1,5 @@
+"""FastAPI application factory and shared middleware configuration."""
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -34,18 +36,6 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
-application = FastAPI(
-    title=settings.PROJECT_NAME,
-    version=settings.APP_VERSION,
-    description="Controle corporativo de ponto com reconhecimento facial e geofencing.",
-    docs_url=None if settings.ENVIRONMENT == "production" else "/api/docs",
-    redoc_url=None if settings.ENVIRONMENT == "production" else "/api/redoc",
-    openapi_url=None if settings.ENVIRONMENT == "production" else "/api/openapi.json",
-    lifespan=lifespan,
-)
-
-
-@application.middleware("http")
 async def request_context(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
     request.state.request_id = request_id
@@ -70,7 +60,6 @@ def _error_payload(request: Request, code: str, message: str, details: object = 
     }
 
 
-@application.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
@@ -78,7 +67,6 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-@application.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     errors = [
         {
@@ -99,7 +87,6 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     )
 
 
-@application.exception_handler(HTTPException)
 async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
     message = exc.detail if isinstance(exc.detail, str) else "A requisicao nao pode ser processada"
     details = exc.detail if isinstance(exc.detail, dict) else {}
@@ -110,7 +97,6 @@ async def http_error_handler(request: Request, exc: HTTPException) -> JSONRespon
     )
 
 
-@application.exception_handler(Exception)
 async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception(
         "Erro nao tratado request_id=%s exception_type=%s",
@@ -127,15 +113,30 @@ async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResp
     )
 
 
-application.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-application.include_router(health_router)
-application.include_router(health_router, prefix="/api")
-application.include_router(api_router, prefix=settings.API_V1_PREFIX)
+def create_application() -> FastAPI:
+    service = FastAPI(
+        title=settings.PROJECT_NAME,
+        version=settings.APP_VERSION,
+        description="Controle corporativo de ponto com reconhecimento facial e geofencing.",
+        docs_url=None if settings.ENVIRONMENT == "production" else "/api/docs",
+        redoc_url=None if settings.ENVIRONMENT == "production" else "/api/redoc",
+        openapi_url=None if settings.ENVIRONMENT == "production" else "/api/openapi.json",
+        lifespan=lifespan,
+    )
+    service.middleware("http")(request_context)
+    service.add_exception_handler(AppError, app_error_handler)
+    service.add_exception_handler(RequestValidationError, validation_error_handler)
+    service.add_exception_handler(HTTPException, http_error_handler)
+    service.add_exception_handler(Exception, unexpected_error_handler)
+    service.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.CORS_ORIGIN_REGEX,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    service.include_router(health_router)
+    service.include_router(health_router, prefix="/api")
+    service.include_router(api_router, prefix=settings.API_V1_PREFIX)
+    return service

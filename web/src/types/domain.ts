@@ -78,6 +78,30 @@ export interface FaceBox {
   source_height: number;
 }
 
+export interface FaceCapabilitiesResponse {
+  provider_state: string;
+  provider_ready: boolean;
+  real_model: boolean;
+  model_name?: string | null;
+  model_version?: string | null;
+  detector_name?: string | null;
+  execution_provider?: string | null;
+  embedding_dimension?: number | null;
+  maximum_image_bytes: number;
+  minimum_image_width: number;
+  minimum_image_height: number;
+  allowed_mime_types: string[];
+  enrollment_minimum_images: number;
+  enrollment_required_poses: string[];
+  enrollment_minimum_frames_per_pose: number;
+  enrollment_maximum_frames_per_pose: number;
+  enrollment_minimum_burst_span_ms: number;
+  threshold_profile: string;
+  thresholds_calibrated: boolean;
+  liveness_available: boolean;
+  limitations: string[];
+}
+
 export interface FaceAnalyzeResponse {
   request_id: string;
   accepted: boolean;

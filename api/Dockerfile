@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS base
+FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -17,4 +17,4 @@ COPY app ./app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:application", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.application:create_application", "--factory", "--host", "0.0.0.0", "--port", "8000"]

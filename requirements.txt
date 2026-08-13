@@ -11,3 +11,4 @@ redis>=5.0.0
 openpyxl>=3.1.0
 reportlab>=4.2.0
 email-validator>=2.1.0
+vercel>=0.7.0,<1.0.0

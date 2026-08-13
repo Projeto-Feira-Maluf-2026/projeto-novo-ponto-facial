@@ -14,16 +14,18 @@ Write-Host "Instalando backend..." -ForegroundColor Yellow
 if (!(Test-Path $VenvPython)) {
   $PyLauncher = Get-Command py -ErrorAction SilentlyContinue
   if ($null -ne $PyLauncher) {
-    & py -3.11 -m venv $Venv
-    if ($LASTEXITCODE -ne 0) {
-      & py -3 -m venv $Venv
-    }
+    & py -3.12 -m venv $Venv
   } else {
-    & python -m venv $Venv
+    $PythonCommand = Get-Command python -ErrorAction Stop
+    $PythonVersion = & $PythonCommand.Source -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    if ($PythonVersion -ne "3.12") {
+      throw "Python 3.12 e obrigatorio. Versao encontrada: $PythonVersion"
+    }
+    & $PythonCommand.Source -m venv $Venv
   }
 
   if (!(Test-Path $VenvPython)) {
-    throw "Nao foi possivel criar a venv em $Venv"
+    throw "Nao foi possivel criar a venv com Python 3.12 em $Venv"
   }
 }
 

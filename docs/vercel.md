@@ -16,6 +16,8 @@ FIELD_ENCRYPTION_KEY=chave-fernet-valida
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 VITE_API_URL=/api/v1
+# URL publica do container facial; deixe vazio somente se nao for usar biometria.
+VITE_FACE_API_URL=https://SEU-BACKEND-FACIAL.example.com/api/v1
 ```
 
 Aplique a migration Supabase antes do deploy. `SUPABASE_SECRET_KEY` nao e necessaria na
@@ -27,8 +29,8 @@ O `requirements.txt` da raiz contem apenas as dependencias do runtime serverless
 Vercel. `numpy`, `pillow`, `opencv-python-headless`, `insightface` e `onnxruntime` ficam
 fora desse manifesto, pois a cadeia de processamento facial ultrapassa o limite do bundle
 Python. Essas dependencias permanecem no `api/pyproject.toml`.
-O servidor Uvicorn e o SDK Python da Vercel tambem nao fazem parte desse manifesto, pois
-a Function ASGI nao importa nenhum deles.
+O servidor Uvicorn nao faz parte desse manifesto. O SDK Python da Vercel permanece para
+o endpoint opcional de upload no Blob.
 
 O setup local e a imagem Docker ja instalam `.[ai]`. Para executar inferencia facial em
 producao, use o container da API com os modelos montados em `FACE_MODEL_ROOT`, ou habilite
@@ -39,3 +41,34 @@ Na Function serverless leve, autenticacao, cadastros, dashboard, relatorios, dis
 e consultas continuam disponiveis. Inferencia, matricula facial e batida biometrica
 respondem `503 FACE_RUNTIME_NOT_INSTALLED`; `/api/v1/ai/capabilities` descreve essa
 limitacao sem tentar importar as bibliotecas nativas.
+
+## Backend facial em container
+
+Publique `api/Dockerfile` em um servico de containers com volume ou imagem contendo o
+modelo configurado em `FACE_MODEL_ROOT`. O processo deve receber, no minimo, as mesmas
+variaveis `DATABASE_URL`, `SUPABASE_*`, `PASSWORD_PEPPER` e `FIELD_ENCRYPTION_KEY` da API
+comum, alem destas:
+
+```env
+ENVIRONMENT=production
+FACE_RUNTIME_MODE=full
+FACE_PROVIDER=insightface
+FACE_THRESHOLDS_CALIBRATED=true
+CORS_ORIGINS=https://curitiba-gestao.vercel.app
+```
+
+Use HTTPS publico; `localhost` aponta para o computador do visitante e HTTP e bloqueado
+por navegadores quando a pagina esta em HTTPS. Depois de cadastrar `VITE_FACE_API_URL`
+na Vercel, faca um novo deploy porque variaveis `VITE_*` sao incorporadas no build.
+
+Antes de liberar a matricula, confirme:
+
+```text
+GET https://SEU-BACKEND-FACIAL.example.com/health/live       -> 200
+GET https://SEU-BACKEND-FACIAL.example.com/api/v1/ai/capabilities
+provider_ready                                                -> true
+```
+
+Nao remova a verificacao `is_lightweight_serverless()`: sem o container, ela evita que a
+Function leve importe bibliotecas ausentes e transforme um erro explicativo em resposta
+500.

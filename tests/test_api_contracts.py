@@ -2,11 +2,14 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
+from app.application import create_application
 from app.core.config import settings
-from app.main import application as application_under_test
 from app.schemas.ai import FaceIdentifyRequest, FaceVerifyRequest
 from app.schemas.enrollment import EnrollmentCaptureRequest
 from app.services.ai.facial_service import get_face_provider
+
+
+application_under_test = create_application()
 
 
 @pytest.mark.asyncio
