@@ -16,6 +16,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 
 import { CameraCapture, type CameraCaptureHandle } from '../components/CameraCapture';
 import { DataTable } from '../components/DataTable';
+import { playModalExit } from '../animations/motion';
+import { useModalMotion } from '../animations/useMotion';
 import { apiClient } from '../services/api';
 import type {
   Employee,
@@ -97,6 +99,8 @@ function friendlyCaptureFeedback(instruction: string, reasons: string[]) {
 
 export function EmployeesPage() {
   const cameraRef = useRef<CameraCaptureHandle | null>(null);
+  const enrollmentModalRef = useRef<HTMLDivElement>(null);
+  const enrollmentClosingRef = useRef(false);
   const captureInFlightRef = useRef(false);
   const finalizeInFlightRef = useRef(false);
   const autoCaptureNotBeforeRef = useRef(0);
@@ -118,6 +122,7 @@ export function EmployeesPage() {
   const [enrollmentFacePresent, setEnrollmentFacePresent] = useState(false);
   const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
   const [captureRejected, setCaptureRejected] = useState(false);
+  useModalMotion(enrollmentModalRef, enrolling?.id ?? null);
 
   const loadEmployees = () => {
     apiClient
@@ -200,19 +205,27 @@ export function EmployeesPage() {
   };
 
   const closeEnrollment = useCallback((cancelSession = true) => {
+    if (enrollmentClosingRef.current) return;
     if (cancelSession && enrolling && enrollmentSession) {
       void apiClient.cancelFaceEnrollment(enrolling.id, enrollmentSession.session_id).catch(() => undefined);
     }
     captureInFlightRef.current = false;
     finalizeInFlightRef.current = false;
-    setEnrolling(null);
-    setEnrollmentSession(null);
-    setCaptures([]);
-    setCapturePreviews([]);
-    setEnrollmentFeedback('');
-    setEnrollmentCameraReady(false);
+    enrollmentClosingRef.current = true;
+    setAutoCaptureEnabled(false);
     setEnrollmentFacePresent(false);
-    setCaptureRejected(false);
+
+    playModalExit(enrollmentModalRef.current, () => {
+      enrollmentClosingRef.current = false;
+      setEnrolling(null);
+      setEnrollmentSession(null);
+      setCaptures([]);
+      setCapturePreviews([]);
+      setEnrollmentFeedback('');
+      setEnrollmentCameraReady(false);
+      setEnrollmentFacePresent(false);
+      setCaptureRejected(false);
+    });
   }, [enrolling, enrollmentSession]);
 
   const captureFace = useCallback(async () => {
@@ -492,7 +505,7 @@ export function EmployeesPage() {
       />
 
       {enrolling && (
-        <div className="modal-backdrop">
+        <div ref={enrollmentModalRef} className="modal-backdrop">
           <section className="enrollment-dialog app-card text-ink dark:text-slate-100">
             <header className="enrollment-dialog-header">
               <div>

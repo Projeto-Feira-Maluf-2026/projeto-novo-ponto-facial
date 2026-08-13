@@ -1,5 +1,7 @@
 import { Inbox } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+
+import { useTableMotion } from '../animations/useMotion';
 
 interface DataTableProps<T> {
   columns: Array<{ key: keyof T | string; header: string; render?: (row: T) => ReactNode }>;
@@ -12,8 +14,12 @@ export function DataTable<T extends { id: string }>({
   rows,
   ariaLabel = 'Tabela de dados',
 }: DataTableProps<T>) {
+  const tableRef = useRef<HTMLDivElement>(null);
+  const rowMotionKey = rows.slice(0, 12).map((row) => row.id).join('|');
+  useTableMotion(tableRef, rowMotionKey);
+
   return (
-    <div className="table-shell app-view-transition">
+    <div ref={tableRef} className="table-shell app-view-transition">
       <div className="overflow-x-auto">
         <table className="data-table" aria-label={ariaLabel}>
           <thead>

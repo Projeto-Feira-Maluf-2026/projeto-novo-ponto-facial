@@ -15,9 +15,10 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
+import { createPageMotion, moveIndicator } from '../animations/motion';
 import { useAuth } from '../auth/AuthContext';
 
 interface NavItem {
@@ -88,6 +89,11 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   const isTerminal = location.pathname === '/terminal-facial';
   const [online, setOnline] = useState(navigator.onLine);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const sidebarNavRef = useRef<HTMLElement>(null);
+  const sidebarIndicatorRef = useRef<HTMLSpanElement>(null);
+  const mobileNavRef = useRef<HTMLElement>(null);
+  const mobileIndicatorRef = useRef<HTMLSpanElement>(null);
 
   const displayName = useMemo(() => {
     const metadataName = user?.user_metadata?.name;
@@ -135,6 +141,28 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
     };
   }, [mobileMenuOpen]);
 
+  useLayoutEffect(() => {
+    if (!mainRef.current) return undefined;
+    const scope = createPageMotion(mainRef.current);
+    return () => scope.revert();
+  }, [location.pathname]);
+
+  useLayoutEffect(() => {
+    let sidebarAnimation: ReturnType<typeof moveIndicator>;
+    let mobileAnimation: ReturnType<typeof moveIndicator>;
+    const frame = window.requestAnimationFrame(() => {
+      const sidebarTarget = sidebarNavRef.current?.querySelector<HTMLElement>('.sidebar-link[data-active="true"]');
+      const mobileTarget = mobileNavRef.current?.querySelector<HTMLElement>('a[data-active="true"], button[data-active="true"]');
+      if (sidebarIndicatorRef.current && sidebarTarget) sidebarAnimation = moveIndicator(sidebarIndicatorRef.current, sidebarTarget, 'y');
+      if (mobileIndicatorRef.current && mobileTarget) mobileAnimation = moveIndicator(mobileIndicatorRef.current, mobileTarget, 'x');
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      sidebarAnimation?.cancel();
+      mobileAnimation?.cancel();
+    };
+  }, [location.pathname, mobileMenuOpen]);
+
   const moreActive = navItems.slice(4).some((item) => isActivePath(location.pathname, item.to));
 
   return (
@@ -161,7 +189,8 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         </div>
 
         <div className="sidebar-section-label">Operação</div>
-        <nav className="sidebar-nav" aria-label="Navegação principal">
+        <nav ref={sidebarNavRef} className="sidebar-nav" aria-label="Navegação principal">
+          <span ref={sidebarIndicatorRef} className="sidebar-active-indicator" aria-hidden="true" />
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActivePath(location.pathname, item.to);
@@ -248,7 +277,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
           </div>
         </header>
 
-        <main id="main-content" tabIndex={-1} className={isTerminal ? 'app-main app-main-terminal' : 'app-main'}>
+        <main ref={mainRef} id="main-content" tabIndex={-1} className={isTerminal ? 'app-main app-main-terminal' : 'app-main'}>
           {!isTerminal && (
             <section className="page-heading">
               <div>
@@ -266,7 +295,8 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         </main>
       </div>
 
-      <nav className="mobile-nav" aria-label="Navegação móvel">
+      <nav ref={mobileNavRef} className="mobile-nav" aria-label="Navegação móvel">
+        <span ref={mobileIndicatorRef} className="mobile-active-indicator" aria-hidden="true" />
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const active = isActivePath(location.pathname, item.to);
