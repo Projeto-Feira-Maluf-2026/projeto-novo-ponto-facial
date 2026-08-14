@@ -131,6 +131,7 @@ class InsightFaceArcFaceProvider(FaceProvider):
         self.expected_model_sha256 = expected_model_sha256 or settings.FACE_MODEL_SHA256
         self.configured_model_version = configured_model_version or settings.FACE_MODEL_VERSION
         self._lock = Lock()
+        self._inference_lock = Lock()
         self._app: Any | None = None
         self._recognition_model: Any | None = None
         self._state = FaceProviderState.MODEL_LOAD_FAILED
@@ -310,6 +311,61 @@ class InsightFaceArcFaceProvider(FaceProvider):
     def info(self) -> FaceModelInfo:
         return self.initialize()
 
+    def _faces_for_sizes(
+        self,
+        image_bgr: np.ndarray,
+        input_sizes: list[tuple[int, int]],
+    ) -> list[Any]:
+        if self._app is None:
+            return []
+        from insightface.app.common import Face
+
+        bboxes, keypoints = self._app.det_model.detect(
+            image_bgr,
+            input_size=input_sizes,
+            max_num=0,
+        )
+        faces: list[Any] = []
+        for index in range(bboxes.shape[0]):
+            face = Face(
+                bbox=bboxes[index, :4],
+                kps=keypoints[index] if keypoints is not None else None,
+                det_score=bboxes[index, 4],
+            )
+            for task_name, model in self._app.models.items():
+                if task_name != "detection":
+                    model.get(image_bgr, face)
+            faces.append(face)
+        return faces
+
+    @staticmethod
+    def _needs_high_resolution_pass(faces: list[Any], image_bgr: np.ndarray) -> bool:
+        if not faces:
+            return True
+        image_area = max(float(image_bgr.shape[0] * image_bgr.shape[1]), 1.0)
+        best_area_ratio = max(
+            (
+                max(0.0, float(face.bbox[2] - face.bbox[0]))
+                * max(0.0, float(face.bbox[3] - face.bbox[1]))
+                / image_area
+                for face in faces
+            ),
+            default=0.0,
+        )
+        return best_area_ratio < 0.028
+
+    def _adaptive_faces(self, image_bgr: np.ndarray) -> list[Any]:
+        sizes = list(self.detection_sizes)
+        if len(sizes) <= 1:
+            return self._faces_for_sizes(image_bgr, sizes)
+        regular_sizes = sizes[:-1]
+        faces = self._faces_for_sizes(image_bgr, regular_sizes)
+        if not self._needs_high_resolution_pass(faces, image_bgr):
+            return faces
+        detailed_sizes = list(dict.fromkeys([regular_sizes[-1], sizes[-1]]))
+        detailed_faces = self._faces_for_sizes(image_bgr, detailed_sizes)
+        return detailed_faces or faces
+
     def _result_failure(
         self,
         state: FaceProviderState,
@@ -351,7 +407,8 @@ class InsightFaceArcFaceProvider(FaceProvider):
 
         started_at = perf_counter()
         try:
-            faces = self._app.get(image_bgr)
+            with self._inference_lock:
+                faces = self._adaptive_faces(image_bgr)
             elapsed_ms = (perf_counter() - started_at) * 1000
             if not faces:
                 return self._result_failure(

@@ -127,6 +127,8 @@ def test_face_service_retries_detection_with_an_enhanced_frame() -> None:
 
     processed = service.from_image_base64(image_data_uri())
 
-    assert provider.calls == 2
+    # The enhanced image is only a detector aid. A third pass on original pixels
+    # prevents enrollment and recognition from producing filter-specific embeddings.
+    assert provider.calls == 3
     assert processed.inference.state == FaceProviderState.READY
     assert processed.inference.embedding is not None

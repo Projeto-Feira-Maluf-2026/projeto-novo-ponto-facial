@@ -203,6 +203,8 @@ export interface AttendanceDecision {
   liveness_score?: number | null;
   quality_score?: number | null;
   reasons: string[];
+  temporal_evidence_count: number;
+  temporal_similarity_median?: number | null;
   record?: AttendanceRecord | null;
 }
 
@@ -247,6 +249,35 @@ export interface EnrollmentSessionResponse {
   model_name: string;
   model_version: string;
   embedding_dimension: number;
+  collection_mode: 'AUTOMATIC' | 'GUIDED';
+  accepted_samples: number;
+  target_samples: number;
+  ready: boolean;
+}
+
+export interface EnrollmentSampleResponse {
+  session_id: string;
+  accepted: boolean;
+  state: EnrollmentState;
+  instruction: string;
+  reasons: string[];
+  accepted_samples: number;
+  target_samples: number;
+  ready: boolean;
+  progress: number;
+  sample_id?: string | null;
+  pose_bucket?: string | null;
+  pose_coverage: string[];
+  quality_score?: number | null;
+  face_area_ratio?: number | null;
+  blur_score?: number | null;
+  luminance_mean?: number | null;
+  contrast_score?: number | null;
+  detection_confidence?: number | null;
+  observed_yaw?: number | null;
+  observed_pitch?: number | null;
+  observed_roll?: number | null;
+  processing_ms?: number | null;
 }
 
 export interface EnrollmentCaptureResponse {

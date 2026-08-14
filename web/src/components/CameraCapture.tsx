@@ -186,6 +186,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let landmarker: FaceLandmarker | null = null;
       let lastFacePresent = false;
       let lastVideoTime = -1;
+      let lastLandmarkAt = 0;
 
       const setFacePresent = (present: boolean) => {
         if (lastFacePresent === present) return;
@@ -329,12 +330,13 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       };
 
       const processFrame = (now: DOMHighResTimeStamp) => {
-        if (cancelled) return;
+        if (cancelled || document.hidden || now - lastLandmarkAt < 90) return;
 
         const video = videoRef.current;
         if (landmarker && video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
           if (video.currentTime === lastVideoTime) return;
           lastVideoTime = video.currentTime;
+          lastLandmarkAt = now;
           try {
             drawFace(landmarker.detectForVideo(video, now));
           } catch {

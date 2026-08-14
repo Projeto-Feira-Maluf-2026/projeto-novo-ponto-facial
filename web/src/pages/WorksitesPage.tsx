@@ -1,12 +1,10 @@
-import { Box, Building2, ChevronRight, MapPin, Plus, ShieldCheck } from 'lucide-react';
-import { FormEvent, lazy, Suspense, useEffect, useState } from 'react';
+import { Building2, ChevronRight, MapPin, Plus, ScanFace, ShieldCheck } from 'lucide-react';
+import { FormEvent, useEffect, useState } from 'react';
 
 import { DataTable } from '../components/DataTable';
 import { MetricCard } from '../components/MetricCard';
 import { apiClient } from '../services/api';
 import type { Worksite } from '../types/domain';
-
-const WorksiteWorld3D = lazy(() => import('../components/WorksiteWorld3D').then((module) => ({ default: module.WorksiteWorld3D })));
 
 const initialForm = {
   name: '',
@@ -148,19 +146,19 @@ export function WorksitesPage() {
         <MetricCard label="Raio médio" value={`${Math.round(worksites.reduce((acc, item) => acc + item.geofence_radius_meters, 0) / Math.max(worksites.length, 1))}m`} icon={MapPin} tone="blue" />
       </section>
 
-      <section className="worksite-3d-section app-card" aria-labelledby="worksite-world-heading">
-        <header className="worksite-3d-header">
+      <section className="worksite-ops-section app-card" aria-labelledby="worksite-ops-heading">
+        <header className="worksite-ops-header">
           <div>
-            <span className="section-eyebrow"><Box size={14} /> Ambiente tridimensional</span>
-            <h2 id="worksite-world-heading">Explore cada obra como um mundo</h2>
-            <p>Gire, aproxime e percorra o canteiro. Cada cadastro gera uma estrutura 3D própria.</p>
+            <span className="section-eyebrow"><ShieldCheck size={14} /> Cobertura operacional</span>
+            <h2 id="worksite-ops-heading">Acesso e geofence por obra</h2>
+            <p>Visão esquemática para conferir o raio permitido e os pontos de operação antes de liberar a equipe.</p>
           </div>
-          <span className="worksite-3d-sync"><i /> Vinculado às obras</span>
+          <span className="worksite-ops-sync"><i /> Dados do cadastro</span>
         </header>
 
         {selectedWorksite ? (
-          <div className="worksite-3d-layout">
-            <div className="worksite-world-selector" role="tablist" aria-label="Escolher obra para visualizar">
+          <div className="worksite-ops-layout">
+            <div className="worksite-ops-selector" role="tablist" aria-label="Escolher obra para visualizar">
               <div className="worksite-selector-heading">
                 <span>Obras disponíveis</span>
                 <strong>{String(worksites.length).padStart(2, '0')}</strong>
@@ -175,7 +173,7 @@ export function WorksitesPage() {
                       type="button"
                       role="tab"
                       aria-selected={selected}
-                      aria-controls="worksite-world-panel"
+                      aria-controls="worksite-ops-panel"
                       className="worksite-selector-item"
                       data-active={selected}
                       onClick={() => setSelectedWorksiteId(worksite.id)}
@@ -191,19 +189,36 @@ export function WorksitesPage() {
                   );
                 })}
               </div>
-              <p className="worksite-selector-note"><MouseHint /> Arraste o cenário para mudar o ponto de vista.</p>
+              <p className="worksite-selector-note"><MapPin size={15} /> Selecione uma obra para conferir sua cobertura.</p>
             </div>
 
             <div
-              id="worksite-world-panel"
-              className="worksite-world-panel"
+              id="worksite-ops-panel"
+              className="worksite-ops-panel"
               role="tabpanel"
               aria-labelledby={`worksite-tab-${selectedWorksite.id}`}
             >
-              <Suspense fallback={<WorldLoading />}>
-                <WorksiteWorld3D key={selectedWorksite.id} worksite={selectedWorksite} />
-              </Suspense>
-              <dl className="worksite-world-metadata">
+              <div className="worksite-plan" aria-label={`Planta esquemática da obra ${selectedWorksite.name}`}>
+                <div className="worksite-plan-grid" aria-hidden="true" />
+                <div className="worksite-plan-heading">
+                  <span>Planta esquemática</span>
+                  <strong>{selectedWorksite.code}</strong>
+                </div>
+                <div className="worksite-plan-boundary" data-active={selectedWorksite.active}>
+                  <span>{selectedWorksite.geofence_radius_meters} m</span>
+                </div>
+                <div className="worksite-plan-building">
+                  <Building2 size={24} aria-hidden="true" />
+                  <span>Frente de obra</span>
+                </div>
+                <div className="worksite-plan-gate"><ShieldCheck size={18} aria-hidden="true" /><span>Acesso</span></div>
+                <div className="worksite-plan-terminal"><ScanFace size={18} aria-hidden="true" /><span>Terminal facial</span></div>
+                <div className="worksite-plan-legend">
+                  <span><i data-tone="coverage" /> Limite da geofence</span>
+                  <span><i data-tone="terminal" /> Ponto de registro</span>
+                </div>
+              </div>
+              <dl className="worksite-ops-metadata">
                 <div><dt>Endereço</dt><dd>{selectedWorksite.address}</dd></div>
                 <div><dt>Responsável</dt><dd>{selectedWorksite.manager_name || 'Não informado'}</dd></div>
                 <div><dt>Geofence</dt><dd>{selectedWorksite.geofence_radius_meters} metros</dd></div>
@@ -211,9 +226,9 @@ export function WorksitesPage() {
             </div>
           </div>
         ) : (
-          <div className="worksite-world-empty">
+          <div className="worksite-ops-empty">
             <span><Building2 size={24} /></span>
-            <div><strong>Nenhuma obra para visualizar</strong><p>Cadastre a primeira obra para criar seu ambiente 3D.</p></div>
+            <div><strong>Nenhuma obra para visualizar</strong><p>Cadastre a primeira obra para configurar sua cobertura operacional.</p></div>
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(true)}><Plus size={17} /> Cadastrar obra</button>
           </div>
         )}
@@ -240,22 +255,6 @@ export function WorksitesPage() {
           },
         ]}
       />
-    </div>
-  );
-}
-
-function MouseHint() {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-      <path d="M12 2a5 5 0 0 0-5 5v5a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5Zm0 0v5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function WorldLoading() {
-  return (
-    <div className="worksite-world-frame" aria-label="Carregando ambiente tridimensional">
-      <div className="worksite-world-loading"><span /> Carregando motor 3D</div>
     </div>
   );
 }

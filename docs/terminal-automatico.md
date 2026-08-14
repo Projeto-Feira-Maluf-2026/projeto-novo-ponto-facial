@@ -7,11 +7,12 @@ A tela `Ponto automático` foi desenhada para funcionar em uma câmera fixa, sem
 ## Fluxo de operação
 
 1. O terminal inicia a câmera e seleciona a obra vinculada.
-2. Uma imagem é analisada a cada 1,35 segundo, sempre com apenas uma requisição em andamento.
-3. O mesmo funcionário precisa ser reconhecido em três leituras consecutivas.
-4. O frontend solicita o registro ao servidor; o tipo de movimento é decidido pela regra de jornada da API.
-5. O resultado permanece visível por seis segundos.
-6. Um bloqueio local de 45 segundos impede uma nova batida acidental do mesmo funcionário.
+2. Uma imagem é analisada a cada 850 ms, sempre com apenas uma requisição em andamento.
+3. O reconhecimento evolui por `UNKNOWN → POSSIBLE → CONFIRMING → CONFIRMED` em uma janela de quatro segundos.
+4. As três evidências aceitas são preservadas e enviadas juntas ao servidor. A API reprocessa os frames, valida a consistência temporal e agrega os embeddings antes de decidir.
+5. O tipo de movimento é decidido pela regra de jornada da API.
+6. O resultado permanece visível por seis segundos.
+7. Um bloqueio local de 45 segundos impede uma nova batida acidental do mesmo funcionário.
 
 O terminal pode ser pausado pelo operador e possui modo de tela cheia. Nenhum score biométrico interno é exposto ao colaborador.
 
@@ -37,7 +38,7 @@ A qualidade final não deve ser homologada apenas por resolução nominal. Antes
 
 ## Observação técnica importante
 
-As três leituras estáveis e o bloqueio de repetição melhoram a experiência e evitam disparos acidentais no frontend, mas não substituem prova de vida temporal no servidor. Para elevar a resistência a fraude, o próximo incremento deve incluir uma sessão de reconhecimento com desafio, sequência temporal de frames e decisão de liveness validada pela API.
+A consistência temporal agora é revalidada pela API e reduz decisões baseadas em um único frame. Ela não deve ser chamada de prova de vida: o runtime atual não possui PAD/liveness homologado. Para elevar a resistência a foto, tela ou replay, ainda é necessário integrar e calibrar um modelo de apresentação de ataque com uma base representativa das câmeras reais.
 
 ## Arquivos principais
 

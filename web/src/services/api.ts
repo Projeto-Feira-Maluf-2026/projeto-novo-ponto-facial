@@ -12,6 +12,7 @@ import type {
   EnrollmentCapturePayload,
   EnrollmentCaptureResponse,
   EnrollmentFinalizeResponse,
+  EnrollmentSampleResponse,
   EnrollmentSessionResponse,
   FaceAnalyzeResponse,
   FaceCapabilitiesResponse,
@@ -200,7 +201,8 @@ export interface PunchPayload {
   punch_type?: PunchType | null;
   location?: { latitude: number; longitude: number } | null;
   face: {
-    image_base64: string;
+    image_base64?: string;
+    images_base64?: string[];
   };
   offline_batch_id?: string | null;
 }
@@ -275,10 +277,21 @@ export const apiClient = {
     );
     return response.data;
   },
+  collectFaceEnrollmentSample: async (
+    employeeId: string,
+    sessionId: string,
+    frame: { image_base64: string; captured_at: string },
+  ) => {
+    const response = await faceApi.post<EnrollmentSampleResponse>(
+      `/employees/${employeeId}/face-enrollment-sessions/${sessionId}/samples`,
+      { frame },
+    );
+    return response.data;
+  },
   finalizeFaceEnrollment: async (
     employeeId: string,
     sessionId: string,
-    captures: EnrollmentCapturePayload[],
+    captures: EnrollmentCapturePayload[] = [],
   ) => {
     const response = await faceApi.post<EnrollmentFinalizeResponse>(
       `/employees/${employeeId}/face-enrollment-sessions/${sessionId}/finalize`,

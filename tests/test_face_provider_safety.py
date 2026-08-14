@@ -66,6 +66,16 @@ def test_detection_sizes_reject_unsafe_values() -> None:
         )
 
 
+def test_high_resolution_detection_is_reserved_for_small_or_missing_faces() -> None:
+    image = np.zeros((720, 1280, 3), dtype=np.uint8)
+    large_face = SimpleNamespace(bbox=np.asarray([300, 160, 620, 520]))
+    distant_face = SimpleNamespace(bbox=np.asarray([580, 280, 680, 380]))
+
+    assert InsightFaceArcFaceProvider._needs_high_resolution_pass([], image) is True
+    assert InsightFaceArcFaceProvider._needs_high_resolution_pass([distant_face], image) is True
+    assert InsightFaceArcFaceProvider._needs_high_resolution_pass([large_face], image) is False
+
+
 def test_secondary_face_threshold_cannot_be_lower_than_detector_floor() -> None:
     with pytest.raises(ValidationError, match="Thresholds de deteccao facial"):
         Settings(

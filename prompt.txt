@@ -1,0 +1,3440 @@
+Você está trabalhando em um projeto REAL de **sistema de bate-ponto de funcionários por reconhecimento facial através de câmeras**.
+
+Quero que execute **TODO O TRABALHO DESCRITO NESTE PROMPT DE FORMA ORGANIZADA, DO INÍCIO AO FIM, NO MESMO PROCESSO**.
+
+Não quero que você faça apenas uma pequena análise, entregue sugestões e pare.
+
+Analise → planeje → implemente → integre → teste → corrija → valide.
+
+Existem dois grandes objetivos neste trabalho:
+
+1. **Melhorar profundamente o sistema de reconhecimento facial e cadastro facial.**
+2. **Refazer completamente a experiência visual/UI/UX do sistema.**
+
+---
+
+# ⚠️ REGRA PRINCIPAL
+
+Este é um sistema de bate-ponto REAL.
+
+O ambiente real NÃO terá:
+
+* câmera perfeita;
+* iluminação perfeita;
+* funcionário perfeitamente parado;
+* rosto sempre frontal;
+* pessoa sempre próxima;
+* imagem sempre em alta resolução.
+
+O sistema precisa ser projetado pensando exatamente no contrário.
+
+Teremos situações como:
+
+* webcam simples;
+* câmera de segurança;
+* câmera IP;
+* compressão de vídeo;
+* rosto distante;
+* rosto pequeno dentro do frame;
+* iluminação irregular;
+* pessoa andando;
+* motion blur;
+* ângulos diferentes;
+* pessoa olhando ligeiramente para baixo;
+* pessoa olhando para os lados;
+* pequenas alterações de aparência;
+* vários funcionários passando pela câmera.
+
+Portanto:
+
+**NÃO DESENVOLVA O RECONHECIMENTO PENSANDO EM UMA FOTO FRONTAL PERFEITA.**
+
+Desenvolva pensando em uma câmera instalada em uma empresa.
+
+---
+
+# 1. PRIMEIRO: ENTENDA COMPLETAMENTE O PROJETO
+
+Antes de modificar qualquer coisa, percorra o projeto inteiro relacionado ao reconhecimento facial.
+
+Descubra exatamente:
+
+* arquitetura utilizada;
+* frontend;
+* backend;
+* banco de dados;
+* biblioteca de visão computacional;
+* detector facial;
+* modelo de reconhecimento;
+* modelo responsável pelos embeddings;
+* formato dos embeddings;
+* onde são armazenados;
+* como são recuperados;
+* como funciona o cadastro;
+* como funciona a câmera;
+* como ocorre a captura;
+* como ocorre a detecção;
+* como ocorre o reconhecimento;
+* resolução utilizada;
+* resize realizado;
+* preprocessing;
+* alinhamento facial;
+* landmarks;
+* métrica de comparação;
+* threshold;
+* quantidade de embeddings por funcionário;
+* quantidade de frames analisados;
+* regras de qualidade;
+* fluxo completo do bate-ponto.
+
+Mapeie mentalmente:
+
+CAMERA
+↓
+FRAME
+↓
+DETECÇÃO
+↓
+TRACKING
+↓
+QUALIDADE
+↓
+ALINHAMENTO
+↓
+EMBEDDING
+↓
+COMPARAÇÃO
+↓
+DECISÃO TEMPORAL
+↓
+IDENTIDADE
+↓
+BATE-PONTO
+
+Encontre gargalos e erros nesse pipeline.
+
+**Não comece simplesmente diminuindo threshold.**
+
+Primeiro descubra por que o reconhecimento atual está ruim.
+
+---
+
+# 2. PROBLEMA ATUAL GRAVE
+
+Atualmente o sistema apresenta um problema inaceitável:
+
+**às vezes nem eu mesmo consigo ser reconhecido estando próximo da câmera.**
+
+E isso acontece mesmo depois de conseguir concluir o cadastro.
+
+Portanto existe provavelmente algum problema envolvendo uma ou várias destas áreas:
+
+* qualidade do cadastro;
+* embeddings ruins;
+* detector;
+* alinhamento;
+* crop;
+* preprocessing;
+* comparação;
+* threshold;
+* normalização;
+* resolução;
+* diferenças entre pipeline de cadastro e reconhecimento;
+* seleção ruim dos frames;
+* baixa diversidade das amostras cadastradas.
+
+INVESTIGUE.
+
+Não tente mascarar o problema simplesmente aumentando a tolerância.
+
+---
+
+# 3. PROBLEMA MUITO GRAVE NO CADASTRO
+
+O cadastro facial atual também está ruim.
+
+Hoje o sistema solicita movimentos/posições do rosto durante o cadastro.
+
+Mesmo executando corretamente os movimentos solicitados, pode levar aproximadamente **3 MINUTOS PARA CONSEGUIR CADASTRAR CADA IMAGEM/ETAPA**.
+
+Isso é completamente inviável.
+
+Imagine cadastrar:
+
+50 funcionários.
+
+100 funcionários.
+
+300 funcionários.
+
+O cadastro precisa ser rápido, intuitivo e confiável.
+
+E existe um problema ainda pior:
+
+**depois de passar vários minutos cadastrando corretamente, o sistema pode não reconhecer aquela mesma pessoa.**
+
+Isso indica que o fluxo atual precisa ser profundamente investigado.
+
+---
+
+# 4. RECONSTRUA A EXPERIÊNCIA DE CADASTRO
+
+Quero um método de enrollment/cadastro facial muito melhor.
+
+Não quero obrigatoriamente:
+
+"olhe exatamente para esquerda"
+
+aguardar...
+
+"olhe exatamente para direita"
+
+aguardar...
+
+"olhe para cima"
+
+aguardar...
+
+durante vários minutos.
+
+Crie um sistema inteligente de **captura automática de múltiplas amostras**.
+
+Quando o funcionário posicionar o rosto diante da câmera, o sistema deve analisar continuamente os frames.
+
+Durante poucos segundos, obtenha automaticamente boas representações daquela pessoa.
+
+Por exemplo:
+
+FRAME 1
+FRAME 2
+FRAME 3
+...
+FRAME N
+
+Analise:
+
+* nitidez;
+* tamanho do rosto;
+* iluminação;
+* confiança da detecção;
+* pose;
+* yaw;
+* pitch;
+* roll;
+* landmarks;
+* oclusão quando disponível;
+* diversidade em relação às amostras já selecionadas.
+
+Não salve simplesmente vários frames praticamente iguais.
+
+Selecione automaticamente um conjunto pequeno de **boas e diferentes representações do funcionário**.
+
+Exemplo conceitual:
+
+frontal
+↓
+levemente esquerda
+↓
+levemente direita
+↓
+outra variação útil
+
+O funcionário NÃO deve precisar acertar uma posição perfeita por vários segundos.
+
+Use tolerâncias realistas.
+
+---
+
+# 5. CADASTRO DEVE SER RÁPIDO
+
+Objetivo:
+
+Transformar o cadastro de algo que atualmente pode levar minutos em uma experiência que normalmente leve **poucos segundos**, desde que existam frames suficientes e adequados.
+
+Não force artificialmente um tempo específico se isso comprometer segurança.
+
+Quero algo semelhante a:
+
+Funcionário posiciona o rosto.
+
+Sistema começa automaticamente.
+
+"Detectando rosto"
+
+↓
+
+"Capturando amostras"
+
+↓
+
+indicador de progresso
+
+↓
+
+"Cadastro concluído"
+
+O sistema deve escolher os melhores frames automaticamente.
+
+Se determinada amostra estiver ruim:
+
+**não reinicie o cadastro inteiro.**
+
+Continue capturando até conseguir substituí-la.
+
+---
+
+# 6. MÚLTIPLOS EMBEDDINGS POR FUNCIONÁRIO
+
+Investigue como o sistema atualmente representa uma pessoa.
+
+Caso exista apenas um embedding, considere seriamente alterar isso.
+
+Cada funcionário pode possuir múltiplas representações.
+
+Por exemplo:
+
+Employee
+
+→ embedding A
+→ embedding B
+→ embedding C
+→ embedding D
+→ embedding E
+
+Esses embeddings devem representar pequenas variações reais.
+
+Durante o reconhecimento, utilize uma estratégia matematicamente coerente para comparar o rosto detectado contra as representações daquela identidade.
+
+Não simplesmente faça uma gambiarra como:
+
+"se qualquer embedding ficar vagamente próximo, aceite".
+
+Precisamos melhorar recall **sem destruir precisão**.
+
+---
+
+# 7. REFERÊNCIAS OBRIGATÓRIAS
+
+Você DEVE analisar profundamente estes três projetos/documentações:
+
+Projeto 1:
+
+https://github.com/Viniciusrz7/Reconhecimento-Facial/blob/main/README.md
+
+Projeto 2:
+
+https://gist.github.com/dantetesta/891c3e88c88769f384f49e383883d3a7
+
+Projeto 3:
+
+https://github.com/david-luk4s/reconhecimento-facial/tree/master
+
+**NÃO IGNORE ESSES LINKS.**
+
+Abra e estude os três.
+
+Investigue:
+
+* arquitetura;
+* modelos;
+* detecção;
+* geração de embeddings/descriptors;
+* landmarks;
+* alinhamento;
+* cadastro;
+* armazenamento;
+* comparação;
+* reconhecimento;
+* processamento da câmera;
+* thresholds;
+* estratégias utilizadas;
+* performance;
+* técnicas que poderiam resolver problemas do projeto atual.
+
+---
+
+# 8. NÃO COPIE CEGAMENTE OS 3 PROJETOS
+
+Esta parte é extremamente importante.
+
+Eu quero que você **USE REALMENTE ESSES PROJETOS COMO REFERÊNCIA TÉCNICA**, mas não quero substituir tecnologia moderna por tecnologia inferior simplesmente porque ela aparece nos links.
+
+Faça uma comparação:
+
+IMPLEMENTAÇÃO ATUAL
+vs
+PROJETO 1
+vs
+PROJETO 2
+vs
+PROJETO 3
+
+Para cada técnica relevante determine:
+
+MELHOR que a atual?
+→ considere integrar.
+
+COMPLEMENTA a atual?
+→ integre de maneira apropriada.
+
+PIOR/ULTRAPASSADA?
+→ NÃO substitua a tecnologia atual; aproveite apenas o conceito útil.
+
+INCOMPATÍVEL?
+→ adapte o conceito em vez de introduzir duas arquiteturas conflitantes.
+
+O objetivo é:
+
+**APENAS MELHORAR.**
+
+Nunca faça downgrade técnico.
+
+Não quero três sistemas de reconhecimento diferentes rodando ao mesmo tempo sem necessidade.
+
+Quero **um pipeline único, coerente e robusto**, aproveitando as melhores ideias encontradas.
+
+---
+
+# 9. INTEGRAÇÃO REAL
+
+Não quero apenas comentários dizendo:
+
+"Poderíamos usar a técnica do projeto X."
+
+Se uma técnica dos projetos realmente melhorar este sistema e for compatível, implemente-a corretamente.
+
+Faça integração completa:
+
+* código;
+* serviços;
+* modelos;
+* banco;
+* tipos;
+* APIs;
+* frontend;
+* tratamento de erros;
+* migrations quando necessárias;
+* compatibilidade com registros existentes quando possível;
+* testes.
+
+Nenhuma implementação pela metade.
+
+---
+
+# 10. ROSTOS DISTANTES
+
+Este sistema PRECISA considerar pessoas distantes da câmera.
+
+Analise principalmente:
+
+* resolução original da câmera;
+* resolução enviada ao detector;
+* tamanho mínimo detectável;
+* resize;
+* downscale;
+* detector utilizado;
+* resolução de inferência;
+* crop.
+
+Pode existir uma situação como:
+
+CAMERA 1920x1080
+
+↓
+
+FRAME reduzido exageradamente
+
+↓
+
+rosto distante perde detalhes
+
+↓
+
+detector não encontra
+
+↓
+
+"desconhecido"
+
+Descubra se algo semelhante está acontecendo.
+
+Considere estratégias como:
+
+* processamento em resolução maior;
+* resolução adaptativa;
+* detecção multi-scale;
+* processamento seletivo;
+* crop inteligente;
+* tracking;
+* detecção periódica;
+* processamento de ROI;
+* upscale moderado de regiões faciais quando tecnicamente justificável.
+
+Não aplique upscale gigante esperando criar detalhes que não existem.
+
+---
+
+# 11. DIFERENTES ÂNGULOS
+
+O funcionário não estará perfeitamente olhando para a lente.
+
+O sistema precisa tolerar variações razoáveis de:
+
+* yaw;
+* pitch;
+* roll.
+
+Use landmarks/alinhamento facial quando forem adequados ao modelo atual.
+
+Uma pequena inclinação da cabeça não pode fazer uma pessoa cadastrada virar imediatamente:
+
+DESCONHECIDO.
+
+---
+
+# 12. RECONHECIMENTO TEMPORAL
+
+Vídeo possui uma vantagem enorme:
+
+**temos vários frames.**
+
+Use isso.
+
+Não trate câmera como se fosse uma sequência de fotografias completamente independentes.
+
+Quando detectar uma pessoa, acompanhe aquela face durante uma pequena janela temporal.
+
+Conceitualmente:
+
+DETECTAR
+
+↓
+
+TRACK ID
+
+↓
+
+FRAME 1 → score
+
+FRAME 2 → score
+
+FRAME 3 → score
+
+FRAME 4 → score
+
+↓
+
+AGREGAÇÃO
+
+↓
+
+DECISÃO
+
+Uma pessoa andando pode produzir:
+
+frame ruim
+frame ruim
+frame excelente
+frame bom
+frame excelente
+
+Não quero que o primeiro frame ruim determine tudo.
+
+Da mesma maneira, uma correspondência suspeita em apenas um frame não pode bater ponto para a pessoa errada.
+
+---
+
+# 13. TRACKING
+
+Avalie implementar tracking facial entre detecções.
+
+Isso pode permitir:
+
+* manter identidade temporal;
+* reduzir inferências desnecessárias;
+* acompanhar funcionários andando;
+* coletar vários frames;
+* estabilizar resultado;
+* aumentar FPS.
+
+Mas escolha uma implementação compatível com a arquitetura atual.
+
+---
+
+# 14. QUALITY SCORING
+
+Crie um sistema coerente para avaliar qualidade das amostras.
+
+Considere:
+
+* resolução facial;
+* largura/altura do rosto;
+* blur;
+* iluminação;
+* contraste;
+* pose;
+* confiança do detector;
+* landmarks;
+* oclusão quando disponível.
+
+Não transforme isso em um filtro impossível.
+
+Uma câmera ruim continuará produzindo imagens imperfeitas.
+
+O sistema deve saber diferenciar:
+
+"não é perfeito"
+
+de
+
+"é inutilizável".
+
+---
+
+# 15. ALINHAMENTO FACIAL
+
+Investigue se cadastro e reconhecimento utilizam exatamente o preprocessing esperado pelo modelo.
+
+Analise:
+
+* landmarks;
+* alinhamento dos olhos;
+* orientação;
+* crop;
+* padding;
+* proporção;
+* resize;
+* normalização;
+* canais de cor;
+* resolução de entrada.
+
+Um problema muito importante a procurar:
+
+CADASTRO utiliza pipeline A.
+
+RECONHECIMENTO utiliza pipeline B.
+
+Se isso existir, corrija.
+
+A geração dos embeddings precisa ser consistente.
+
+---
+
+# 16. NÃO USE FILTROS DE "MELHORIA" DE FORMA CEGA
+
+Não aplique:
+
+* sharpen exagerado;
+* denoise agressivo;
+* reconstrução artificial;
+* filtros pesados;
+* super-resolution indiscriminadamente.
+
+Isso pode alterar características utilizadas pelo embedding.
+
+Qualquer preprocessing precisa ser validado.
+
+---
+
+# 17. THRESHOLD
+
+Analise completamente o threshold atual.
+
+NÃO faça:
+
+"não reconhece → aumentar tolerância até reconhecer".
+
+Isso provavelmente criará falsos positivos.
+
+Instrumente o sistema para medir:
+
+* pessoa esperada;
+* candidato encontrado;
+* score;
+* segundo melhor candidato;
+* diferença entre primeiro e segundo;
+* qualidade;
+* tamanho facial;
+* pose;
+* threshold;
+* decisão final.
+
+Considere inclusive uma margem entre o melhor e o segundo melhor candidato quando fizer sentido para o modelo/métrica utilizada.
+
+---
+
+# 18. ESTADOS DE RECONHECIMENTO
+
+Em vez de obrigatoriamente:
+
+MATCH / UNKNOWN
+
+avalie algo semelhante a:
+
+UNKNOWN
+
+↓
+
+POSSIBLE MATCH
+
+↓
+
+CONFIRMING
+
+↓
+
+CONFIRMED
+
+Isso combina muito melhor com reconhecimento por vídeo.
+
+A interface pode mostrar discretamente:
+
+"Analisando..."
+
+"Confirmando..."
+
+"Reconhecido"
+
+sem expor métricas técnicas para funcionários.
+
+---
+
+# 19. FALSO POSITIVO É GRAVE
+
+Este sistema registra ponto.
+
+Portanto:
+
+Pessoa A ser reconhecida como Pessoa B é muito pior que aguardar alguns frames extras.
+
+Não permita que o algoritmo simplesmente escolha:
+
+"o funcionário mais parecido do banco".
+
+Deve existir evidência suficiente de que realmente é aquela identidade.
+
+---
+
+# 20. BANCO DE EMBEDDINGS
+
+Caso seja necessário alterar o armazenamento para suportar múltiplos embeddings:
+
+faça corretamente.
+
+Não destrua dados existentes.
+
+Analise migrations e retrocompatibilidade.
+
+Organize conceitualmente algo equivalente a:
+
+EMPLOYEE
+
+↓
+
+FACE PROFILE
+
+↓
+
+FACE SAMPLES
+
+↓
+
+EMBEDDINGS
+
+↓
+
+METADATA DE QUALIDADE
+
+Mas adapte à arquitetura existente.
+
+Não force essa estrutura literalmente se existir uma solução melhor.
+
+---
+
+# 21. PERFORMANCE
+
+Precisa continuar funcionando em tempo real.
+
+Investigue:
+
+* FPS;
+* latência;
+* CPU;
+* GPU quando disponível;
+* tempo de inferência;
+* processamento paralelo;
+* filas;
+* bloqueios;
+* chamadas repetidas;
+* carregamento repetido de modelos.
+
+Possíveis otimizações:
+
+* modelo carregado uma vez;
+* embeddings em cache;
+* detector a cada N frames;
+* tracking entre detecções;
+* reconhecimento apenas quando necessário;
+* ROI;
+* processamento assíncrono;
+* evitar serializações desnecessárias.
+
+Não quero melhorar precisão e transformar o sistema em 2 FPS.
+
+Mas também não quero sacrificar muita precisão para obter FPS desnecessário.
+
+---
+
+# 22. CÂMERAS REAIS
+
+Analise também o pipeline de captura.
+
+Quero suporte robusto ao cenário real de câmera.
+
+Investigue:
+
+* webcam;
+* câmera IP se já suportada;
+* resolução;
+* aspect ratio;
+* FPS;
+* reconnect;
+* câmera indisponível;
+* stream interrompido;
+* timeout;
+* frames corrompidos;
+* câmera lenta.
+
+Uma queda temporária da câmera não deveria necessariamente derrubar todo o sistema.
+
+---
+
+# 23. DEBUG PROFISSIONAL
+
+Implemente diagnóstico útil em desenvolvimento.
+
+Quero conseguir descobrir:
+
+**POR QUE ESSA PESSOA NÃO FOI RECONHECIDA?**
+
+Logs podem conter:
+
+* detection score;
+* face size;
+* quality score;
+* blur;
+* iluminação;
+* pose;
+* track ID;
+* candidato;
+* similarity/distance;
+* segundo candidato;
+* threshold;
+* número de frames;
+* resultado agregado;
+* motivo da rejeição.
+
+Exemplo:
+
+REJECTED:
+insufficient face resolution
+
+ou:
+
+REJECTED:
+similarity below threshold
+
+ou:
+
+REJECTED:
+ambiguous identity
+
+Não mostre essa poluição técnica na interface normal.
+
+---
+
+# 24. TESTES DO CADASTRO
+
+Teste:
+
+* rosto frontal;
+* pequenas rotações;
+* pequenas inclinações;
+* iluminação inferior;
+* câmera mais distante;
+* câmera próxima;
+* movimento leve.
+
+Verifique se as amostras realmente ficam diferentes e úteis.
+
+Verifique também se não estamos armazenando:
+
+10 embeddings praticamente idênticos.
+
+---
+
+# 25. TESTES DO RECONHECIMENTO
+
+Teste conceitualmente e, quando possível, automaticamente:
+
+CADASTRADO + PERTO
+
+CADASTRADO + MÉDIO
+
+CADASTRADO + DISTANTE
+
+CADASTRADO + ESQUERDA
+
+CADASTRADO + DIREITA
+
+CADASTRADO + ILUMINAÇÃO RUIM
+
+CADASTRADO + MOVIMENTO
+
+DESCONHECIDO
+
+PESSOAS PARECIDAS
+
+MÚLTIPLAS PESSOAS
+
+Precisamos reduzir:
+
+FALSE NEGATIVE
+
+sem aumentar perigosamente:
+
+FALSE POSITIVE.
+
+---
+
+# 26. AGORA: REFAÇA COMPLETAMENTE A UI/UX
+
+Além do reconhecimento, quero uma **reconstrução visual completa do projeto**.
+
+Não quero simplesmente:
+
+* trocar algumas cores;
+* aumentar border-radius;
+* adicionar sombras;
+* mudar dois botões.
+
+Quero que você repense toda a experiência visual.
+
+Imagine que você recebeu a lógica/backend funcional, mas a parte visual/frontend estivesse praticamente começando agora.
+
+**NÃO apague literalmente o frontend existente sem analisar dependências.**
+
+O que quero dizer é:
+
+Não fique preso às decisões visuais atuais.
+
+Pense:
+
+"Se eu estivesse construindo hoje uma interface profissional para este sistema, como faria?"
+
+---
+
+# 27. NÃO QUERO UI COM CARA DE IA
+
+Evite aquele visual genérico típico de dashboard produzido automaticamente:
+
+* dezenas de cards desnecessários;
+* gradientes aleatórios;
+* glassmorphism em tudo;
+* sombras gigantes;
+* ícones em todo lugar;
+* textos enormes;
+* bordas arredondadas exageradas;
+* excesso de badges;
+* excesso de animações;
+* espaço vazio sem propósito;
+* dashboard cheio de números inventados;
+* sidebar genérica.
+
+Quero aparência de **software profissional real**.
+
+---
+
+# 28. CRIE UMA IDENTIDADE VISUAL COERENTE
+
+Defina:
+
+* tipografia;
+* escala de espaçamento;
+* cores;
+* superfícies;
+* bordas;
+* radius;
+* sombras;
+* estados;
+* componentes;
+* ícones;
+* feedback;
+* motion.
+
+Tudo deve parecer parte do mesmo produto.
+
+---
+
+# 29. TELA DE LOGIN
+
+Refaça completamente.
+
+Não quero fundo branco seco com um formulário jogado no centro.
+
+Crie uma tela moderna, limpa e profissional.
+
+Sem exageros visuais.
+
+O usuário deve olhar e pensar:
+
+"isso parece um sistema empresarial pronto".
+
+---
+
+# 30. TELA DE BATE-PONTO
+
+Essa é uma das telas mais importantes.
+
+A câmera deve ser protagonista.
+
+Não cubra o vídeo com elementos inúteis.
+
+Quando nenhum rosto estiver detectado:
+
+interface limpa.
+
+Quando detectar:
+
+utilize indicação visual extremamente discreta.
+
+Quando estiver analisando:
+
+feedback leve.
+
+Quando confirmar:
+
+feedback claro.
+
+Por exemplo:
+
+DETECTADO
+
+↓
+
+ANALISANDO
+
+↓
+
+CONFIRMADO
+
+Não transforme a câmera em uma HUD de videogame.
+
+---
+
+# 31. OVERLAY FACIAL
+
+O overlay precisa acompanhar corretamente o rosto.
+
+Evite caixas enormes ou elementos tremendo.
+
+Se utilizar corners/bounding shapes:
+
+* suaves;
+* precisos;
+* sincronizados;
+* sem poluição.
+
+Tracking deve ajudar também visualmente.
+
+---
+
+# 32. CADASTRO VISUAL
+
+A nova experiência de enrollment deve ser extremamente intuitiva.
+
+Funcionário aparece na câmera.
+
+Sistema detecta.
+
+Mostre feedback do tipo:
+
+"Mantenha o rosto visível"
+
+↓
+
+"Capturando referências"
+
+↓
+
+progresso
+
+↓
+
+"Cadastro concluído"
+
+Se precisar de alguma pequena movimentação:
+
+"Vire levemente o rosto"
+
+Mas somente quando realmente necessário.
+
+Não obrigue uma coreografia rígida.
+
+---
+
+# 33. PAINEL ADMINISTRATIVO
+
+Repense visualmente todas as telas administrativas existentes.
+
+Exemplos, dependendo das funcionalidades existentes:
+
+* funcionários;
+* cadastro;
+* câmeras;
+* registros;
+* pontos;
+* configurações;
+* dashboard;
+* histórico;
+* detalhes.
+
+Mantenha funcionalidades existentes, mas reconstrua a apresentação.
+
+---
+
+# 34. RESPONSIVIDADE
+
+A interface precisa funcionar corretamente em diferentes resoluções.
+
+Principalmente:
+
+* desktop;
+* notebook;
+* telas menores utilizadas administrativamente.
+
+Não faça apenas desktop e deixe componentes quebrando.
+
+---
+
+# 35. MICROINTERAÇÕES
+
+Adicione animações onde ajudam a compreender o sistema.
+
+Exemplos:
+
+* câmera iniciando;
+* face detectada;
+* análise;
+* confirmação;
+* cadastro concluído;
+* modal;
+* troca de página;
+* loading.
+
+Movimentos rápidos e naturais.
+
+Não transforme o software em uma apresentação animada.
+
+---
+
+# 36. ESTADOS COMPLETOS
+
+Toda tela importante deve considerar:
+
+LOADING
+
+EMPTY
+
+ERROR
+
+SUCCESS
+
+DISABLED
+
+OFFLINE
+
+CAMERA CONNECTING
+
+CAMERA ERROR
+
+FACE NOT FOUND
+
+FACE DETECTED
+
+CONFIRMING
+
+RECOGNIZED
+
+UNKNOWN
+
+Não deixe estados quebrados ou improvisados.
+
+---
+
+# 37. ACESSIBILIDADE E USABILIDADE
+
+Garanta:
+
+* contraste adequado;
+* tamanhos legíveis;
+* foco de teclado;
+* botões claros;
+* labels corretas;
+* feedback compreensível;
+* áreas clicáveis adequadas.
+
+Não sacrifique usabilidade por estética.
+
+---
+
+# 38. NÃO QUEBRE O BACKEND
+
+A reconstrução visual não significa reconstruir desnecessariamente:
+
+* autenticação;
+* banco;
+* APIs;
+* regras;
+* integrações;
+* bate-ponto.
+
+Preserve o que estiver funcionando.
+
+Refatore somente quando necessário.
+
+---
+
+# 39. ORGANIZAÇÃO DO CÓDIGO
+
+Quero código organizado.
+
+Não crie um componente gigantesco contendo tudo.
+
+Organize adequadamente:
+
+components
+
+features
+
+pages
+
+hooks
+
+services
+
+types
+
+utils
+
+styles
+
+conforme fizer sentido para a stack existente.
+
+Não force essa estrutura se o projeto já possuir uma arquitetura melhor.
+
+---
+
+# 40. EVITE DUPLICAÇÃO
+
+Antes de criar algo novo, procure se já existe.
+
+Não quero:
+
+FaceDetector.ts
+
+FaceDetectorNew.ts
+
+FaceDetectorFinal.ts
+
+FaceDetectorV2.ts
+
+ou:
+
+oldRecognition
+
+newRecognition
+
+recognitionFinal
+
+Quando substituir uma implementação e for seguro remover a antiga, faça a limpeza corretamente.
+
+---
+
+# 41. NÃO DEIXE CÓDIGO MORTO
+
+Ao terminar:
+
+* remova imports não utilizados;
+* remova componentes abandonados;
+* remova funções substituídas;
+* remova CSS antigo sem uso;
+* remova logs temporários desnecessários;
+* resolva warnings relevantes.
+
+---
+
+# 42. NÃO INTRODUZA BUGS
+
+A cada grande alteração:
+
+verifique compilação.
+
+Depois continue.
+
+Não altere 50 arquivos e só descubra no final que o projeto não inicia.
+
+Trabalhe incrementalmente:
+
+ANALISAR
+
+↓
+
+IMPLEMENTAR BLOCO
+
+↓
+
+COMPILAR
+
+↓
+
+TESTAR
+
+↓
+
+CORRIGIR
+
+↓
+
+PRÓXIMO BLOCO
+
+---
+
+# 43. TESTES FINAIS OBRIGATÓRIOS
+
+Ao terminar execute tudo que estiver disponível no projeto:
+
+* typecheck;
+* lint;
+* build;
+* testes;
+* backend tests;
+* frontend tests.
+
+Inicialize o sistema quando possível.
+
+Procure:
+
+* erros de runtime;
+* imports quebrados;
+* endpoints quebrados;
+* erros no console;
+* promises rejeitadas;
+* problemas de câmera;
+* memory leaks;
+* loops;
+* requests desnecessários.
+
+Corrija problemas causados pelas alterações.
+
+---
+
+# 44. TESTE O FLUXO COMPLETO
+
+Não teste componentes isoladamente e declare sucesso.
+
+Valide o fluxo:
+
+LOGIN
+
+↓
+
+ADMIN
+
+↓
+
+CADASTRAR FUNCIONÁRIO
+
+↓
+
+INICIAR CÂMERA
+
+↓
+
+DETECTAR
+
+↓
+
+CAPTURAR AMOSTRAS
+
+↓
+
+GERAR EMBEDDINGS
+
+↓
+
+SALVAR
+
+↓
+
+ABRIR BATE-PONTO
+
+↓
+
+DETECTAR FUNCIONÁRIO
+
+↓
+
+ACOMPANHAR
+
+↓
+
+COMPARAR
+
+↓
+
+CONFIRMAR IDENTIDADE
+
+↓
+
+REGISTRAR PONTO
+
+↓
+
+EXIBIR CONFIRMAÇÃO
+
+Esse fluxo inteiro precisa permanecer coerente.
+
+---
+
+# 45. CRITÉRIOS DE SUCESSO
+
+Ao finalizar quero que o sistema esteja claramente melhor em:
+
+### Cadastro
+
+Antes:
+pode demorar minutos.
+
+Depois:
+captura automática, tolerante e normalmente rápida.
+
+### Reconhecimento
+
+Antes:
+às vezes não reconhece nem próximo.
+
+Depois:
+pipeline consistente, múltiplas referências e decisão mais robusta.
+
+### Distância
+
+Antes:
+rosto pequeno possui dificuldade excessiva.
+
+Depois:
+pipeline otimizado para detectar e aproveitar melhor rostos menores dentro dos limites físicos da câmera.
+
+### Ângulo
+
+Antes:
+pequena mudança pode impedir reconhecimento.
+
+Depois:
+cadastro diversificado + alinhamento + decisão temporal tornam o sistema mais robusto.
+
+### Segurança
+
+Não aumentar falsos positivos apenas para parecer que o reconhecimento melhorou.
+
+### UI
+
+Antes:
+aparência atual.
+
+Depois:
+interface completamente repensada, profissional, consistente e com aparência de produto real.
+
+---
+
+# 46. MUITO IMPORTANTE: LIMITES FÍSICOS
+
+Não finja que software consegue recuperar informação inexistente.
+
+Se um rosto estiver com 10 pixels de largura, nenhum algoritmo conseguirá identificá-lo confiavelmente.
+
+Descubra os limites reais da câmera/modelo e trate-os corretamente.
+
+Quando não houver informação suficiente:
+
+não invente identidade.
+
+A interface pode indicar discretamente que precisa de uma imagem facial melhor.
+
+---
+
+# 47. ORDEM DE EXECUÇÃO
+
+Faça tudo deste prompt organizadamente no MESMO trabalho.
+
+Use aproximadamente esta sequência:
+
+1. Mapear arquitetura.
+2. Mapear pipeline facial.
+3. Investigar bug atual.
+4. Analisar profundamente os 3 projetos fornecidos.
+5. Comparar técnicas.
+6. Definir melhorias compatíveis.
+7. Corrigir pipeline base.
+8. Melhorar cadastro.
+9. Implementar múltiplas amostras.
+10. Melhorar detecção.
+11. Melhorar alinhamento.
+12. Melhorar reconhecimento.
+13. Implementar estratégia temporal/tracking quando adequada.
+14. Calibrar estrutura de decisão.
+15. Melhorar performance.
+16. Implementar diagnóstico.
+17. Testar reconhecimento.
+18. Planejar nova UI/UX.
+19. Reconstruir componentes visuais.
+20. Reconstruir login.
+21. Reconstruir tela da câmera.
+22. Reconstruir cadastro facial.
+23. Reconstruir administração.
+24. Implementar estados e responsividade.
+25. Limpar código antigo.
+26. Build.
+27. Testes.
+28. Corrigir erros.
+29. Testar fluxo completo.
+30. Revisão final.
+
+**NÃO PARE DEPOIS DA ANÁLISE.**
+
+Continue para implementação.
+
+---
+
+# 48. RELATÓRIO FINAL
+
+Somente depois de implementar e validar tudo, apresente um resumo organizado contendo:
+
+### Problemas encontrados
+
+Explique por que o sistema tinha dificuldade de reconhecimento.
+
+### Cadastro
+
+Explique por que demorava tanto e como foi melhorado.
+
+### Referências
+
+Para cada um dos três projetos fornecidos explique:
+
+* o que foi estudado;
+* o que era útil;
+* o que foi aproveitado;
+* o que não foi usado;
+* por que não foi usado.
+
+### Reconhecimento
+
+Explique:
+
+* detector;
+* embeddings;
+* alinhamento;
+* múltiplas amostras;
+* comparação;
+* thresholds;
+* agregação temporal;
+* tracking;
+* quality scoring.
+
+### Banco
+
+Informe migrations ou alterações realizadas.
+
+### Performance
+
+Informe otimizações realizadas.
+
+### UI/UX
+
+Liste o que foi reconstruído.
+
+### Arquivos
+
+Liste arquivos criados, modificados e removidos.
+
+### Testes
+
+Informe exatamente quais comandos/testes foram executados e os resultados.
+
+### Limitações
+
+Informe honestamente situações em que a câmera/modelo ainda não consegue reconhecer alguém de maneira confiável.
+
+---
+
+# REGRA FINAL
+
+Não quero uma implementação "fake" que apenas pareça melhor visualmente.
+
+Não quero apenas diminuir threshold.
+
+Não quero simplesmente copiar código dos três links.
+
+Não quero trocar uma tecnologia boa por uma mais antiga.
+
+Não quero uma análise sem implementação.
+
+Não quero funcionalidades pela metade.
+
+Não quero quebrar funcionalidades existentes.
+
+Quero que você trate isso como uma **evolução séria de um sistema real de controle de ponto por reconhecimento facial**.
+
+Aproveite a arquitetura existente, estude os três projetos fornecidos, extraia deles tudo que realmente possa melhorar o sistema, implemente essas melhorias de maneira coerente e reconstrua completamente a experiência visual.
+
+**Faça tudo de maneira incremental, organizada e verificável dentro deste mesmo trabalho, corrigindo os problemas encontrados antes de considerar a tarefa concluída.**
+
+
+# OBJETIVO PRINCIPAL
+
+Analise profundamente toda a interface existente deste projeto e faça uma reformulação visual completa para remover qualquer aparência de:
+
+* site gerado por IA;
+* template genérico;
+* dashboard SaaS genérico;
+* projeto feito rapidamente com Tailwind/shadcn;
+* landing page copiada;
+* painel administrativo padrão;
+* interface excessivamente limpa e sem personalidade;
+* componentes que parecem ter sido escolhidos automaticamente.
+
+Utilize a **UI UX Pro Max Skill** disponível no projeto como uma das principais referências para decisões de UI, UX, hierarquia visual, tipografia, espaçamento, responsividade, acessibilidade, componentes, interações e consistência.
+
+IMPORTANTE:
+
+Não quero simplesmente "uma UI bonita".
+
+Quero uma interface que pareça ter sido projetada deliberadamente por um designer de produto, com identidade visual própria, detalhes específicos para este produto e decisões visuais justificáveis.
+
+Antes de alterar o código:
+
+1. Analise a estrutura atual.
+2. Identifique os padrões visuais genéricos.
+3. Identifique inconsistências.
+4. Identifique componentes repetitivos.
+5. Identifique excesso de cards, bordas, sombras e containers.
+6. Identifique problemas de hierarquia.
+7. Identifique animações genéricas.
+8. Identifique oportunidades de interação.
+9. Consulte e aplique a UI UX Pro Max Skill.
+10. Defina internamente uma linguagem visual consistente.
+11. Somente depois comece a implementação.
+
+Não faça alterações aleatórias página por página.
+
+A aplicação inteira deve compartilhar o mesmo sistema visual.
+
+---
+
+# 1. REMOVER O "VISUAL DE IA"
+
+Procure especificamente pelos seguintes padrões.
+
+## Cards em excesso
+
+Um dos maiores sinais de UI genérica é transformar absolutamente tudo em cards.
+
+Exemplo do problema:
+
+Página → container → card → card interno → informação.
+
+Isso fragmenta demais a interface.
+
+### Melhorar
+
+Use cards apenas quando representam objetos ou grupos realmente independentes.
+
+Para informações relacionadas, prefira:
+
+* agrupamento por proximidade;
+* divisores sutis;
+* mudança de espaçamento;
+* hierarquia tipográfica;
+* backgrounds de seção;
+* alinhamento;
+* grids;
+* tabelas;
+* listas estruturadas.
+
+Nem toda informação precisa de:
+
+`background + border + border-radius + shadow + padding`.
+
+---
+
+# 2. EVITAR O "CARD DENTRO DE CARD"
+
+Não criar vários níveis de caixas arredondadas.
+
+Evitar:
+
+* container arredondado;
+* dentro dele outro container arredondado;
+* dentro dele três cards;
+* dentro dos cards pequenos badges;
+* tudo com borda.
+
+Isso cria aparência artificial e excessivamente modular.
+
+Use espaço vazio e hierarquia para separar conteúdo.
+
+---
+
+# 3. PARAR DE USAR BORDER-RADIUS EXAGERADO
+
+Não aplicar `rounded-xl`, `rounded-2xl` ou `rounded-3xl` automaticamente em tudo.
+
+Defina um sistema de radius.
+
+Exemplo conceitual:
+
+* controles pequenos → radius pequeno;
+* inputs → radius moderado;
+* cards → radius moderado;
+* modais → radius maior;
+* elementos especiais → radius próprio.
+
+Não transforme cada elemento da aplicação em uma cápsula.
+
+---
+
+# 4. REMOVER PÍLULAS DESNECESSÁRIAS
+
+Evitar badges em formato pill para qualquer texto.
+
+Não transformar automaticamente:
+
+"Ativo"
+
+"Funcionário"
+
+"Hoje"
+
+"Online"
+
+"Administrador"
+
+em cápsulas coloridas.
+
+Pills devem indicar principalmente:
+
+* status;
+* filtros;
+* tags;
+* estados;
+* ações compactas.
+
+Texto normal deve continuar sendo texto normal.
+
+---
+
+# 5. EVITAR GRADIENTES GENÉRICOS
+
+Não utilizar o clássico visual:
+
+azul → roxo
+
+roxo → rosa
+
+cyan → azul
+
+como solução automática para deixar algo "moderno".
+
+Gradientes devem possuir função visual.
+
+Podem aparecer de forma extremamente sutil em:
+
+* iluminação;
+* profundidade;
+* estados;
+* backgrounds especiais;
+* feedback;
+* elementos de marca.
+
+Não utilizar gradiente simplesmente porque "parece tecnologia".
+
+---
+
+# 6. NÃO USAR GLOW EM TUDO
+
+Evitar:
+
+* botão brilhando;
+* cards brilhando;
+* sidebar brilhando;
+* texto brilhando;
+* bordas neon.
+
+Glow deve ser extremamente controlado.
+
+Pode existir em interações específicas ou elementos importantes, mas nunca dominar a interface.
+
+---
+
+# 7. EVITAR SOMBRAS PADRÃO DE TEMPLATE
+
+Não colocar `box-shadow` grande em todos os elementos.
+
+Criar níveis de elevação coerentes.
+
+Por exemplo:
+
+nível 0 → sem sombra
+nível 1 → separação quase imperceptível
+nível 2 → dropdown/popover
+nível 3 → modal
+
+Utilize sombra somente quando existir uma razão espacial.
+
+---
+
+# 8. NÃO CENTRALIZAR TUDO
+
+Interfaces geradas automaticamente frequentemente possuem:
+
+ícone
+
+título
+
+descrição
+
+botão
+
+todos centralizados.
+
+Evite isso.
+
+Interfaces de aplicações normalmente funcionam melhor com alinhamento estrutural, principalmente à esquerda.
+
+Centralização deve ser utilizada deliberadamente em:
+
+* empty states;
+* confirmações;
+* onboarding;
+* momentos especiais.
+
+---
+
+# 9. EVITAR HERO SECTION GENÉRICA
+
+Não criar automaticamente:
+
+badge pequeno
+
+↓
+
+título gigante
+
+↓
+
+texto cinza
+
+↓
+
+dois botões
+
+↓
+
+mockup flutuando
+
+Esse padrão está extremamente saturado.
+
+Se houver página inicial, crie uma composição própria baseada no objetivo real do produto.
+
+---
+
+# 10. EVITAR TEXTOS GENÉRICOS
+
+Não inventar textos como:
+
+"Transforme sua experiência"
+
+"Gerencie tudo em um só lugar"
+
+"Potencialize sua produtividade"
+
+"Bem-vindo ao futuro"
+
+"Experiência simples e poderosa"
+
+Use textos diretamente relacionados às ações reais da aplicação.
+
+---
+
+# 11. EVITAR ÍCONES DECORATIVOS EM EXCESSO
+
+Não colocar um ícone em todo título, card e botão.
+
+Ícones devem:
+
+* melhorar reconhecimento;
+* representar ações;
+* reduzir leitura;
+* facilitar navegação.
+
+Não devem existir simplesmente para preencher espaço.
+
+---
+
+# 12. EVITAR LUCIDE ICONS COMO IDENTIDADE VISUAL INTEIRA
+
+Lucide ou bibliotecas semelhantes podem continuar sendo utilizadas.
+
+Porém, não dependa delas para criar personalidade.
+
+Crie identidade através de:
+
+* composição;
+* tipografia;
+* proporções;
+* motion;
+* estados;
+* espaçamento;
+* navegação;
+* tratamento de dados;
+* componentes próprios.
+
+---
+
+# 13. EVITAR SIDEBAR GENÉRICA
+
+Não quero simplesmente:
+
+LOGO
+
+Dashboard
+Usuários
+Relatórios
+Configurações
+
+perfil no final.
+
+Se a aplicação precisar de sidebar, desenvolva sua estrutura pensando nas funcionalidades reais.
+
+Melhore:
+
+* agrupamento;
+* indicador da página atual;
+* hover;
+* expansão;
+* tooltips;
+* transições;
+* densidade;
+* hierarquia.
+
+O indicador ativo não precisa ser apenas um retângulo colorido atrás do item.
+
+Pode existir uma mudança sutil de posição, peso, contraste ou indicador lateral.
+
+---
+
+# 14. EVITAR HEADER GENÉRICO
+
+Não criar automaticamente:
+
+"Olá, usuário 👋"
+
+"Bem-vindo de volta!"
+
+Evite greetings artificiais.
+
+O header deve fornecer contexto e ações realmente úteis.
+
+---
+
+# 15. EVITAR DASHBOARD DE 4 CARDS
+
+Não assumir automaticamente:
+
+[ Total usuários ]
+[ Receita ]
+[ Ativos ]
+[ Crescimento ]
+
+Analise quais informações realmente precisam de destaque.
+
+Utilize diferentes pesos visuais.
+
+Uma informação importante pode ocupar uma região maior enquanto métricas secundárias ficam integradas de maneira mais compacta.
+
+---
+
+# 16. EVITAR GRID PERFEITO DEMAIS
+
+Não colocar tudo automaticamente em grids simétricos de três ou quatro colunas.
+
+Permita diferentes proporções.
+
+Exemplo:
+
+60 / 40
+
+70 / 30
+
+conteúdo principal + informações auxiliares.
+
+Uma composição levemente assimétrica pode deixar o produto muito mais natural.
+
+---
+
+# 17. TIPOGRAFIA
+
+A tipografia precisa carregar parte da personalidade da interface.
+
+Não depender apenas de:
+
+font-size
+
+font-weight
+
+color.
+
+Trabalhar:
+
+* tamanho;
+* peso;
+* line-height;
+* letter-spacing;
+* largura máxima;
+* contraste;
+* densidade.
+
+Evitar títulos gigantes simplesmente para parecer moderno.
+
+---
+
+# 18. HIERARQUIA VISUAL
+
+Cada página precisa deixar evidente:
+
+1. Onde estou?
+2. Qual é a informação principal?
+3. Qual ação é mais importante?
+4. Quais informações são secundárias?
+5. O que posso fazer em seguida?
+
+Se tudo possui o mesmo peso visual, redesenhe.
+
+---
+
+# 19. ESPAÇAMENTO
+
+Evitar o padrão automático de colocar `gap-4`, `p-6` e `space-y-4` em absolutamente tudo.
+
+Crie ritmo.
+
+Elementos relacionados → próximos.
+
+Grupos diferentes → distância maior.
+
+Seções importantes → respiro maior.
+
+O espaçamento deve explicar a estrutura mesmo se todas as bordas fossem removidas.
+
+---
+
+# 20. CORES
+
+Não utilizar muitas cores de destaque.
+
+Defina:
+
+* background principal;
+* surfaces;
+* texto principal;
+* texto secundário;
+* bordas;
+* accent principal;
+* sucesso;
+* aviso;
+* erro;
+* informação.
+
+Utilize a cor de marca estrategicamente.
+
+Não pinte metade da interface com a accent color.
+
+---
+
+# 21. BORDAS
+
+Reduza drasticamente bordas desnecessárias.
+
+Uma boa interface deve continuar compreensível mesmo removendo boa parte das linhas.
+
+Utilize contraste, espaçamento e backgrounds antes de adicionar uma borda.
+
+---
+
+# 22. INPUTS
+
+Inputs não devem parecer componentes default.
+
+Criar estados claros de:
+
+* idle;
+* hover;
+* focus;
+* preenchido;
+* inválido;
+* válido;
+* disabled.
+
+O focus deve possuir feedback elegante e perceptível.
+
+Não depender apenas de uma borda azul.
+
+---
+
+# 23. BOTÕES
+
+Não quero todos os botões com:
+
+ícone + texto + rounded-xl.
+
+Criar hierarquia real:
+
+Primary
+Secondary
+Tertiary
+Ghost
+Destructive
+Icon action
+
+O botão primário deve chamar atenção sem parecer propaganda.
+
+---
+
+# 24. TABELAS
+
+Não colocar uma tabela inteira dentro de um enorme card apenas porque é comum.
+
+Tratar tabelas como elementos importantes da interface.
+
+Adicionar quando apropriado:
+
+* sticky header;
+* hover de linha;
+* seleção;
+* ordenação;
+* filtros;
+* ações contextuais;
+* paginação elegante;
+* skeleton;
+* empty state.
+
+---
+
+# 25. MODAIS
+
+Evitar modal para qualquer ação.
+
+Utilizar dependendo do contexto:
+
+* inline editing;
+* popover;
+* drawer;
+* side panel;
+* contextual menu;
+* expandable region.
+
+Modal somente quando a ação realmente exige interrupção de contexto.
+
+---
+
+# 26. EMPTY STATES
+
+Não utilizar apenas:
+
+ícone gigante
+
+"Nenhum resultado encontrado"
+
+botão.
+
+Crie empty states relacionados ao contexto.
+
+Explique rapidamente:
+
+* o que aconteceu;
+* por que não há conteúdo;
+* qual ação resolve isso.
+
+---
+
+# 27. LOADING
+
+NÃO utilizar spinner central para tudo.
+
+Implementar carregamentos contextuais:
+
+* skeleton;
+* shimmer extremamente sutil;
+* placeholder estrutural;
+* progress;
+* optimistic UI;
+* atualização localizada.
+
+A interface não deve "sumir" enquanto algo carrega.
+
+---
+
+# 28. TOASTS
+
+Não utilizar toast para absolutamente tudo.
+
+Ações instantâneas podem fornecer feedback diretamente no componente.
+
+Exemplo:
+
+botão salvar → loading → check → "Salvo"
+
+sem necessariamente abrir um toast.
+
+Toast deve ser reservado para feedback global ou assíncrono.
+
+---
+
+# MOTION DESIGN — MUITO IMPORTANTE
+
+Quero que animação seja uma característica forte da experiência.
+
+PORÉM:
+
+Não quero uma aplicação onde absolutamente tudo fica pulando e voando.
+
+As animações devem transmitir:
+
+* continuidade;
+* causalidade;
+* profundidade;
+* resposta;
+* direção;
+* hierarquia.
+
+---
+
+# 29. MICROINTERAÇÕES
+
+Implemente microinterações sofisticadas.
+
+Exemplos:
+
+### Botões
+
+Ao pressionar:
+
+* pequeno deslocamento;
+* compressão quase imperceptível;
+* alteração de sombra;
+* feedback imediato.
+
+Evite simplesmente `scale(1.05)`.
+
+---
+
+# 30. HOVER COM PROFUNDIDADE
+
+Elementos interativos podem reagir ao cursor através de:
+
+* pequena mudança de elevação;
+* mudança de background;
+* movimento de 1–3px;
+* alteração de borda;
+* movimento interno do ícone.
+
+Tudo deve ser sutil.
+
+---
+
+# 31. MAGNETIC BUTTONS
+
+Em CTAs especiais, considerar efeito magnético extremamente leve.
+
+Quando o cursor aproxima-se, o conteúdo pode responder alguns pixels à posição do ponteiro.
+
+Não aplicar em todos os botões.
+
+---
+
+# 32. ANIMATED UNDERLINE
+
+Links podem possuir underline que:
+
+entra lateralmente,
+
+cresce,
+
+desloca,
+
+ou acompanha o movimento do cursor.
+
+Evitar underline instantâneo padrão quando uma interação melhor fizer sentido.
+
+---
+
+# 33. TRANSIÇÕES ENTRE PÁGINAS
+
+Implementar transições discretas entre views.
+
+Não utilizar fade genérico em tudo.
+
+Experimentar combinações sutis de:
+
+opacity + translate
+
+clip/reveal
+
+content staggering
+
+shared elements.
+
+A sensação deve ser de continuidade da aplicação.
+
+---
+
+# 34. STAGGERED REVEAL
+
+Ao carregar determinadas páginas, elementos relacionados podem aparecer em sequência.
+
+Exemplo:
+
+título → controles → conteúdo → dados secundários.
+
+Delay extremamente pequeno.
+
+Não transformar isso em apresentação PowerPoint.
+
+---
+
+# 35. SHARED ELEMENT TRANSITIONS
+
+Quando possível, elementos devem parecer continuar existindo durante mudanças de estado.
+
+Exemplo:
+
+clicar em usuário
+
+avatar/nome selecionado
+
+↓
+
+painel de detalhes abre
+
+↓
+
+avatar/nome visualmente continua no novo contexto.
+
+Isso gera uma experiência muito mais refinada.
+
+---
+
+# 36. ANIMAÇÃO DE NÚMEROS
+
+Métricas que mudam podem interpolar valores.
+
+Evitar simplesmente substituir:
+
+127 → 128
+
+Criar transição rápida e elegante.
+
+---
+
+# 37. FEEDBACK DE SUCESSO
+
+Após ações importantes:
+
+botão pode mudar temporariamente de estado.
+
+Exemplo:
+
+SALVAR
+
+↓
+
+spinner interno
+
+↓
+
+check
+
+↓
+
+SALVO
+
+↓
+
+retorna suavemente.
+
+Evitar popup desnecessário.
+
+---
+
+# 38. ANIMAÇÕES DE LISTAS
+
+Adicionar/remover itens deve possuir continuidade espacial.
+
+Ao excluir:
+
+item reduz/fecha
+
+↓
+
+itens abaixo ocupam o espaço suavemente.
+
+Ao adicionar:
+
+novo elemento entra no local correto.
+
+---
+
+# 39. ACCORDIONS
+
+Accordion não deve simplesmente aparecer/desaparecer.
+
+Animar:
+
+* altura;
+* opacity;
+* ícone;
+* espaçamento.
+
+Sem movimentos exagerados.
+
+---
+
+# 40. DROPDOWNS
+
+Dropdowns podem utilizar:
+
+opacity
+
+scale muito pequeno
+
+translate vertical curto
+
+transform-origin relacionado ao botão que abriu.
+
+A sensação deve ser de que o menu surgiu daquele controle.
+
+---
+
+# 41. SIDEBAR ANIMADA
+
+Se houver sidebar recolhível:
+
+não simplesmente alterar largura instantaneamente.
+
+Animar:
+
+* largura;
+* labels;
+* ícones;
+* tooltips;
+* indicador ativo.
+
+Os ícones devem permanecer visualmente estáveis durante a transformação.
+
+---
+
+# 42. INDICADOR DE NAVEGAÇÃO
+
+Criar indicador ativo que desliza entre itens quando possível.
+
+Em vez de destruir o indicador antigo e criar outro, faça parecer que o mesmo elemento se move até o novo destino.
+
+---
+
+# 43. TABS
+
+O indicador das tabs deve deslizar suavemente entre opções.
+
+O conteúdo pode utilizar movimento direcional extremamente curto dependendo da direção da navegação.
+
+---
+
+# 44. SEARCH INTERATIVO
+
+A pesquisa pode começar compacta e expandir ao receber foco.
+
+Exemplo:
+
+ícone + placeholder
+
+↓
+
+focus
+
+↓
+
+campo ganha prioridade visual e filtros relacionados aparecem.
+
+---
+
+# 45. COMMAND PALETTE
+
+Se fizer sentido para o produto, implementar uma Command Palette.
+
+Atalho sugerido:
+
+Ctrl/Cmd + K.
+
+Permitir busca rápida de:
+
+* páginas;
+* ações;
+* registros;
+* configurações.
+
+A abertura deve possuir uma animação refinada.
+
+---
+
+# 46. CONTEXTUAL ACTIONS
+
+Não exibir dezenas de botões permanentemente.
+
+Algumas ações secundárias podem aparecer:
+
+* no hover;
+* ao selecionar;
+* via menu contextual;
+* quando o objeto recebe foco.
+
+Isso reduz poluição visual.
+
+---
+
+# 47. CURSOR-RESPONSIVE EFFECTS
+
+Em áreas especiais, elementos decorativos podem responder sutilmente ao cursor.
+
+IMPORTANTE:
+
+Nada de partículas exageradas seguindo o mouse.
+
+Movimento máximo pequeno e elegante.
+
+---
+
+# 48. SPOTLIGHT
+
+Em superfícies especiais, considerar um spotlight extremamente discreto acompanhando o cursor.
+
+A iluminação deve ser quase imperceptível.
+
+Não transformar cards em objetos neon.
+
+---
+
+# 49. MASK / REVEAL
+
+Para transições importantes, experimentar reveals com máscara ou clipping.
+
+Exemplo:
+
+painel sendo revelado horizontalmente a partir da origem da interação.
+
+Usar apenas onde fizer sentido.
+
+---
+
+# 50. MORPHING
+
+Explorar transformações entre estados.
+
+Exemplo:
+
+botão "+" → formulário rápido.
+
+ícone search → campo de pesquisa.
+
+card compacto → painel detalhado.
+
+O objetivo é fazer o usuário entender visualmente de onde veio o novo elemento.
+
+---
+
+# 51. SCROLL
+
+Se houver páginas longas, utilizar scroll para melhorar contexto.
+
+Possibilidades:
+
+* headers sticky;
+* filtros sticky;
+* progress discreto;
+* elementos que ganham/retiram elevação durante scroll;
+* seções que revelam controles quando necessário.
+
+Evitar parallax exagerado.
+
+---
+
+# 52. SCROLL-DRIVEN EFFECTS
+
+Se fizer sentido, determinados elementos podem reagir ao scroll.
+
+Utilizar apenas propriedades eficientes como:
+
+transform
+
+opacity
+
+clip-path quando performático.
+
+Evitar animações pesadas que prejudiquem FPS.
+
+---
+
+# 53. TOOLTIP
+
+Tooltips devem possuir:
+
+* pequeno delay;
+* entrada curta;
+* posicionamento correto;
+* saída rápida;
+* conteúdo realmente útil.
+
+Não criar tooltip explicando coisas óbvias.
+
+---
+
+# 54. SKELETON INTELIGENTE
+
+O skeleton deve representar aproximadamente o layout real que aparecerá.
+
+Não colocar três retângulos aleatórios piscando.
+
+---
+
+# 55. FEEDBACK VISUAL IMEDIATO
+
+Toda ação precisa responder rapidamente.
+
+Ao clicar em algo, o usuário deve perceber imediatamente que sua interação foi registrada.
+
+Mesmo se o backend demorar, a UI deve fornecer feedback visual.
+
+---
+
+# 56. ANIMAÇÕES BASEADAS EM FÍSICA
+
+Quando a stack permitir, utilize springs cuidadosamente configuradas para determinados movimentos.
+
+Especialmente:
+
+* drawers;
+* rearranjo de listas;
+* indicadores;
+* elementos arrastáveis;
+* pequenas expansões.
+
+Não utilizar bounce exagerado.
+
+---
+
+# 57. EASING
+
+Evitar `transition-all duration-300 ease-in-out` em absolutamente tudo.
+
+Definir curvas específicas para:
+
+entrada;
+
+saída;
+
+movimento;
+
+expansão;
+
+microinterações.
+
+Movimentos diferentes possuem comportamentos diferentes.
+
+---
+
+# 58. PERFORMANCE DAS ANIMAÇÕES
+
+Priorizar:
+
+`transform`
+
+`opacity`
+
+e propriedades que não causem layout/repaint pesado.
+
+Evitar animar propriedades caras constantemente.
+
+Manter a experiência fluida mesmo em computadores medianos.
+
+---
+
+# 59. PREFERS-REDUCED-MOTION
+
+Respeitar:
+
+`prefers-reduced-motion`.
+
+Animações não podem prejudicar acessibilidade.
+
+Criar fallback reduzido quando necessário.
+
+---
+
+# 60. RESPONSIVIDADE REAL
+
+Não quero apenas:
+
+desktop → diminuir tudo → mobile.
+
+Repense a composição.
+
+Desktop pode possuir:
+
+sidebar + conteúdo + painel contextual.
+
+Tablet:
+
+sidebar compacta + conteúdo.
+
+Mobile:
+
+navegação própria + conteúdo prioritário.
+
+A arquitetura pode mudar conforme o espaço disponível.
+
+---
+
+# 61. MOBILE NÃO É DESKTOP ESPREMIDO
+
+No mobile:
+
+* aumentar áreas clicáveis;
+* reduzir informação simultânea;
+* reorganizar ações;
+* utilizar bottom sheets quando apropriado;
+* manter ações importantes acessíveis;
+* evitar tabelas impossíveis de utilizar.
+
+---
+
+# 62. DESIGN SYSTEM
+
+Após analisar o projeto, estabeleça internamente tokens consistentes para:
+
+* spacing;
+* radius;
+* typography;
+* colors;
+* surfaces;
+* borders;
+* elevation;
+* motion;
+* easing;
+* durations;
+* breakpoints.
+
+Evite valores aleatórios espalhados pelo código.
+
+---
+
+# 63. COMPONENTES COM PERSONALIDADE
+
+Não quero simplesmente importar componentes prontos e mudar a cor.
+
+Se utilizar bibliotecas como shadcn, Radix ou similares, trate-as como infraestrutura.
+
+Personalize:
+
+* proporções;
+* radius;
+* estados;
+* motion;
+* espaçamento;
+* tipografia;
+* comportamento.
+
+O resultado final não pode parecer "shadcn com outra cor".
+
+---
+
+# 64. DETALHES QUE FAZEM PARECER SOFTWARE REAL
+
+Adicionar quando fizer sentido:
+
+* estados de hover;
+* focus;
+* pressed;
+* disabled;
+* loading;
+* success;
+* error;
+* empty;
+* offline;
+* reconnecting;
+* skeleton;
+* partial loading;
+* confirmação;
+* undo.
+
+Não implementar somente o happy path.
+
+---
+
+# 65. EVITAR POLUIÇÃO VISUAL
+
+Mais animação NÃO significa mais elementos.
+
+Na verdade, quero reduzir a quantidade de elementos decorativos e aumentar a qualidade das interações.
+
+A personalidade deve vir de:
+
+movimento + composição + tipografia + comportamento + detalhes.
+
+Não de dezenas de elementos decorativos.
+
+---
+
+# 66. CRIAR "MOMENTOS" NA INTERFACE
+
+Escolha algumas interações importantes do produto e dê tratamento especial.
+
+Por exemplo:
+
+* login;
+* abertura do dashboard;
+* criação de registro;
+* confirmação;
+* pesquisa;
+* mudança de contexto;
+* visualização de detalhes.
+
+Esses momentos podem possuir motion design mais elaborado.
+
+O restante deve permanecer discreto.
+
+---
+
+# 67. NÃO COPIAR REFERÊNCIAS CEGAMENTE
+
+Referências servem para entender:
+
+* qualidade;
+* ritmo;
+* composição;
+* motion;
+* hierarquia;
+* interação.
+
+Não copie literalmente outro produto.
+
+Crie uma linguagem adequada a ESTE sistema.
+
+---
+
+# 68. REGRAS CONTRA "AI SLOP UI"
+
+Considere como sinais de alerta:
+
+* gradientes azul/roxo gratuitos;
+* glassmorphism sem função;
+* blur excessivo;
+* blobs decorativos;
+* círculos brilhantes no fundo;
+* grids de cards idênticos;
+* radius enorme;
+* sombras enormes;
+* ícones em quadradinhos coloridos;
+* badges em excesso;
+* texto centralizado demais;
+* títulos gigantes;
+* emojis em títulos;
+* "Welcome back";
+* cards dentro de cards;
+* métricas artificiais;
+* barras de progresso decorativas;
+* ilustrações abstratas sem função;
+* CTAs gigantes;
+* animações `fade-up` repetidas;
+* hover `scale(1.05)` em tudo;
+* `transition-all` global;
+* glass cards;
+* bordas luminosas;
+* componentes com aparência de template.
+
+Ao encontrar esses padrões, NÃO simplesmente delete.
+
+Entenda a função original e substitua por uma solução visual mais adequada.
+
+---
+
+# 69. PRINCÍPIO DE SUBTRAÇÃO
+
+Para cada elemento pergunte:
+
+"Se eu remover isso, a interface continua compreensível?"
+
+Se sim, considere removê-lo.
+
+Depois pergunte:
+
+"Existe uma maneira de comunicar essa separação através de layout em vez de decoração?"
+
+Prefira estrutura sobre decoração.
+
+---
+
+# 70. PRINCÍPIO DE INTENCIONALIDADE
+
+Todo elemento visual deve possuir uma razão.
+
+Não quero decisões justificadas apenas por:
+
+"fica bonito"
+
+"fica moderno"
+
+"fica clean".
+
+A decisão deve melhorar pelo menos um destes aspectos:
+
+* hierarquia;
+* compreensão;
+* velocidade;
+* feedback;
+* orientação;
+* acessibilidade;
+* identidade;
+* percepção de qualidade.
+
+---
+
+# 71. AUDITORIA FINAL OBRIGATÓRIA
+
+Depois de implementar tudo, faça uma segunda análise completa.
+
+Procure novamente por:
+
+* inconsistências;
+* alinhamentos ruins;
+* espaçamentos estranhos;
+* elementos genéricos;
+* cards desnecessários;
+* radius excessivo;
+* bordas demais;
+* sombras demais;
+* animações repetitivas;
+* componentes sem estados;
+* problemas responsivos;
+* problemas de contraste;
+* animações travando;
+* layout shift;
+* overflow;
+* textos cortados;
+* z-index incorreto;
+* dropdowns atrás de elementos;
+* modais quebrados;
+* estados mobile;
+* hover inexistente;
+* focus invisível.
+
+Corrija tudo que encontrar.
+
+---
+
+# 72. TESTAR AS ANIMAÇÕES
+
+Não considere uma animação boa apenas porque existe no código.
+
+Teste visualmente.
+
+Verifique:
+
+* origem;
+* destino;
+* velocidade;
+* easing;
+* continuidade;
+* interrupções;
+* movimentos simultâneos;
+* FPS;
+* comportamento durante cliques rápidos;
+* comportamento ao voltar de página;
+* mobile;
+* reduced motion.
+
+Se parecer exagerada, reduza.
+
+Se parecer genérica, redesenhe.
+
+Se não ajudar o usuário a compreender algo, considere removê-la.
+
+---
+
+# 73. REGRA DE OURO PARA MOTION
+
+Não quero animações porque "animações são bonitas".
+
+Quero animações que façam a interface parecer física e conectada.
+
+Quando alguma coisa aparece:
+
+deve parecer que veio de algum lugar.
+
+Quando desaparece:
+
+deve parecer que foi para algum lugar.
+
+Quando muda:
+
+o usuário deve conseguir acompanhar a transformação.
+
+---
+
+# 74. RESULTADO ESPERADO
+
+Ao final, a aplicação NÃO deve transmitir:
+
+"essa interface foi gerada por uma IA".
+
+Também não deve transmitir:
+
+"peguei um template bonito e troquei as cores".
+
+Ela deve transmitir:
+
+"alguém realmente projetou este produto".
+
+Quero uma UI:
+
+* profissional;
+* específica para o produto;
+* moderna sem seguir modismos cegamente;
+* visualmente memorável;
+* rápida;
+* organizada;
+* responsiva;
+* consistente;
+* agradável de usar;
+* rica em microinterações;
+* com motion design refinado;
+* sem exageros;
+* sem aparência artificial.
+
+---
+
+# 75. IMPORTANTE — NÃO QUEBRAR O PROJETO
+
+ESTA É UMA REFORMULAÇÃO DE UI/UX.
+
+Não destrua funcionalidades existentes.
+
+Não altere regras de negócio desnecessariamente.
+
+Não remova funcionalidades.
+
+Não quebre:
+
+* APIs;
+* rotas;
+* autenticação;
+* banco;
+* formulários;
+* validações;
+* estados;
+* integrações.
+
+Antes de modificar componentes importantes, entenda como eles funcionam.
+
+Preserve comportamento funcional e refatore somente quando necessário para suportar a nova experiência.
+
+---
+
+# 76. ORDEM OBRIGATÓRIA DE EXECUÇÃO
+
+Execute nesta ordem:
+
+**FASE 1 — Auditoria**
+
+Leia o projeto e a UI UX Pro Max Skill.
+
+Mapeie páginas, componentes, estilos e padrões existentes.
+
+**FASE 2 — Diagnóstico**
+
+Identifique tudo que possui aparência genérica ou inconsistente.
+
+**FASE 3 — Linguagem visual**
+
+Defina tipografia, spacing, radius, cores, surfaces, borders, motion e componentes.
+
+**FASE 4 — Estrutura**
+
+Melhore layout, navegação e hierarquia antes de decorar.
+
+**FASE 5 — Componentes**
+
+Refaça os componentes principais.
+
+**FASE 6 — Motion**
+
+Implemente microinterações e animações.
+
+**FASE 7 — Responsividade**
+
+Revise desktop, tablet e mobile.
+
+**FASE 8 — Estados**
+
+Implemente loading, empty, error, success, disabled e demais estados necessários.
+
+**FASE 9 — Refinamento**
+
+Revise detalhes visuais.
+
+**FASE 10 — Auditoria final**
+
+Percorra novamente a aplicação inteira procurando inconsistências e regressões.
+
+---
+
+# REGRA FINAL
+
+Não faça apenas mudanças superficiais de CSS.
+
+Não considere o trabalho concluído porque:
+
+* mudou a fonte;
+* mudou a cor;
+* adicionou animação;
+* aumentou border-radius;
+* adicionou sombras.
+
+A reformulação deve atingir a linguagem visual, composição, hierarquia, comportamento e motion design da aplicação.
+
+Use a **UI UX Pro Max Skill de forma efetiva durante todo o processo**, e não apenas como referência nominal.
+
+Leia as recomendações relevantes da skill, confronte-as com a implementação existente e aplique aquilo que realmente melhorar o produto.
+
+O resultado final deve possuir identidade própria e parecer uma aplicação cuidadosamente projetada, não uma coleção de componentes gerados automaticamente.
+
+
+# ⚠️ OBRIGATÓRIO — USE A UI UX PRO MAX SKILL
+
+Para TODA a reconstrução visual descrita neste prompt, é **OBRIGATÓRIO utilizar efetivamente a UI UX Pro Max Skill que está disponível neste projeto/ambiente**.
+
+Isso não é uma sugestão.
+
+Isso não é uma referência opcional.
+
+Isso faz parte dos requisitos desta tarefa.
+
+## ANTES DE ALTERAR A INTERFACE
+
+Primeiro:
+
+1. Localize a **UI UX Pro Max Skill** disponível no projeto/ambiente.
+2. Leia suas instruções e recomendações relevantes.
+3. Entenda corretamente como ela deve ser utilizada.
+4. Analise a UI atual do projeto.
+5. Cruze os problemas encontrados com as recomendações da skill.
+6. Somente depois comece a reconstrução visual.
+
+**NÃO comece redesenhando páginas antes de consultar a skill.**
+
+---
+
+# USE A SKILL DURANTE TODO O PROCESSO
+
+Não quero que você simplesmente diga:
+
+> "Consultei a UI UX Pro Max Skill."
+
+e depois continue desenvolvendo a interface exatamente como faria normalmente.
+
+Quero utilização REAL.
+
+A skill deve participar das decisões envolvendo:
+
+* arquitetura visual;
+* UI;
+* UX;
+* design system;
+* hierarquia;
+* composição;
+* layout;
+* tipografia;
+* espaçamento;
+* cores;
+* surfaces;
+* borders;
+* radius;
+* navegação;
+* componentes;
+* formulários;
+* tabelas;
+* responsividade;
+* acessibilidade;
+* estados;
+* feedback;
+* microinterações;
+* motion design;
+* animações;
+* comportamento mobile;
+* consistência visual.
+
+Sempre confronte:
+
+IMPLEMENTAÇÃO ATUAL
+
+↓
+
+REQUISITOS DESTE MEGA PROMPT
+
+↓
+
+UI UX PRO MAX SKILL
+
+↓
+
+CONTEXTO ESPECÍFICO DE UM SISTEMA DE BATE-PONTO FACIAL
+
+↓
+
+MELHOR SOLUÇÃO
+
+---
+
+# NÃO COPIE A SKILL CEGAMENTE
+
+A skill deve orientar o trabalho, mas o produto continua sendo um sistema específico de **bate-ponto por reconhecimento facial através de câmeras**.
+
+Portanto, não transforme recomendações genéricas da skill em componentes sem contexto.
+
+Cada decisão precisa fazer sentido para este produto.
+
+Por exemplo:
+
+A tela principal de reconhecimento precisa priorizar a câmera.
+
+A tela de cadastro precisa priorizar feedback facial e progresso.
+
+A administração precisa priorizar funcionários, registros, câmeras e operações reais existentes.
+
+A interface deve nascer das necessidades deste sistema.
+
+---
+
+# USE TAMBÉM O GUIA DE UI/UX FORNECIDO
+
+Além da UI UX Pro Max Skill, considere integralmente o guia de UI/UX fornecido junto desta tarefa.
+
+Ele contém requisitos específicos contra:
+
+* aparência de site gerado por IA;
+* dashboard SaaS genérico;
+* excesso de cards;
+* card dentro de card;
+* border-radius exagerado;
+* pills desnecessárias;
+* gradientes genéricos;
+* glow excessivo;
+* sombras de template;
+* sidebar genérica;
+* header genérico;
+* dashboard de métricas genérico;
+* grids artificiais;
+* excesso de bordas;
+* excesso de ícones;
+* componentes com aparência padrão de shadcn;
+* animações genéricas;
+* `fade-up` repetitivo;
+* `scale(1.05)` em tudo;
+* `transition-all` aplicado indiscriminadamente;
+* glassmorphism sem função;
+* elementos decorativos sem propósito.
+
+Use esse material em conjunto com a skill.
+
+---
+
+# MOTION DESIGN TAMBÉM DEVE SEGUIR A SKILL
+
+Quero animações sofisticadas e diferentes, mas elas precisam possuir função.
+
+Utilize a UI UX Pro Max Skill para orientar também:
+
+* microinterações;
+* transições;
+* easing;
+* springs;
+* shared-element transitions;
+* morphing;
+* feedback de clique;
+* feedback de reconhecimento;
+* feedback de cadastro;
+* mudanças de estado;
+* expansão/retração;
+* navegação;
+* loading;
+* sucesso;
+* erro;
+* tracking visual da face.
+
+Não quero animação simplesmente porque "fica bonito".
+
+Ela deve comunicar:
+
+* continuidade;
+* origem;
+* destino;
+* causalidade;
+* progresso;
+* mudança de estado;
+* resposta à interação.
+
+---
+
+# MOMENTOS ESPECIAIS DESTE PRODUTO
+
+Dê atenção especial utilizando a skill para projetar os momentos mais importantes:
+
+### Reconhecimento facial
+
+`ROSTO DETECTADO → ANALISANDO → CONFIRMANDO → RECONHECIDO`
+
+A mudança entre esses estados deve possuir uma experiência visual extremamente bem trabalhada.
+
+### Cadastro facial
+
+`CÂMERA → DETECÇÃO → CAPTURA AUTOMÁTICA → QUALIDADE → PROGRESSO → CADASTRADO`
+
+O funcionário precisa entender naturalmente o que está acontecendo sem precisar ler instruções enormes.
+
+### Registro do ponto
+
+Quando o reconhecimento resultar em um ponto válido, crie um momento curto e satisfatório de confirmação.
+
+Sem popup exagerado.
+
+Sem confete.
+
+Sem animação infantil.
+
+Deve parecer software profissional.
+
+### Erro
+
+Se o rosto não possuir qualidade suficiente, explique visualmente o problema.
+
+Exemplos:
+
+`Aproxime-se um pouco`
+
+`Melhore a iluminação`
+
+`Mantenha o rosto visível`
+
+Mas essas mensagens devem estar relacionadas aos dados reais retornados pelo pipeline facial, e não aparecer aleatoriamente.
+
+---
+
+# NÃO USE A SKILL APENAS NO COMEÇO
+
+Depois da implementação, consulte novamente os princípios relevantes da **UI UX Pro Max Skill** e realize uma segunda auditoria.
+
+Revise:
+
+* login;
+* navegação;
+* dashboard;
+* funcionários;
+* cadastro facial;
+* câmera;
+* reconhecimento;
+* histórico;
+* configurações;
+* formulários;
+* tabelas;
+* modais;
+* drawers;
+* estados;
+* responsividade;
+* animações.
+
+Procure inconsistências e corrija.
+
+---
+
+# REGRA DE VALIDAÇÃO
+
+Antes de considerar a reconstrução visual concluída, faça uma auditoria comparando o resultado final com:
+
+1. **UI UX Pro Max Skill**
+2. **guia de UI/UX fornecido**
+3. **requisitos deste mega prompt**
+4. **necessidades específicas do sistema de reconhecimento facial**
+
+Se houver conflito, não escolha cegamente uma regra.
+
+Analise o contexto e escolha a solução que produza melhor:
+
+* usabilidade;
+* clareza;
+* consistência;
+* acessibilidade;
+* desempenho;
+* identidade visual;
+* experiência do usuário.
+
+---
+
+# ⚠️ REGRA FINAL SOBRE A SKILL
+
+**A UI UX PRO MAX SKILL DEVE SER REALMENTE UTILIZADA.**
+
+Não apenas mencionada.
+
+Não apenas localizada.
+
+Não apenas lida.
+
+Não apenas adicionada ao relatório final.
+
+Ela deve influenciar diretamente as decisões e a implementação da nova interface.
+
+Ao terminar, inclua no relatório final uma seção:
+
+## Uso da UI UX Pro Max Skill
+
+Informe objetivamente:
+
+* quais partes relevantes da skill foram consultadas;
+* quais recomendações foram aplicadas;
+* onde foram aplicadas;
+* quais decisões visuais foram alteradas por causa dela;
+* quais recomendações não foram utilizadas;
+* por que determinadas recomendações não faziam sentido neste projeto.
+
+**Se a skill estiver disponível, não considere a tarefa concluída sem utilizá-la efetivamente.**
+
+

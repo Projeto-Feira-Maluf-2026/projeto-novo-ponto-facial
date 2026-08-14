@@ -26,10 +26,24 @@ class EnrollmentCaptureRequest(BaseModel):
     frames: list[EnrollmentFrameRequest] = Field(min_length=3, max_length=5)
 
 
+class EnrollmentSampleRequest(BaseModel):
+    """Single opportunistic frame used by the automatic enrollment collector."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    frame: EnrollmentFrameRequest
+
+
 class EnrollmentFinalizeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    captures: list[EnrollmentCaptureRequest] = Field(min_length=5, max_length=5)
+    captures: list[EnrollmentCaptureRequest] = Field(default_factory=list, max_length=5)
+
+    @model_validator(mode="after")
+    def require_complete_legacy_sequence(self) -> "EnrollmentFinalizeRequest":
+        if self.captures and len(self.captures) != 5:
+            raise ValueError("captures deve estar vazio ou conter as cinco etapas legadas")
+        return self
 
 
 class EnrollmentSessionResponse(BaseModel):
@@ -45,6 +59,35 @@ class EnrollmentSessionResponse(BaseModel):
     model_name: str
     model_version: str
     embedding_dimension: int
+    collection_mode: str = "AUTOMATIC"
+    accepted_samples: int = 0
+    target_samples: int = 5
+    ready: bool = False
+
+
+class EnrollmentSampleResponse(BaseModel):
+    session_id: str
+    accepted: bool
+    state: EnrollmentState
+    instruction: str
+    reasons: list[str]
+    accepted_samples: int
+    target_samples: int
+    ready: bool
+    progress: float = Field(ge=0, le=1)
+    sample_id: str | None = None
+    pose_bucket: str | None = None
+    pose_coverage: list[str] = Field(default_factory=list)
+    quality_score: float | None = None
+    face_area_ratio: float | None = None
+    blur_score: float | None = None
+    luminance_mean: float | None = None
+    contrast_score: float | None = None
+    detection_confidence: float | None = None
+    observed_yaw: float | None = None
+    observed_pitch: float | None = None
+    observed_roll: float | None = None
+    processing_ms: float | None = None
 
 
 class EnrollmentCaptureResponse(BaseModel):

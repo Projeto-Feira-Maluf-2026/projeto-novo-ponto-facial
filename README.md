@@ -77,9 +77,10 @@ em `.env`.
 docker compose up --build
 ```
 
-Em producao, a Vercel hospeda o frontend e a API comum. A matricula e a batida facial
-devem apontar para a imagem `api/Dockerfile` publicada em um host de containers. Veja
-`docs/vercel.md` para as variaveis e os testes de saude desse backend.
+Em producao, a Vercel hospeda o frontend, a API comum e o runtime facial em projetos
+separados. A matricula e a batida facial apontam para o Vercel Container criado por
+`api/Dockerfile.vercel` no projeto `curitiba-gestao-face`. Veja `docs/vercel.md` para
+publicacao, variaveis e testes de saude desse backend.
 
 ## Validacao
 

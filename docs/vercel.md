@@ -16,8 +16,8 @@ FIELD_ENCRYPTION_KEY=chave-fernet-valida
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 VITE_API_URL=/api/v1
-# URL publica do container facial; deixe vazio somente se nao for usar biometria.
-VITE_FACE_API_URL=https://SEU-BACKEND-FACIAL.example.com/api/v1
+# URL pública do projeto Vercel Container facial.
+VITE_FACE_API_URL=https://curitiba-gestao-face.vercel.app/api/v1
 ```
 
 Aplique a migration Supabase antes do deploy. `SUPABASE_SECRET_KEY` nao e necessaria na
@@ -32,20 +32,19 @@ Python. Essas dependencias permanecem no `api/pyproject.toml`.
 O servidor Uvicorn nao faz parte desse manifesto. O SDK Python da Vercel permanece para
 o endpoint opcional de upload no Blob.
 
-O setup local e a imagem Docker ja instalam `.[ai]`. Para executar inferencia facial em
-producao, use o container da API com os modelos montados em `FACE_MODEL_ROOT`, ou habilite
-Large Functions no projeto da Vercel e adapte o provisionamento dos modelos. A Vercel nao
-recebe os binarios em `models/` neste deploy.
+O setup local e `api/Dockerfile.vercel` instalam `.[ai]`. O projeto facial usa Vercel
+Containers, inclui o modelo verificado por SHA-256 na imagem e executa Uvicorn com
+`FACE_RUNTIME_MODE=full`. A Function serverless principal continua leve.
 
 Na Function serverless leve, autenticacao, cadastros, dashboard, relatorios, dispositivos
 e consultas continuam disponiveis. Inferencia, matricula facial e batida biometrica
 respondem `503 FACE_RUNTIME_NOT_INSTALLED`; `/api/v1/ai/capabilities` descreve essa
 limitacao sem tentar importar as bibliotecas nativas.
 
-## Backend facial em container
+## Backend facial em Vercel Container
 
-Publique `api/Dockerfile` em um servico de containers com volume ou imagem contendo o
-modelo configurado em `FACE_MODEL_ROOT`. O processo deve receber, no minimo, as mesmas
+Vincule `api/vercel.json` ao projeto facial e publique a raiz com o entrypoint
+`api/Dockerfile.vercel`. O processo deve receber, no mínimo, as mesmas
 variaveis `DATABASE_URL`, `SUPABASE_*`, `PASSWORD_PEPPER` e `FIELD_ENCRYPTION_KEY` da API
 comum, alem destas:
 
@@ -64,8 +63,8 @@ na Vercel, faca um novo deploy porque variaveis `VITE_*` sao incorporadas no bui
 Antes de liberar a matricula, confirme:
 
 ```text
-GET https://SEU-BACKEND-FACIAL.example.com/health/live       -> 200
-GET https://SEU-BACKEND-FACIAL.example.com/api/v1/ai/capabilities
+GET https://curitiba-gestao-face.vercel.app/health/live       -> 200
+GET https://curitiba-gestao-face.vercel.app/api/v1/ai/capabilities
 provider_ready                                                -> true
 ```
 

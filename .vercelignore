@@ -1,0 +1,15 @@
+.env
+.env.*
+.pytest_cache/
+.ruff_cache/
+**/.venv/
+**/__pycache__/
+*.egg-info/
+*.log
+design-system/
+docs/
+logs/
+mobile/
+prompt.txt
+tests/
+ui-ux-pro-max-skill-2.14.2/

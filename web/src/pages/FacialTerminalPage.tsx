@@ -43,6 +43,16 @@ type TerminalMode =
   | 'attention'
   | 'paused';
 
+type TemporalRecognitionState = 'UNKNOWN' | 'POSSIBLE' | 'CONFIRMING' | 'CONFIRMED';
+
+type TemporalEvidence = {
+  employeeId: string;
+  image: string;
+  score: number;
+  quality: number;
+  capturedAt: number;
+};
+
 type LiveRecognition = {
   employeeId?: string | null;
   employeeName?: string | null;
@@ -60,7 +70,9 @@ type RecentRecord = {
 };
 
 const REQUIRED_STABLE_READINGS = 3;
-const RECOGNITION_INTERVAL_MS = 1_350;
+const RECOGNITION_INTERVAL_MS = 850;
+const TEMPORAL_WINDOW_MS = 4_000;
+const TRANSIENT_MISS_GRACE_MS = 1_250;
 const RESULT_HOLD_MS = 6_000;
 const EMPLOYEE_COOLDOWN_MS = 45_000;
 
@@ -166,7 +178,7 @@ export function FacialTerminalPage() {
   const cameraRef = useRef<CameraCaptureHandle | null>(null);
   const requestInFlightRef = useRef(false);
   const punchInFlightRef = useRef(false);
-  const stableIdentityRef = useRef<{ employeeId: string; count: number } | null>(null);
+  const temporalEvidenceRef = useRef<TemporalEvidence[]>([]);
   const cooldownsRef = useRef(new Map<string, number>());
   const resultHoldUntilRef = useRef(0);
 
@@ -181,6 +193,7 @@ export function FacialTerminalPage() {
   const [decision, setDecision] = useState<AttendanceDecision | null>(null);
   const [guidance, setGuidance] = useState('Iniciando a câmera...');
   const [stableReadings, setStableReadings] = useState(0);
+  const [temporalState, setTemporalState] = useState<TemporalRecognitionState>('UNKNOWN');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [clock, setClock] = useState(new Date());
@@ -230,13 +243,15 @@ export function FacialTerminalPage() {
   const submitAutomaticPunch = useCallback(async (
     employeeId: string,
     recognizedName?: string | null,
-    recognizedImage?: string,
+    evidenceImages: string[] = [],
   ) => {
     if (!worksiteId || punchInFlightRef.current) return;
-    const image = recognizedImage || cameraRef.current?.capture({ faceCrop: true });
-    if (!image) {
+    const images = evidenceImages.length
+      ? evidenceImages.slice(-REQUIRED_STABLE_READINGS)
+      : [cameraRef.current?.capture({ faceCrop: true })].filter((image): image is string => Boolean(image));
+    if (images.length < REQUIRED_STABLE_READINGS) {
       setMode('attention');
-      setGuidance('A câmera não conseguiu obter uma imagem. Verifique o equipamento.');
+      setGuidance('A câmera ainda não reuniu evidências suficientes. Permaneça por mais um instante.');
       return;
     }
 
@@ -251,7 +266,7 @@ export function FacialTerminalPage() {
         worksite_id: worksiteId,
         punch_type: null,
         location,
-        face: { image_base64: image },
+        face: { images_base64: images },
         offline_batch_id: `terminal-${crypto.randomUUID()}`,
       });
       setDecision(result);
@@ -308,7 +323,8 @@ export function FacialTerminalPage() {
       setGuidance('O serviço de ponto não respondeu. A câmera continuará tentando.');
     } finally {
       punchInFlightRef.current = false;
-      stableIdentityRef.current = null;
+      temporalEvidenceRef.current = [];
+      setTemporalState('UNKNOWN');
     }
   }, [employees, location, worksiteId]);
 
@@ -412,9 +428,44 @@ export function FacialTerminalPage() {
           faceBox: result.face_box,
         });
 
+        if (result.matched && result.face_box) {
+          const evidenceCrop = cameraRef.current?.capture({
+            faceCrop: true,
+            sourceFaceBox: {
+              x: result.face_box.x,
+              y: result.face_box.y,
+              width: result.face_box.width,
+              height: result.face_box.height,
+              sourceWidth: result.face_box.source_width,
+              sourceHeight: result.face_box.source_height,
+            },
+          });
+          if (evidenceCrop) recognizedImage = evidenceCrop;
+        }
+
         if (!result.matched || !result.employee_id) {
-          stableIdentityRef.current = null;
-          setStableReadings(0);
+          const now = Date.now();
+          const recentEvidence = temporalEvidenceRef.current.filter(
+            (item) => now - item.capturedAt <= TEMPORAL_WINDOW_MS,
+          );
+          const lastEvidence = recentEvidence[recentEvidence.length - 1];
+          const transientMiss = lastEvidence
+            && now - lastEvidence.capturedAt <= TRANSIENT_MISS_GRACE_MS
+            && result.reasons.some((reason) => [
+              'NO_FACE',
+              'FACE_TOO_SMALL',
+              'IMAGE_TOO_BLURRY',
+              'LOW_DETECTION_CONFIDENCE',
+            ].includes(reason.toUpperCase()));
+          if (transientMiss) {
+            temporalEvidenceRef.current = recentEvidence;
+            setStableReadings(recentEvidence.length);
+            setTemporalState(recentEvidence.length > 1 ? 'CONFIRMING' : 'POSSIBLE');
+          } else {
+            temporalEvidenceRef.current = [];
+            setStableReadings(0);
+            setTemporalState('UNKNOWN');
+          }
           setMode(result.reasons.some((reason) => reason.toUpperCase() === 'NO_COMPATIBLE_TEMPLATES')
             ? 'attention'
             : 'scanning');
@@ -424,22 +475,43 @@ export function FacialTerminalPage() {
 
         const cooldownUntil = cooldownsRef.current.get(result.employee_id) || 0;
         if (cooldownUntil > Date.now()) {
-          stableIdentityRef.current = null;
+          temporalEvidenceRef.current = [];
           setStableReadings(0);
+          setTemporalState('UNKNOWN');
           setMode('ready');
           setGuidance(`Ponto de ${result.employee_name || 'funcionário'} já registrado. Próxima pessoa pode se aproximar.`);
           return;
         }
 
-        const previous = stableIdentityRef.current;
-        const nextCount = previous?.employeeId === result.employee_id
-          ? previous.count + 1
-          : 1;
-        stableIdentityRef.current = {
+        const now = Date.now();
+        const currentEvidence = temporalEvidenceRef.current.filter(
+          (item) => (
+            item.employeeId === result.employee_id
+            && now - item.capturedAt <= TEMPORAL_WINDOW_MS
+          ),
+        );
+        currentEvidence.push({
           employeeId: result.employee_id,
-          count: nextCount,
-        };
+          image: recognizedImage,
+          score: result.similarity_score || 0,
+          quality: result.quality_score,
+          capturedAt: now,
+        });
+        const scoreValues = currentEvidence.map((item) => item.score);
+        const scoreSpread = Math.max(...scoreValues) - Math.min(...scoreValues);
+        const stableEvidence = scoreSpread <= 0.12
+          ? currentEvidence.slice(-REQUIRED_STABLE_READINGS)
+          : [currentEvidence[currentEvidence.length - 1]];
+        temporalEvidenceRef.current = stableEvidence;
+        const nextCount = stableEvidence.length;
         setStableReadings(Math.min(nextCount, REQUIRED_STABLE_READINGS));
+        setTemporalState(
+          nextCount >= REQUIRED_STABLE_READINGS
+            ? 'CONFIRMED'
+            : nextCount > 1
+              ? 'CONFIRMING'
+              : 'POSSIBLE',
+        );
         setMode('confirming');
         setGuidance(
           nextCount >= REQUIRED_STABLE_READINGS
@@ -451,13 +523,14 @@ export function FacialTerminalPage() {
           await submitAutomaticPunch(
             result.employee_id,
             result.employee_name,
-            recognizedImage,
+            stableEvidence.map((item) => item.image),
           );
         }
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {
-          stableIdentityRef.current = null;
+          temporalEvidenceRef.current = [];
           setStableReadings(0);
+          setTemporalState('UNKNOWN');
           setMode('attention');
           setGuidance('Reconhecimento temporariamente indisponível. Tentaremos novamente.');
           setRecognition({ tone: 'warning' });
@@ -479,17 +552,19 @@ export function FacialTerminalPage() {
 
   const faceOverlay = useMemo<FaceOverlayState>(() => ({
     label: mode === 'confirming'
-      ? 'Permaneça parado'
+      ? temporalState === 'POSSIBLE' ? 'Possível correspondência' : 'Confirmando identidade'
       : mode === 'accepted'
         ? 'Registro concluído'
         : 'Posicione o rosto',
-    detail: mode === 'confirming' ? `${stableReadings}/${REQUIRED_STABLE_READINGS}` : undefined,
+    detail: mode === 'confirming'
+      ? `${temporalState} · ${stableReadings}/${REQUIRED_STABLE_READINGS}`
+      : undefined,
     tone: mode === 'accepted'
       ? 'success'
       : mode === 'attention' || mode === 'review'
         ? 'warning'
         : recognition.tone,
-  }), [mode, recognition.tone, stableReadings]);
+  }), [mode, recognition.tone, stableReadings, temporalState]);
 
   const detectedFaceBox = useMemo<FaceSourceBox | null>(() => (
     recognition.faceBox
@@ -663,8 +738,8 @@ export function FacialTerminalPage() {
               <strong>{qualityLabel(analysis)}</strong>
             </div>
             <div className="terminal-signal">
-              <span>Localização</span>
-              <strong>{location ? 'Obtida' : 'Não informada'}</strong>
+              <span>Confirmação</span>
+              <strong>{temporalState}</strong>
             </div>
           </div>
         </div>

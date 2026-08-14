@@ -8,6 +8,7 @@ from app.schemas.common import GeoPoint, ORMModel
 
 class FaceEvidence(BaseModel):
     image_base64: str | None = None
+    images_base64: list[str] = Field(default_factory=list, max_length=5)
     embedding: list[float] | None = None
     liveness_score: float | None = Field(
         default=None,
@@ -78,4 +79,6 @@ class AttendanceDecision(BaseModel):
     liveness_score: float | None
     quality_score: float | None
     reasons: list[str]
+    temporal_evidence_count: int = 0
+    temporal_similarity_median: float | None = None
     record: AttendanceRead | None = None

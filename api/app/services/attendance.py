@@ -1,4 +1,6 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
+from statistics import median
 
 from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,15 +62,38 @@ class AttendanceService:
 
         quality_score = max(0.0, float(payload.face.quality_score or 0.0))
         vectors: list[tuple[list[float], float]] = []
-        if payload.face.image_base64:
-            processed = self._face_embeddings().from_image_base64(payload.face.image_base64)
-            if processed.quality.accepted and processed.inference.embedding is not None:
-                quality_score = processed.quality.quality_score
-                vectors.append(
-                    (processed.inference.embedding, processed.quality.quality_score)
-                )
-            else:
-                reasons = [reason.value for reason in processed.quality.reasons]
+        temporal_similarity_median: float | None = None
+        submitted_images = list(dict.fromkeys([
+            *payload.face.images_base64,
+            *([payload.face.image_base64] if payload.face.image_base64 else []),
+        ]))
+        rejected_frame_reasons: list[str] = []
+        if submitted_images:
+            processed_frames = await asyncio.to_thread(
+                lambda: [
+                    self._face_embeddings().from_image_base64(image)
+                    for image in submitted_images
+                ]
+            )
+            for processed in processed_frames:
+                if processed.quality.accepted and processed.inference.embedding is not None:
+                    vectors.append(
+                        (processed.inference.embedding, processed.quality.quality_score)
+                    )
+                else:
+                    rejected_frame_reasons.extend(
+                        reason.value for reason in processed.quality.reasons
+                    )
+            required_frames = (
+                settings.FACE_TEMPORAL_MIN_FRAMES
+                if payload.face.images_base64
+                else 1
+            )
+            if len(vectors) < required_frames:
+                reasons = list(dict.fromkeys([
+                    "INSUFFICIENT_TEMPORAL_EVIDENCE",
+                    *rejected_frame_reasons,
+                ]))
                 await self._flag_attempt(payload, FraudType.UNKNOWN_FACE, 1.0, reasons)
                 await self.session.commit()
                 return AttendanceDecision(
@@ -79,8 +104,12 @@ class AttendanceService:
                     confidence_score=0.0,
                     similarity_score=None,
                     liveness_score=None,
-                    quality_score=processed.quality.quality_score,
+                    quality_score=max(
+                        [quality_score, *[item[1] for item in vectors]],
+                        default=quality_score,
+                    ),
                     reasons=reasons,
+                    temporal_evidence_count=len(vectors),
                 )
         elif payload.face.embedding is not None:
             vectors.append((payload.face.embedding, quality_score))
@@ -99,6 +128,33 @@ class AttendanceService:
                 quality_score=quality_score,
                 reasons=["missing_embedding"],
             )
+
+        if len(vectors) > 1:
+            from app.services.ai.facial_service import cosine_similarity
+
+            temporal_scores = [
+                cosine_similarity(left[0], right[0])
+                for index, left in enumerate(vectors)
+                for right in vectors[index + 1:]
+            ]
+            temporal_similarity_median = float(median(temporal_scores))
+            if temporal_similarity_median < settings.FACE_TEMPORAL_MIN_EMBEDDING_SIMILARITY:
+                reasons = ["TEMPORAL_IDENTITY_INCONSISTENT"]
+                await self._flag_attempt(payload, FraudType.UNKNOWN_FACE, 1.0, reasons)
+                await self.session.commit()
+                return AttendanceDecision(
+                    accepted=False,
+                    status=AttendanceStatus.REJECTED,
+                    employee_id=None,
+                    punch_type=None,
+                    confidence_score=0.0,
+                    similarity_score=None,
+                    liveness_score=None,
+                    quality_score=max(item[1] for item in vectors),
+                    reasons=reasons,
+                    temporal_evidence_count=len(vectors),
+                    temporal_similarity_median=round(temporal_similarity_median, 4),
+                )
 
         quality_score = max([quality_score, *[candidate_quality for _, candidate_quality in vectors]])
         employee, similarity, second_similarity, match_confidence, match_reason = await self._match_employee(
@@ -124,6 +180,12 @@ class AttendanceService:
                 liveness_score=None,
                 quality_score=quality_score,
                 reasons=[match_reason],
+                temporal_evidence_count=len(vectors),
+                temporal_similarity_median=(
+                    round(temporal_similarity_median, 4)
+                    if temporal_similarity_median is not None
+                    else None
+                ),
             )
 
         if employee.status.value != "ACTIVE":
@@ -143,6 +205,12 @@ class AttendanceService:
                 liveness_score=None,
                 quality_score=quality_score,
                 reasons=["inactive_employee"],
+                temporal_evidence_count=len(vectors),
+                temporal_similarity_median=(
+                    round(temporal_similarity_median, 4)
+                    if temporal_similarity_median is not None
+                    else None
+                ),
             )
 
         location = payload.location
@@ -178,6 +246,12 @@ class AttendanceService:
                 liveness_score=None,
                 quality_score=quality_score,
                 reasons=["out_of_geofence"],
+                temporal_evidence_count=len(vectors),
+                temporal_similarity_median=(
+                    round(temporal_similarity_median, 4)
+                    if temporal_similarity_median is not None
+                    else None
+                ),
             )
 
         punch_type = payload.punch_type or await self._infer_next_punch(employee.id)
@@ -203,6 +277,8 @@ class AttendanceService:
                 "match_margin": margin,
                 "match_confidence_score": match_confidence,
                 "liveness_evaluated": False,
+                "temporal_evidence_count": len(vectors),
+                "temporal_similarity_median": temporal_similarity_median,
             },
         )
         self.session.add(record)
@@ -224,6 +300,12 @@ class AttendanceService:
             liveness_score=None,
             quality_score=quality_score,
             reasons=[] if status == AttendanceStatus.ACCEPTED else ["manual_review"],
+            temporal_evidence_count=len(vectors),
+            temporal_similarity_median=(
+                round(temporal_similarity_median, 4)
+                if temporal_similarity_median is not None
+                else None
+            ),
             record=AttendanceRead.model_validate(record),
         )
 
@@ -264,6 +346,8 @@ class AttendanceService:
         vectors: list[tuple[list[float], float]],
         employee_id: str | None,
     ) -> tuple[Employee | None, float, float | None, float, str | None]:
+        import numpy as np
+
         from app.services.ai.facial_service import (
             TemplateCandidate,
             face_match_confidence_score,
@@ -298,7 +382,13 @@ class AttendanceService:
                 )
             )
 
-        query_vector = max(vectors, key=lambda candidate: candidate[1])[0]
+        query_vectors = np.asarray([candidate[0] for candidate in vectors], dtype=np.float32)
+        query_weights = np.asarray(
+            [max(float(candidate[1]), 0.05) for candidate in vectors],
+            dtype=np.float32,
+        )
+        query_vector = np.average(query_vectors, axis=0, weights=query_weights)
+        query_vector /= max(float(np.linalg.norm(query_vector)), 1e-9)
         ranked = rank_identity_candidates(query_vector, candidates_by_employee)
         if not ranked:
             return None, 0.0, None, 0.0, "low_similarity"

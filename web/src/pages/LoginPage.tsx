@@ -9,7 +9,6 @@ import {
   LockKeyhole,
   Mail,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -94,8 +93,8 @@ export function LoginPage() {
           </div>
 
           <div className="login-context-content">
-            <span className="login-context-label"><Sparkles size={14} /> Central operacional</span>
-            <h1>A operação começa com quem faz acontecer.</h1>
+            <span className="login-context-label"><Building2 size={14} /> Central operacional</span>
+            <h2>A operação começa com quem faz acontecer.</h2>
             <p>Pessoas, obras e pontos faciais em uma visão segura, atualizada e pronta para a rotina de campo.</p>
 
             <div className="login-operation-card">
@@ -121,10 +120,9 @@ export function LoginPage() {
           </div>
 
           <form onSubmit={onSubmit} className="login-form" noValidate>
-            <div className="login-form-icon"><LockKeyhole size={21} /></div>
             <div className="login-form-heading">
               <span className="login-form-kicker">Portal administrativo</span>
-              <h2>Acesse sua central</h2>
+              <h1>Acesse sua central</h1>
               <p>Use sua conta corporativa para continuar.</p>
             </div>
 

@@ -21,8 +21,7 @@ import { useModalMotion } from '../animations/useMotion';
 import { apiClient } from '../services/api';
 import type {
   Employee,
-  EnrollmentCapturePayload,
-  EnrollmentPose,
+  EnrollmentSampleResponse,
   EnrollmentSessionResponse,
   Worksite,
 } from '../types/domain';
@@ -48,26 +47,6 @@ const employeeStatusFilters = [
   { value: 'ON_LEAVE' as const, label: 'Afastados' },
   { value: 'INACTIVE' as const, label: 'Inativos' },
 ];
-
-const poseInstructions: Record<EnrollmentPose, string> = {
-  FRONTAL: 'Olhe de frente para a câmera',
-  TURN_LEFT: 'Vire um pouco o rosto para a esquerda',
-  TURN_RIGHT: 'Vire um pouco o rosto para a direita',
-  LOOK_UP: 'Levante levemente o queixo',
-  FRONTAL_FINAL: 'Volte a olhar de frente',
-};
-
-const poseLabels: Record<EnrollmentPose, string> = {
-  FRONTAL: 'Frente',
-  TURN_LEFT: 'Esquerda',
-  TURN_RIGHT: 'Direita',
-  LOOK_UP: 'Para cima',
-  FRONTAL_FINAL: 'Frente final',
-};
-
-function wait(milliseconds: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-}
 
 function enrollmentError(error: unknown, fallback: string) {
   const payload = error as {
@@ -113,6 +92,8 @@ function friendlyCaptureFeedback(instruction: string, reasons: string[]) {
 export function EmployeesPage() {
   const cameraRef = useRef<CameraCaptureHandle | null>(null);
   const enrollmentModalRef = useRef<HTMLDivElement>(null);
+  const enrollmentCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const enrollmentOpenerRef = useRef<HTMLElement | null>(null);
   const enrollmentClosingRef = useRef(false);
   const captureInFlightRef = useRef(false);
   const finalizeInFlightRef = useRef(false);
@@ -127,7 +108,9 @@ export function EmployeesPage() {
   const [saving, setSaving] = useState(false);
   const [enrolling, setEnrolling] = useState<Employee | null>(null);
   const [enrollmentSession, setEnrollmentSession] = useState<EnrollmentSessionResponse | null>(null);
-  const [captures, setCaptures] = useState<EnrollmentCapturePayload[]>([]);
+  const [acceptedSamples, setAcceptedSamples] = useState(0);
+  const [enrollmentReady, setEnrollmentReady] = useState(false);
+  const [sampleResult, setSampleResult] = useState<EnrollmentSampleResponse | null>(null);
   const [capturePreviews, setCapturePreviews] = useState<string[]>([]);
   const [enrollmentFeedback, setEnrollmentFeedback] = useState('');
   const [enrollSaving, setEnrollSaving] = useState(false);
@@ -192,12 +175,15 @@ export function EmployeesPage() {
   };
 
   const openEnrollment = async (employee: Employee) => {
+    enrollmentOpenerRef.current = document.activeElement as HTMLElement | null;
     captureInFlightRef.current = false;
     finalizeInFlightRef.current = false;
     autoCaptureNotBeforeRef.current = Date.now() + 1_000;
     setEnrolling(employee);
     setEnrollmentSession(null);
-    setCaptures([]);
+    setAcceptedSamples(0);
+    setEnrollmentReady(false);
+    setSampleResult(null);
     setCapturePreviews([]);
     setEnrollmentFeedback('Preparando sessão biométrica...');
     setEnrollmentCameraReady(false);
@@ -217,7 +203,7 @@ export function EmployeesPage() {
       }
       const started = await apiClient.startFaceEnrollment(employee.id);
       setEnrollmentSession(started);
-      setEnrollmentFeedback('Entre no enquadramento e olhe de frente. A captura será automática.');
+      setEnrollmentFeedback('Entre no enquadramento e olhe naturalmente. A coleta será automática.');
     } catch (error) {
       setEnrollmentFeedback(enrollmentError(error, 'Não foi possível iniciar a sessão de cadastro facial.'));
     } finally {
@@ -240,80 +226,95 @@ export function EmployeesPage() {
       enrollmentClosingRef.current = false;
       setEnrolling(null);
       setEnrollmentSession(null);
-      setCaptures([]);
+      setAcceptedSamples(0);
+      setEnrollmentReady(false);
+      setSampleResult(null);
       setCapturePreviews([]);
       setEnrollmentFeedback('');
       setEnrollmentCameraReady(false);
       setEnrollmentFacePresent(false);
       setCaptureRejected(false);
+      enrollmentOpenerRef.current?.focus();
     });
   }, [enrolling, enrollmentSession]);
+
+  useEffect(() => {
+    const dialog = enrollmentModalRef.current;
+    if (!enrolling || !dialog) return undefined;
+    enrollmentCloseButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeEnrollment();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), select:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      )).filter((element) => !element.hasAttribute('hidden'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    dialog.addEventListener('keydown', handleKeyDown);
+    return () => dialog.removeEventListener('keydown', handleKeyDown);
+  }, [closeEnrollment, enrolling]);
 
   const captureFace = useCallback(async () => {
     if (!enrolling || !enrollmentSession || captureInFlightRef.current) {
       setEnrollmentFeedback('A sessão facial ainda não está pronta.');
       return;
     }
-    const stepIndex = captures.length;
-    const pose = enrollmentSession.required_poses[stepIndex];
-    if (!pose) return;
 
     captureInFlightRef.current = true;
     setCaptureRejected(false);
     setEnrollSaving(true);
-    setEnrollmentFeedback('Capturando automaticamente. Continue parado...');
+    setEnrollmentFeedback('Analisando nitidez, luz e variação facial...');
     try {
-      const frames: EnrollmentCapturePayload['frames'] = [];
-      const frameDelay = Math.ceil(
-        enrollmentSession.minimum_burst_span_ms
-          / Math.max(1, enrollmentSession.minimum_frames_per_pose - 1),
-      ) + 20;
-      for (let index = 0; index < enrollmentSession.minimum_frames_per_pose; index += 1) {
-        const image = cameraRef.current?.capture({ faceCrop: true });
-        if (!image) throw new Error('camera_not_ready');
-        frames.push({ image_base64: image, captured_at: new Date().toISOString() });
-        if (index + 1 < enrollmentSession.minimum_frames_per_pose) await wait(frameDelay);
-      }
-
-      const capture: EnrollmentCapturePayload = { step_index: stepIndex, pose, frames };
-      const result = await apiClient.validateFaceEnrollmentCapture(
+      const image = cameraRef.current?.capture({ faceCrop: true });
+      if (!image) throw new Error('camera_not_ready');
+      const result = await apiClient.collectFaceEnrollmentSample(
         enrolling.id,
         enrollmentSession.session_id,
-        capture,
+        { image_base64: image, captured_at: new Date().toISOString() },
       );
+      setSampleResult(result);
+      setAcceptedSamples(result.accepted_samples);
+      setEnrollmentReady(result.ready);
       if (result.accepted) {
-        const nextPose = result.next_pose;
-        setCaptures((current) => [...current, capture]);
-        setCapturePreviews((current) => [...current, frames[0].image_base64]);
-        autoCaptureNotBeforeRef.current = Date.now() + 1_650;
-        setEnrollmentFeedback(
-          nextPose
-            ? `Etapa concluída. Agora: ${poseInstructions[nextPose]}.`
-            : 'Todas as etapas concluídas. Finalizando o cadastro...',
-        );
+        setCapturePreviews((current) => [...current, image].slice(-7));
+        autoCaptureNotBeforeRef.current = Date.now() + 620;
+        setEnrollmentFeedback(result.instruction);
       } else {
         setCaptureRejected(true);
-        autoCaptureNotBeforeRef.current = Date.now() + 1_900;
+        autoCaptureNotBeforeRef.current = Date.now() + 760;
         setEnrollmentFeedback(friendlyCaptureFeedback(result.instruction, result.reasons));
       }
     } catch (error) {
       setCaptureRejected(true);
-      autoCaptureNotBeforeRef.current = Date.now() + 2_200;
+      autoCaptureNotBeforeRef.current = Date.now() + 1_200;
       setEnrollmentFeedback(enrollmentError(error, 'Captura rejeitada. Ajuste o rosto e tente novamente.'));
     } finally {
       captureInFlightRef.current = false;
       setEnrollSaving(false);
     }
-  }, [captures.length, enrolling, enrollmentSession]);
+  }, [enrolling, enrollmentSession]);
 
   const submitEnrollment = useCallback(async () => {
     if (
       !enrolling
       || !enrollmentSession
-      || captures.length !== enrollmentSession.required_poses.length
+      || !enrollmentReady
       || finalizeInFlightRef.current
     ) {
-      setEnrollmentFeedback('Conclua todas as poses antes de finalizar.');
+      setEnrollmentFeedback('Aguarde a coleta de amostras consistentes.');
       return;
     }
     finalizeInFlightRef.current = true;
@@ -325,19 +326,18 @@ export function EmployeesPage() {
       const result = await apiClient.finalizeFaceEnrollment(
         enrolling.id,
         enrollmentSession.session_id,
-        captures,
       );
       setMessage(`Face cadastrada: ${result.templates_created} templates, qualidade ${Math.round(result.quality_average * 100)}%.`);
       closeEnrollment(false);
       apiClient.employees().then((page) => setEmployees(page.items)).catch(() => undefined);
     } catch (error) {
       setCaptureRejected(true);
-      setEnrollmentFeedback(enrollmentError(error, 'A consistência final foi rejeitada. Repita o cadastro guiado.'));
+      setEnrollmentFeedback(enrollmentError(error, 'A consistência final foi rejeitada. Continue a coleta por alguns instantes.'));
     } finally {
       finalizeInFlightRef.current = false;
       setEnrollSaving(false);
     }
-  }, [captures, closeEnrollment, enrolling, enrollmentSession]);
+  }, [closeEnrollment, enrolling, enrollmentReady, enrollmentSession]);
 
   useEffect(() => {
     if (
@@ -347,12 +347,12 @@ export function EmployeesPage() {
       || !enrollmentCameraReady
       || !enrollmentFacePresent
       || enrollSaving
-      || captures.length >= enrollmentSession.required_poses.length
+      || enrollmentReady
     ) {
       return undefined;
     }
 
-    const delay = Math.max(700, autoCaptureNotBeforeRef.current - Date.now());
+    const delay = Math.max(420, autoCaptureNotBeforeRef.current - Date.now());
     const timer = window.setTimeout(() => {
       void captureFace();
     }, delay);
@@ -360,8 +360,8 @@ export function EmployeesPage() {
   }, [
     autoCaptureEnabled,
     captureFace,
-    captures.length,
     enrollSaving,
+    enrollmentReady,
     enrolling,
     enrollmentCameraReady,
     enrollmentFacePresent,
@@ -371,7 +371,7 @@ export function EmployeesPage() {
   useEffect(() => {
     if (
       !enrollmentSession
-      || captures.length !== enrollmentSession.required_poses.length
+      || !enrollmentReady
       || enrollSaving
       || captureRejected
       || finalizeInFlightRef.current
@@ -382,14 +382,13 @@ export function EmployeesPage() {
       void submitEnrollment();
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [captureRejected, captures.length, enrollSaving, enrollmentSession, submitEnrollment]);
+  }, [captureRejected, enrollSaving, enrollmentReady, enrollmentSession, submitEnrollment]);
 
-  const currentEnrollmentPose = enrollmentSession?.required_poses[captures.length] ?? null;
-  const enrollmentStepCount = enrollmentSession?.required_poses.length ?? 5;
-  const enrollmentComplete = Boolean(
-    enrollmentSession && captures.length === enrollmentSession.required_poses.length,
+  const enrollmentStepCount = enrollmentSession?.target_samples ?? 5;
+  const enrollmentComplete = enrollmentReady;
+  const enrollmentProgress = Math.round(
+    (sampleResult?.progress ?? (acceptedSamples / Math.max(enrollmentStepCount, 1))) * 100,
   );
-  const enrollmentProgress = Math.round((captures.length / enrollmentStepCount) * 100);
 
   return (
     <div className="app-view-transition space-y-5">
@@ -527,13 +526,18 @@ export function EmployeesPage() {
 
       {enrolling && (
         <div ref={enrollmentModalRef} className="modal-backdrop">
-          <section className="enrollment-dialog app-card text-ink dark:text-slate-100">
+          <section
+            className="enrollment-dialog app-card text-ink dark:text-slate-100"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="enrollment-dialog-title"
+          >
             <header className="enrollment-dialog-header">
               <div>
                 <p className="text-xs font-medium text-steel dark:text-slate-400">Cadastro facial</p>
-                <h2 className="mt-0.5 text-lg font-semibold">{enrolling.name}</h2>
+                <h2 id="enrollment-dialog-title" className="mt-0.5 text-lg font-semibold">{enrolling.name}</h2>
                 <p className="text-xs text-steel dark:text-slate-400">
-                  {enrolling.registration} · aproximadamente 15 segundos
+                  {enrolling.registration} · coleta contínua em poucos segundos
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -550,7 +554,14 @@ export function EmployeesPage() {
                 >
                   {autoCaptureEnabled ? <Pause size={17} /> : <Play size={17} />}
                 </button>
-                <button onClick={() => closeEnrollment()} className="icon-button" title="Fechar">
+                <button
+                  ref={enrollmentCloseButtonRef}
+                  type="button"
+                  onClick={() => closeEnrollment()}
+                  className="icon-button"
+                  title="Fechar"
+                  aria-label="Fechar cadastro facial"
+                >
                   <X size={18} />
                 </button>
               </div>
@@ -565,12 +576,10 @@ export function EmployeesPage() {
                     onReadyChange={setEnrollmentCameraReady}
                     onFacePresenceChange={setEnrollmentFacePresent}
                     faceOverlay={{
-                      label: currentEnrollmentPose
-                        ? poseInstructions[currentEnrollmentPose]
-                        : enrollmentComplete
-                          ? 'Cadastro concluído'
-                          : 'Preparando câmera',
-                      detail: `${Math.min(captures.length + 1, enrollmentStepCount)}/${enrollmentStepCount}`,
+                      label: enrollmentComplete
+                        ? 'Amostras consistentes'
+                        : enrollmentFeedback || 'Olhe naturalmente para a câmera',
+                      detail: `${acceptedSamples}/${enrollmentStepCount}`,
                       tone: captureRejected
                         ? 'warning'
                         : enrollmentComplete
@@ -612,7 +621,7 @@ export function EmployeesPage() {
                   </div>
                   <span>
                     {enrollmentSession
-                      ? 'O rosto é aproximado e ajustado automaticamente.'
+                      ? 'Amostras ruins são ignoradas sem apagar o progresso.'
                       : 'Nenhuma imagem foi capturada ou enviada.'}
                   </span>
                 </div>
@@ -622,10 +631,10 @@ export function EmployeesPage() {
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-3 text-xs font-medium text-steel dark:text-slate-400">
                     <span>Progresso do cadastro</span>
-                    <span>{captures.length} de {enrollmentStepCount}</span>
+                    <span>{acceptedSamples} de {enrollmentStepCount}</span>
                   </div>
                   <div className="enrollment-progress-track">
-                    <span style={{ width: `${Math.max(enrollmentProgress, captures.length ? 20 : 4)}%` }} />
+                    <span style={{ width: `${Math.max(enrollmentProgress, acceptedSamples ? 20 : 4)}%` }} />
                   </div>
                 </div>
 
@@ -646,23 +655,44 @@ export function EmployeesPage() {
                   </div>
                   <div>
                     <span>
-                      {currentEnrollmentPose
-                        ? `Etapa ${captures.length + 1} · ${poseLabels[currentEnrollmentPose]}`
-                        : enrollmentComplete
-                          ? 'Finalizando'
+                      {enrollmentComplete
+                        ? 'Finalizando'
+                        : acceptedSamples
+                          ? `${acceptedSamples} amostras preservadas`
                           : 'Preparando'}
                     </span>
                     <strong>{enrollmentFeedback}</strong>
                   </div>
                 </div>
 
-                <div className="enrollment-steps" aria-label="Etapas do cadastro">
-                  {(enrollmentSession?.required_poses ?? Object.keys(poseLabels) as EnrollmentPose[]).map((pose, index) => {
+                {sampleResult && (
+                  <dl className="enrollment-diagnostics" aria-label="Diagnóstico da última leitura">
+                    <div>
+                      <dt>Qualidade</dt>
+                      <dd>{Math.round((sampleResult.quality_score || 0) * 100)}%</dd>
+                    </div>
+                    <div>
+                      <dt>Rosto no quadro</dt>
+                      <dd>{((sampleResult.face_area_ratio || 0) * 100).toFixed(1)}%</dd>
+                    </div>
+                    <div>
+                      <dt>Luz</dt>
+                      <dd>{Math.round(sampleResult.luminance_mean || 0)}</dd>
+                    </div>
+                    <div>
+                      <dt>Processamento</dt>
+                      <dd>{Math.round(sampleResult.processing_ms || 0)} ms</dd>
+                    </div>
+                  </dl>
+                )}
+
+                <div className="enrollment-steps" aria-label="Amostras faciais preservadas">
+                  {Array.from({ length: enrollmentStepCount }).map((_, index) => {
                     const preview = capturePreviews[index];
-                    const active = index === captures.length && !enrollmentComplete;
+                    const active = index === acceptedSamples && !enrollmentComplete;
                     return (
                       <div
-                        key={pose}
+                        key={index}
                         className={`enrollment-step ${preview ? 'is-complete' : ''} ${active ? 'is-active' : ''}`}
                       >
                         {preview ? (
@@ -671,8 +701,8 @@ export function EmployeesPage() {
                           <span>{index + 1}</span>
                         )}
                         <div>
-                          <strong>{poseLabels[pose]}</strong>
-                          <small>{preview ? 'Concluída' : active ? 'Agora' : 'A seguir'}</small>
+                          <strong>Amostra {index + 1}</strong>
+                          <small>{preview ? 'Preservada' : active ? 'Coletando' : 'A seguir'}</small>
                         </div>
                         {preview && <CheckCircle2 size={17} />}
                       </div>
@@ -704,7 +734,7 @@ export function EmployeesPage() {
                     </button>
                   )}
                   <p className="text-xs leading-5 text-steel dark:text-slate-400">
-                    As imagens são validadas uma a uma. Se algo não estiver bom, o sistema tenta novamente na mesma etapa.
+                    O sistema seleciona automaticamente nitidez e variação. Nenhuma sequência rígida de poses é exigida.
                   </p>
                 </div>
               </aside>

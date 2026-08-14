@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     FACE_ENROLLMENT_TURN_MAX_YAW: float = 42.0
     FACE_ENROLLMENT_LOOK_UP_MIN_PITCH: float = 8.0
     FACE_ENROLLMENT_LOOK_UP_MAX_PITCH: float = 32.0
+    FACE_TEMPORAL_MIN_FRAMES: int = 3
+    FACE_TEMPORAL_MIN_EMBEDDING_SIMILARITY: float = 0.58
     FACE_MATCH_MIN_TEMPLATE_QUALITY: float = 0.45
     FACE_IDENTITY_MAX_TEMPLATES: int = 5
     FACE_IDENTITY_TOP_K: int = 3
@@ -164,6 +166,13 @@ class Settings(BaseSettings):
             and 0.0 <= self.FACE_SECONDARY_FACE_SCORE_GAP <= 1.0
         ):
             raise ValueError("Thresholds de deteccao facial invalidos")
+        if not (
+            2 <= self.FACE_TEMPORAL_MIN_FRAMES <= 5
+            and 0.0 < self.FACE_TEMPORAL_MIN_EMBEDDING_SIMILARITY <= 1.0
+            and self.FACE_IDENTITY_MAX_TEMPLATES >= self.FACE_ENROLLMENT_MIN_IMAGES
+            and 1 <= self.FACE_IDENTITY_TOP_K <= self.FACE_IDENTITY_MAX_TEMPLATES
+        ):
+            raise ValueError("Configuracao temporal ou de templates faciais invalida")
         return self
 
 

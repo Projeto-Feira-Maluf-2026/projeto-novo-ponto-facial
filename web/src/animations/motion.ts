@@ -53,7 +53,7 @@ export function createPageMotion(root: HTMLElement): Scope {
       : [];
     const pageRoot = Array.from(root.children).find((element) => element !== heading) as HTMLElement | undefined;
     const sections = pageRoot
-      ? visibleElements(Array.from(pageRoot.children)).slice(0, 10)
+      ? visibleElements(Array.from(pageRoot.children)).slice(0, 4)
       : [];
     const targets = [...headingItems, ...sections];
 
@@ -92,35 +92,11 @@ export function createLoginMotion(root: HTMLElement): Scope {
     defaults: { ease: motionTokens.ease.enter },
   }).add((scope) => {
     const windowElement = root.querySelector('.login-window');
-    const blueprintFloors = Array.from(root.querySelectorAll('.login-blueprint-floor'));
-    const blueprintLines = Array.from(root.querySelectorAll('.login-blueprint-line, .login-blueprint-volume'));
-    const blueprintScan = root.querySelector('.login-blueprint-scan');
-    const brand = root.querySelector('.login-brand');
-    const contextIntro = Array.from(root.querySelectorAll(
-      '.login-context-label, .login-context-content > h1, .login-context-content > p',
-    ));
-    const operationCard = root.querySelector('.login-operation-card');
-    const operationRows = Array.from(root.querySelectorAll('.login-operation-list > div'));
-    const footer = root.querySelector('.login-context-footer');
-    const formItems = Array.from(root.querySelectorAll(
-      '.login-form-icon, .login-form-heading > *, .login-input, .login-submit, .login-privacy',
-    ));
-    const targets = [
-      windowElement,
-      ...blueprintFloors,
-      ...blueprintLines,
-      blueprintScan,
-      brand,
-      ...contextIntro,
-      operationCard,
-      ...operationRows,
-      footer,
-      ...formItems,
-    ].filter(Boolean) as Element[];
+    const context = root.querySelector('.login-context-content');
+    const form = root.querySelector('.login-form');
+    const targets = [windowElement, context, form].filter(Boolean) as Element[];
 
-    if (scope?.matches.reduceMotion) {
-      return;
-    }
+    if (scope?.matches.reduceMotion) return;
 
     const timeline = createTimeline({
       defaults: { ease: motionTokens.ease.enter },
@@ -129,73 +105,12 @@ export function createLoginMotion(root: HTMLElement): Scope {
     if (windowElement) {
       timeline.add(windowElement, {
         opacity: [0, 1],
-        y: [18, 0],
-        scale: [0.985, 1],
-        duration: 560,
+        y: [12, 0],
+        duration: 420,
       }, 0);
     }
-    if (blueprintLines.length) {
-      timeline.add(blueprintLines, {
-        opacity: [0, 1],
-        y: [14, 0],
-        duration: 520,
-        delay: stagger(28),
-      }, 70);
-    }
-    if (blueprintFloors.length) {
-      timeline.add(blueprintFloors, {
-        opacity: [0, 1],
-        y: [18, 0],
-        duration: 440,
-        delay: stagger(45, { from: 'last' }),
-      }, 120);
-    }
-    if (blueprintScan) {
-      timeline.add(blueprintScan, {
-        opacity: [0, 0.55, 0],
-        x: [-120, 520],
-        duration: 900,
-        ease: 'inOut(2)',
-      }, 180);
-    }
-    if (brand) {
-      timeline.add(brand, { opacity: [0, 1], x: [-12, 0], duration: 420 }, 110);
-    }
-    if (contextIntro.length) {
-      timeline.add(contextIntro, {
-        opacity: [0, 1],
-        y: [16, 0],
-        duration: 500,
-        delay: stagger(68),
-      }, 210);
-    }
-    if (operationCard) {
-      timeline.add(operationCard, {
-        opacity: [0, 1],
-        y: [18, 0],
-        scale: [0.98, 1],
-        duration: 500,
-      }, 430);
-    }
-    if (operationRows.length) {
-      timeline.add(operationRows, {
-        opacity: [0, 1],
-        x: [-10, 0],
-        duration: 360,
-        delay: stagger(54),
-      }, 510);
-    }
-    if (footer) {
-      timeline.add(footer, { opacity: [0, 1], y: [8, 0], duration: 380 }, 610);
-    }
-    if (formItems.length) {
-      timeline.add(formItems, {
-        opacity: [0, 1],
-        y: [16, 0],
-        duration: 480,
-        delay: stagger(58),
-      }, 240);
-    }
+    if (context) timeline.add(context, { opacity: [0, 1], y: [8, 0], duration: 320 }, 90);
+    if (form) timeline.add(form, { opacity: [0, 1], y: [8, 0], duration: 320 }, 130);
   });
 }
 
@@ -203,22 +118,7 @@ export function createTableMotion(root: HTMLElement): Scope {
   return createScope({
     root,
     mediaQueries: reducedMotionMedia,
-    defaults: { ease: motionTokens.ease.standard },
-  }).add((scope) => {
-    const rows = visibleElements(Array.from(root.querySelectorAll('tbody tr'))).slice(0, 12);
-    if (!rows.length) return;
-    if (scope?.matches.reduceMotion) {
-      return;
-    }
-    animate(rows, {
-      opacity: [0, 1],
-      y: [motionTokens.distance.small, 0],
-      duration: motionTokens.duration.normal,
-      delay: stagger(motionTokens.stagger.tight),
-      ease: motionTokens.ease.standard,
-      onComplete: () => clearMotionStyles(rows),
-    });
-  });
+  }).add(() => undefined);
 }
 
 export function createMetricMotion(root: HTMLElement): Scope {

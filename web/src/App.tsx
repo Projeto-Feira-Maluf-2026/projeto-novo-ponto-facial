@@ -1,15 +1,24 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { useAuth } from './auth/AuthContext';
 import { Layout } from './components/Layout';
-import { DashboardPage } from './pages/DashboardPage';
-import { DevicesPage } from './pages/DevicesPage';
-import { EmployeesPage } from './pages/EmployeesPage';
-import { FacialTerminalPage } from './pages/FacialTerminalPage';
-import { LoginPage } from './pages/LoginPage';
-import { ReportsPage } from './pages/ReportsPage';
-import { WorksitesPage } from './pages/WorksitesPage';
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+const DevicesPage = lazy(() => import('./pages/DevicesPage').then((module) => ({ default: module.DevicesPage })));
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((module) => ({ default: module.EmployeesPage })));
+const FacialTerminalPage = lazy(() => import('./pages/FacialTerminalPage').then((module) => ({ default: module.FacialTerminalPage })));
+const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
+const ReportsPage = lazy(() => import('./pages/ReportsPage').then((module) => ({ default: module.ReportsPage })));
+const WorksitesPage = lazy(() => import('./pages/WorksitesPage').then((module) => ({ default: module.WorksitesPage })));
+
+function RouteLoading() {
+  return (
+    <div className="route-loading" role="status" aria-live="polite">
+      <span className="auth-loading-spinner" aria-hidden="true" />
+      <span>Carregando área de trabalho…</span>
+    </div>
+  );
+}
 
 export default function App() {
   const { loading, session, signOut } = useAuth();
@@ -34,7 +43,8 @@ export default function App() {
   }
 
   return (
-    <Routes>
+    <Suspense fallback={<RouteLoading />}>
+      <Routes>
       <Route path="/login" element={session ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route
         path="/*"
@@ -56,6 +66,7 @@ export default function App() {
           </Layout> : <Navigate to="/login" replace />
         }
       />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

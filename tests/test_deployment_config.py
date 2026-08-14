@@ -80,3 +80,12 @@ def test_lightweight_enrollment_fails_before_importing_native_ai(
     assert captured.value.code == "FACE_RUNTIME_NOT_INSTALLED"
     assert captured.value.status_code == 503
     assert "VITE_FACE_API_URL" in captured.value.details["remediation"]
+
+
+def test_lightweight_attendance_module_does_not_import_numpy_at_startup() -> None:
+    source = (PROJECT_ROOT / "api" / "app" / "services" / "attendance.py").read_text(
+        encoding="utf-8"
+    )
+    startup_section = source.split("class AttendanceService", 1)[0]
+
+    assert "import numpy" not in startup_section

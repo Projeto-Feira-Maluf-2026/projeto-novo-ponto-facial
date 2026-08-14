@@ -97,3 +97,36 @@ def test_enrollment_uses_its_own_quality_floor_for_challenging_cameras() -> None
     )
 
     assert reasons == []
+
+
+def test_automatic_enrollment_needs_quality_samples_and_soft_pose_variation() -> None:
+    candidates = [
+        SimpleNamespace(
+            pose_json={"bucket": "FRONTAL", "yaw": 0.0, "pitch": 0.0},
+        ),
+        SimpleNamespace(
+            pose_json={"bucket": "FRONTAL", "yaw": 2.0, "pitch": 1.0},
+        ),
+        SimpleNamespace(
+            pose_json={"bucket": "NATURAL", "yaw": 5.0, "pitch": 2.0},
+        ),
+        SimpleNamespace(
+            pose_json={"bucket": "RIGHT", "yaw": 13.0, "pitch": 1.0},
+        ),
+        SimpleNamespace(
+            pose_json={"bucket": "LEFT", "yaw": -12.0, "pitch": 0.0},
+        ),
+    ]
+
+    assert FaceEnrollmentService._automatic_ready(candidates) is True
+
+
+def test_automatic_enrollment_does_not_claim_ready_for_repeated_pose() -> None:
+    candidates = [
+        SimpleNamespace(
+            pose_json={"bucket": "FRONTAL", "yaw": 1.0, "pitch": 1.0},
+        )
+        for _ in range(5)
+    ]
+
+    assert FaceEnrollmentService._automatic_ready(candidates) is False

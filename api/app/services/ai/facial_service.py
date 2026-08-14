@@ -9,7 +9,13 @@ import cv2
 
 from app.core.config import Settings, settings
 from app.core.errors import FaceServiceUnavailableError
-from app.services.ai.base import FaceInferenceResult, FaceProvider, FaceProviderState
+from app.services.ai.base import (
+    FaceBoundingBox,
+    FaceInferenceResult,
+    FaceLandmark,
+    FaceProvider,
+    FaceProviderState,
+)
 from app.services.ai.fake_provider import FakeFaceProvider
 from app.services.ai.image_validation import (
     FaceImageValidator,
@@ -81,6 +87,64 @@ def _enhanced_detection_frames(image_bgr: np.ndarray) -> list[np.ndarray]:
     )
     aggressive = cv2.bilateralFilter(aggressive, 5, 28, 28)
     return [balanced, aggressive]
+
+
+def _analyze_original_from_detection(
+    provider: FaceProvider,
+    image_bgr: np.ndarray,
+    detected: FaceInferenceResult,
+) -> FaceInferenceResult:
+    """Use an enhanced frame only as a locator; embed an aligned original-pixel crop."""
+    box = detected.bounding_box
+    if box is None or box.width <= 0 or box.height <= 0:
+        return provider.analyze(image_bgr)
+    image_height, image_width = image_bgr.shape[:2]
+    padding_x = box.width * 0.34
+    padding_y = box.height * 0.42
+    left = max(0, int(box.x - padding_x))
+    top = max(0, int(box.y - padding_y))
+    right = min(image_width, int(box.x + box.width + padding_x))
+    bottom = min(image_height, int(box.y + box.height + padding_y))
+    if right - left < 48 or bottom - top < 48:
+        return provider.analyze(image_bgr)
+
+    crop = image_bgr[top:bottom, left:right]
+    shortest = min(crop.shape[:2])
+    scale = min(2.5, max(1.0, 420.0 / max(shortest, 1)))
+    if scale > 1.01:
+        crop = cv2.resize(
+            crop,
+            None,
+            fx=scale,
+            fy=scale,
+            interpolation=cv2.INTER_CUBIC,
+        )
+    canonical = provider.analyze(crop)
+    if canonical.state != FaceProviderState.READY or canonical.embedding is None:
+        return canonical
+
+    canonical_box = canonical.bounding_box
+    mapped_box = None
+    if canonical_box is not None:
+        mapped_box = FaceBoundingBox(
+            x=(canonical_box.x / scale) + left,
+            y=(canonical_box.y / scale) + top,
+            width=canonical_box.width / scale,
+            height=canonical_box.height / scale,
+        )
+    mapped_landmarks = [
+        FaceLandmark(
+            x=(landmark.x / scale) + left,
+            y=(landmark.y / scale) + top,
+        )
+        for landmark in canonical.landmarks
+    ]
+    return replace(
+        canonical,
+        bounding_box=mapped_box,
+        landmarks=mapped_landmarks,
+        inference_ms=round(detected.inference_ms + canonical.inference_ms, 3),
+    )
 
 
 def serialize_embedding(vector: list[float]) -> bytes:
@@ -262,7 +326,6 @@ class FaceEmbeddingService:
                 **(failure.details if failure else {}),
             )
 
-        selected_image = image
         inference = self.provider.analyze(image.image_bgr)
         quality = self.validator.quality_report(image, inference)
         retryable_quality_reasons = {
@@ -285,44 +348,42 @@ class FaceEmbeddingService:
 
         if should_retry:
             best_ready = (
-                (selected_image, inference, quality)
+                (inference, quality)
                 if inference.state == FaceProviderState.READY
                 else None
             )
             for enhanced_bgr in _enhanced_detection_frames(image.image_bgr):
-                enhanced_image = replace(image, image_bgr=enhanced_bgr)
-                enhanced_inference = self.provider.analyze(enhanced_bgr)
-                enhanced_quality = self.validator.quality_report(
-                    enhanced_image,
-                    enhanced_inference,
-                )
-                if enhanced_inference.state == FaceProviderState.MULTIPLE_FACES:
-                    selected_image = enhanced_image
-                    inference = enhanced_inference
-                    quality = enhanced_quality
+                locator_inference = self.provider.analyze(enhanced_bgr)
+                if locator_inference.state == FaceProviderState.MULTIPLE_FACES:
+                    inference = locator_inference
+                    quality = self.validator.quality_report(image, locator_inference)
                     break
-                if enhanced_inference.state != FaceProviderState.READY:
+                if locator_inference.state != FaceProviderState.READY:
                     continue
+                canonical_inference = _analyze_original_from_detection(
+                    self.provider,
+                    image.image_bgr,
+                    locator_inference,
+                )
+                if canonical_inference.state != FaceProviderState.READY:
+                    continue
+                canonical_quality = self.validator.quality_report(image, canonical_inference)
                 if (
                     best_ready is None
-                    or enhanced_quality.quality_score > best_ready[2].quality_score
+                    or canonical_quality.quality_score > best_ready[1].quality_score
                 ):
-                    best_ready = (
-                        enhanced_image,
-                        enhanced_inference,
-                        enhanced_quality,
-                    )
-                if enhanced_quality.accepted:
+                    best_ready = (canonical_inference, canonical_quality)
+                if canonical_quality.accepted:
                     break
             else:
                 if best_ready is not None:
-                    selected_image, inference, quality = best_ready
+                    inference, quality = best_ready
 
             if (
                 inference.state != FaceProviderState.MULTIPLE_FACES
                 and best_ready is not None
             ):
-                selected_image, inference, quality = best_ready
+                inference, quality = best_ready
 
         if inference.state in {
             FaceProviderState.MODEL_NOT_FOUND,
@@ -338,7 +399,7 @@ class FaceEmbeddingService:
                 **(failure.details if failure else {}),
             )
         return ProcessedFace(
-            image=selected_image,
+            image=image,
             inference=inference,
             quality=quality,
             total_ms=round((perf_counter() - started_at) * 1000, 3),

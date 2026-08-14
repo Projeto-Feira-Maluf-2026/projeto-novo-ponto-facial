@@ -25,6 +25,8 @@ from app.schemas.enrollment import (
     EnrollmentCaptureResponse,
     EnrollmentFinalizeRequest,
     EnrollmentFinalizeResponse,
+    EnrollmentSampleRequest,
+    EnrollmentSampleResponse,
     EnrollmentSessionResponse,
 )
 from app.services.employees import EmployeeService
@@ -152,6 +154,24 @@ async def validate_face_enrollment_capture(
     session: AsyncSession = Depends(get_session),
 ) -> EnrollmentCaptureResponse:
     return await _face_enrollment_service(session).validate_capture(
+        employee_id,
+        enrollment_id,
+        payload,
+    )
+
+
+@router.post(
+    "/{employee_id}/face-enrollment-sessions/{enrollment_id}/samples",
+    response_model=EnrollmentSampleResponse,
+)
+async def collect_face_enrollment_sample(
+    employee_id: str,
+    enrollment_id: str,
+    payload: EnrollmentSampleRequest,
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    session: AsyncSession = Depends(get_session),
+) -> EnrollmentSampleResponse:
+    return await _face_enrollment_service(session).collect_sample(
         employee_id,
         enrollment_id,
         payload,

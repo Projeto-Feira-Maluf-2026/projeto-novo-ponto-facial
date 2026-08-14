@@ -125,6 +125,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
 
   useEffect(() => {
     setMobileMenuOpen(false);
+    mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
   useEffect(() => {
@@ -201,6 +202,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
                 viewTransition
                 className="sidebar-link"
                 data-active={active}
+                aria-current={active ? 'page' : undefined}
               >
                 <span className="sidebar-link-icon"><Icon size={18} strokeWidth={1.9} /></span>
                 <span>{item.label}</span>
@@ -251,10 +253,35 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
           <div className="topbar-brand-mobile">
             <span className="brand-mark">CE</span>
           </div>
-          <div className="min-w-0">
+          <NavLink to="/" viewTransition className="topbar-brand-desktop" aria-label="Ir para a visão geral">
+            <span className="brand-mark" aria-hidden="true">CE</span>
+            <span>
+              <strong>Curitiba Empreiteira</strong>
+              <small>Controle de presença</small>
+            </span>
+          </NavLink>
+          <div className="topbar-page-context min-w-0">
             <p className="topbar-context">{current.eyebrow}</p>
             <h1 className="topbar-title">{current.title}</h1>
           </div>
+          <nav className="desktop-primary-nav" aria-label="Navegação principal">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActivePath(location.pathname, item.to);
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  viewTransition
+                  data-active={active}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <Icon size={17} strokeWidth={1.9} />
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
           <div className="topbar-actions">
             <span className="topbar-date">
               <CalendarDays size={15} />
@@ -301,7 +328,13 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
           const Icon = item.icon;
           const active = isActivePath(location.pathname, item.to);
           return (
-            <NavLink key={item.to} to={item.to} viewTransition data-active={active}>
+            <NavLink
+              key={item.to}
+              to={item.to}
+              viewTransition
+              data-active={active}
+              aria-current={active ? 'page' : undefined}
+            >
               <Icon size={19} strokeWidth={1.9} />
               <span>{item.label.split(' ')[0]}</span>
             </NavLink>
