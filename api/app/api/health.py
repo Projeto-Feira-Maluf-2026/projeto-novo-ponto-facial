@@ -13,6 +13,21 @@ from app.db.session import engine
 router = APIRouter(tags=["health"])
 
 
+@router.get("/", include_in_schema=False)
+async def service_root() -> dict[str, Any]:
+    """Provide a useful landing response when the API domain is opened directly."""
+    return {
+        "status": "online",
+        "service": "ponto-facial-api",
+        "version": settings.APP_VERSION,
+        "endpoints": {
+            "liveness": "/health/live",
+            "readiness": "/health/ready",
+            "capabilities": f"{settings.API_V1_PREFIX}/ai/capabilities",
+        },
+    }
+
+
 async def _database_health() -> dict[str, Any]:
     try:
         async with asyncio.timeout(settings.HEALTHCHECK_TIMEOUT_SECONDS):

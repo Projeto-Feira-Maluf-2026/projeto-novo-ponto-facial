@@ -89,3 +89,13 @@ def test_lightweight_attendance_module_does_not_import_numpy_at_startup() -> Non
     startup_section = source.split("class AttendanceService", 1)[0]
 
     assert "import numpy" not in startup_section
+
+
+def test_native_camera_operations_use_the_container_api() -> None:
+    source = (PROJECT_ROOT / "web" / "src" / "services" / "api.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert "faceApi.post<CameraTestResponse>('/devices/test-camera'" in source
+    assert "faceApi.post<CameraTestResponse>(`/devices/${deviceId}/test`)" in source
+    assert "faceApi.get<Blob>(`/devices/${deviceId}/snapshot`" in source

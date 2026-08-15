@@ -217,15 +217,15 @@ export const apiClient = {
     return response.data;
   },
   testCamera: async (camera: CameraConfig) => {
-    const response = await api.post<CameraTestResponse>('/devices/test-camera', { camera });
+    const response = await faceApi.post<CameraTestResponse>('/devices/test-camera', { camera });
     return response.data;
   },
   testSavedCamera: async (deviceId: string) => {
-    const response = await api.post<CameraTestResponse>(`/devices/${deviceId}/test`);
+    const response = await faceApi.post<CameraTestResponse>(`/devices/${deviceId}/test`);
     return response.data;
   },
   cameraSnapshot: async (deviceId: string) => {
-    const response = await api.get<Blob>(`/devices/${deviceId}/snapshot`, { responseType: 'blob' });
+    const response = await faceApi.get<Blob>(`/devices/${deviceId}/snapshot`, { responseType: 'blob' });
     return URL.createObjectURL(response.data);
   },
   createEmployee: async (payload: EmployeeCreatePayload) => {
