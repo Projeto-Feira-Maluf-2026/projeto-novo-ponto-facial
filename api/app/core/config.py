@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     BUILD_ID: str = "local"
     ENVIRONMENT: str = "development"
     API_V1_PREFIX: str = "/api/v1"
+    FRONTEND_URL: str = "https://curitiba-gestao.vercel.app"
     DATABASE_URL: str
     SUPABASE_URL: str
     SUPABASE_PUBLISHABLE_KEY: str

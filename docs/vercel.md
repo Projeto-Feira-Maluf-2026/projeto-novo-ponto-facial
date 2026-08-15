@@ -54,6 +54,7 @@ FACE_RUNTIME_MODE=full
 FACE_PROVIDER=insightface
 FACE_THRESHOLDS_CALIBRATED=true
 CORS_ORIGINS=https://curitiba-gestao.vercel.app
+FRONTEND_URL=https://curitiba-gestao.vercel.app
 ```
 
 Use HTTPS publico; `localhost` aponta para o computador do visitante e HTTP e bloqueado

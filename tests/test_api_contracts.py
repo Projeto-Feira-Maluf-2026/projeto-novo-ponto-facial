@@ -24,22 +24,13 @@ async def test_vercel_api_prefix_reaches_fastapi() -> None:
 
 
 @pytest.mark.asyncio
-async def test_service_root_exposes_operational_links() -> None:
+async def test_service_root_redirects_to_the_frontend() -> None:
     transport = httpx.ASGITransport(app=application_under_test)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         response = await client.get("/")
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "online",
-        "service": "ponto-facial-api",
-        "version": settings.APP_VERSION,
-        "endpoints": {
-            "liveness": "/health/live",
-            "readiness": "/health/ready",
-            "capabilities": "/api/v1/ai/capabilities",
-        },
-    }
+    assert response.status_code == 302
+    assert response.headers["location"] == settings.FRONTEND_URL
 
 
 def test_identification_and_verification_contracts_are_separate() -> None:
