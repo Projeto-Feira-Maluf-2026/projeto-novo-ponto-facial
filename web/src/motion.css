@@ -1,6 +1,7 @@
 /* Motion system: functional transitions first, cinematic motion only at key moments. */
 :root {
   --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-gentle: cubic-bezier(0.2, 0.72, 0.22, 1);
   --motion-ease-spring: cubic-bezier(0.2, 1.35, 0.35, 1);
   --motion-fast: 180ms;
   --motion-normal: 340ms;
@@ -114,6 +115,185 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 .login-input:focus-within,
 .search-field:focus-within {
   transform: translateY(-1px);
+}
+
+/* Quiet continuity: smooth the everyday state changes that should never feel abrupt. */
+.app-card,
+.table-shell,
+.form-panel,
+.toolbar-panel,
+.configuration-panel,
+.report-filter-panel,
+.report-format-panel,
+.terminal-panel,
+.terminal-flow,
+.camera-portfolio,
+.worksite-digital-panel {
+  transition:
+    border-color 240ms ease,
+    background-color 280ms ease,
+    box-shadow 360ms var(--motion-ease-gentle),
+    color 200ms ease;
+}
+
+.sidebar-link,
+.desktop-primary-nav a,
+.mobile-nav a,
+.mobile-nav button {
+  transition:
+    color 180ms ease,
+    background-color 240ms ease,
+    border-color 220ms ease,
+    box-shadow 320ms var(--motion-ease-gentle),
+    transform 300ms var(--motion-ease-gentle);
+}
+
+.sidebar-link svg,
+.desktop-primary-nav a svg,
+.mobile-nav a svg,
+.mobile-nav button svg {
+  transition:
+    color 180ms ease,
+    transform 340ms var(--motion-ease-gentle);
+}
+
+.sidebar-link:hover svg,
+.desktop-primary-nav a:hover svg {
+  transform: translateX(2px) scale(1.04);
+}
+
+.mobile-nav a[data-active="true"] svg,
+.mobile-nav button[data-active="true"] svg {
+  transform: translateY(-2px) scale(1.06);
+}
+
+.topbar-profile,
+.topbar-avatar,
+.connection-badge,
+.page-status,
+.status-pill,
+.live-note,
+.world-live-pill,
+.camera-chip {
+  transition:
+    color 220ms ease,
+    border-color 240ms ease,
+    background-color 280ms ease,
+    box-shadow 340ms var(--motion-ease-gentle),
+    opacity 220ms ease,
+    transform 320ms var(--motion-ease-gentle);
+}
+
+.status-dot,
+.connection-dot,
+.enrollment-presence-dot,
+.worksite-selector-state,
+.worksite-readiness i {
+  transition:
+    background-color 260ms ease,
+    border-color 260ms ease,
+    box-shadow 380ms var(--motion-ease-gentle),
+    opacity 220ms ease,
+    transform 340ms var(--motion-ease-gentle);
+}
+
+.status-pill-online .status-dot,
+.enrollment-presence-dot.is-ready,
+.worksite-selector-state[data-online="true"],
+.worksite-readiness i[data-ready="true"] {
+  transform: scale(1.08);
+}
+
+.segmented-button,
+.choice-card,
+.report-format-option {
+  transition:
+    color 200ms ease,
+    border-color 240ms ease,
+    background-color 260ms ease,
+    box-shadow 340ms var(--motion-ease-gentle),
+    transform 300ms var(--motion-ease-gentle);
+}
+
+.segmented-button:not([data-active="true"]):hover,
+.choice-card:not([data-active="true"]):hover,
+.report-format-option:not([data-active="true"]):hover {
+  background-color: color-mix(in srgb, var(--color-accent-soft) 48%, var(--color-surface));
+}
+
+.report-format-icon,
+.report-format-radio,
+.choice-card svg,
+.segmented-button svg {
+  transition:
+    color 200ms ease,
+    border-color 240ms ease,
+    background-color 260ms ease,
+    box-shadow 320ms var(--motion-ease-gentle),
+    transform 360ms var(--motion-ease-gentle);
+}
+
+.search-field > svg,
+.login-input > svg,
+.field-label svg {
+  transition: color 200ms ease, transform 300ms var(--motion-ease-gentle);
+}
+
+.search-field:focus-within > svg,
+.login-input:focus-within > svg {
+  color: var(--color-accent);
+  transform: scale(1.06);
+}
+
+.login-password-toggle svg {
+  transition: color 180ms ease, transform 320ms var(--motion-ease-gentle);
+}
+
+.login-password-toggle:hover svg {
+  transform: scale(1.08);
+}
+
+.worksite-ranking-row,
+.terminal-event,
+.employee-detail-list > div {
+  transition:
+    color 180ms ease,
+    background-color 240ms ease,
+    border-color 240ms ease,
+    box-shadow 320ms var(--motion-ease-gentle),
+    transform 320ms var(--motion-ease-gentle);
+}
+
+.worksite-ranking-row:hover,
+.terminal-event:hover {
+  transform: translateX(3px);
+}
+
+.employee-detail-list > div:hover {
+  background-color: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
+}
+
+.worksite-progress span,
+.presence-progress span,
+.enrollment-progress-track span,
+.terminal-progress span {
+  transition:
+    width 560ms var(--motion-ease-gentle),
+    background-color 260ms ease,
+    box-shadow 360ms var(--motion-ease-gentle);
+}
+
+.form-panel.app-view-transition,
+.configuration-panel.app-view-transition,
+.camera-view.app-view-transition,
+.worksite-panel-transition {
+  animation: motion-surface-reveal 480ms var(--motion-ease-gentle) both;
+}
+
+.camera-error-panel,
+.employee-biometric-note,
+.page-status {
+  animation: motion-inline-reveal 380ms var(--motion-ease-gentle) both;
 }
 
 .feedback-banner,
@@ -535,6 +715,67 @@ html[data-theme-transition="true"]::view-transition-new(root) {
   animation: motion-select 360ms var(--motion-ease-spring) both;
 }
 
+.worksite-selector-index,
+.worksite-selector-copy,
+.worksite-selector-item > svg {
+  transition:
+    color 200ms ease,
+    background-color 240ms ease,
+    border-color 240ms ease,
+    opacity 200ms ease,
+    transform 340ms var(--motion-ease-gentle);
+}
+
+.worksite-selector-item:hover > svg,
+.worksite-selector-item[data-active="true"] > svg {
+  transform: translateX(3px);
+}
+
+.camera-card-preview,
+.camera-card-grid,
+.camera-card-live,
+.camera-card-play {
+  transition:
+    color 200ms ease,
+    background-color 280ms ease,
+    opacity 260ms ease,
+    transform 420ms var(--motion-ease-gentle),
+    box-shadow 340ms var(--motion-ease-gentle);
+}
+
+.camera-card:hover .camera-card-grid,
+.camera-card[data-active="true"] .camera-card-grid {
+  opacity: 0.23;
+  transform: scale(1.035);
+}
+
+.camera-card:hover .camera-card-live {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgb(3 23 13 / 0.2);
+}
+
+.terminal-primary-status,
+.terminal-status-symbol,
+.terminal-signal,
+.terminal-result,
+.enrollment-instruction,
+.enrollment-instruction-icon,
+.camera-device-picker,
+.camera-restart-button {
+  transition:
+    color 220ms ease,
+    border-color 260ms ease,
+    background-color 300ms ease,
+    box-shadow 380ms var(--motion-ease-gentle),
+    opacity 220ms ease,
+    transform 380ms var(--motion-ease-gentle);
+}
+
+.terminal-status-symbol svg,
+.enrollment-instruction-icon svg {
+  transition: color 220ms ease, transform 380ms var(--motion-ease-gentle);
+}
+
 .fallback-building {
   transform-origin: center bottom;
   animation: motion-building-rise 1.1s var(--motion-ease-out) both;
@@ -557,6 +798,16 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 @keyframes motion-route-new {
   from { opacity: 0; transform: translateY(12px) scale(0.992); filter: blur(3px); }
   to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes motion-surface-reveal {
+  from { opacity: 0; transform: translateY(10px) scale(0.994); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-inline-reveal {
+  from { opacity: 0; transform: translateY(5px) scale(0.985); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes motion-feedback-in {
@@ -734,6 +985,13 @@ html[data-theme-transition="true"]::view-transition-new(root) {
   .feedback-banner,
   .confirmation-strip,
   .report-feedback,
+  .form-panel.app-view-transition,
+  .configuration-panel.app-view-transition,
+  .camera-view.app-view-transition,
+  .worksite-panel-transition,
+  .camera-error-panel,
+  .employee-biometric-note,
+  .page-status,
   .terminal-flow-icon,
   .terminal-result,
   .terminal-result-icon,
@@ -756,7 +1014,25 @@ html[data-theme-transition="true"]::view-transition-new(root) {
   .worksite-module,
   .data-table tbody tr,
   .worksite-selector-item,
-  .camera-card {
+  .camera-card,
+  .sidebar-link,
+  .desktop-primary-nav a,
+  .mobile-nav a,
+  .mobile-nav button,
+  .status-pill,
+  .status-dot,
+  .segmented-button,
+  .choice-card,
+  .report-format-option,
+  .worksite-ranking-row,
+  .terminal-event,
+  .camera-card-preview,
+  .camera-card-grid,
+  .camera-card-live,
+  .camera-card-play,
+  .terminal-primary-status,
+  .terminal-status-symbol,
+  .enrollment-instruction {
     transition-duration: 1ms !important;
   }
 }

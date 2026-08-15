@@ -257,8 +257,9 @@ export function WorksitesPage() {
             </aside>
 
             <div
+              key={selectedWorksite.id}
               id="worksite-digital-panel"
-              className="worksite-digital-panel"
+              className="worksite-digital-panel worksite-panel-transition"
               role="tabpanel"
               aria-labelledby={`worksite-tab-${selectedWorksite.id}`}
             >
