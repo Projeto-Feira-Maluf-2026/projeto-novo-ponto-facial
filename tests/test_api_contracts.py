@@ -6,6 +6,7 @@ from app.application import create_application
 from app.core.config import settings
 from app.schemas.ai import FaceIdentifyRequest, FaceVerifyRequest
 from app.schemas.enrollment import EnrollmentCaptureRequest
+from app.schemas.reports import ReportRequest
 from app.services.ai.facial_service import get_face_provider
 
 
@@ -75,6 +76,27 @@ def test_enrollment_capture_requires_timezone_and_burst() -> None:
             pose="FRONTAL",
             frames=[{**frame, "captured_at": "2026-07-17T12:00:00"}] * 3,
         )
+
+
+def test_report_contract_rejects_invalid_period_and_missing_scope() -> None:
+    base = {
+        "format": "pdf",
+        "starts_at": "2026-08-14T00:00:00-03:00",
+        "ends_at": "2026-08-14T23:59:59-03:00",
+    }
+    assert ReportRequest(kind="daily", **base).kind.value == "daily"
+
+    with pytest.raises(ValidationError):
+        ReportRequest(
+            kind="custom",
+            format="pdf",
+            starts_at="2026-08-15T00:00:00-03:00",
+            ends_at="2026-08-14T00:00:00-03:00",
+        )
+    with pytest.raises(ValidationError):
+        ReportRequest(kind="employee", **base)
+    with pytest.raises(ValidationError):
+        ReportRequest(kind="worksite", **base)
 
 
 @pytest.mark.asyncio

@@ -11,11 +11,10 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CameraCapture } from '../components/CameraCapture';
 import { DataTable } from '../components/DataTable';
-import { MetricCard } from '../components/MetricCard';
 import { apiClient } from '../services/api';
 import type { CameraConfig, CameraTestResponse, Device, Worksite } from '../types/domain';
 
@@ -76,19 +75,23 @@ export function DevicesPage() {
   const [testing, setTesting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [loadingDevices, setLoadingDevices] = useState(true);
 
-  const loadDevices = () => {
-    apiClient
-      .devices()
-      .then((page) => {
-        setDevices(page.items);
-        setSelected((current) => current ?? page.items[0] ?? null);
-      })
-      .catch(() => setMessage('Entre novamente e verifique se a API está online.'));
-  };
+  const loadDevices = useCallback(async () => {
+    setLoadingDevices(true);
+    try {
+      const page = await apiClient.devices();
+      setDevices(page.items);
+      setSelected((current) => current ?? page.items[0] ?? null);
+    } catch {
+      setMessage('Entre novamente e verifique se a API está online.');
+    } finally {
+      setLoadingDevices(false);
+    }
+  }, []);
 
   useEffect(() => {
-    loadDevices();
+    void loadDevices();
     apiClient
       .worksites()
       .then((page) => {
@@ -96,7 +99,7 @@ export function DevicesPage() {
         setForm((current) => ({ ...current, worksite_id: current.worksite_id || page.items[0]?.id || '' }));
       })
       .catch(() => undefined);
-  }, []);
+  }, [loadDevices]);
 
   useEffect(() => {
     return () => {
@@ -167,10 +170,10 @@ export function DevicesPage() {
         camera: form.camera,
       });
       setSelected(saved);
-      setForm(createInitialForm());
+      setForm({ ...createInitialForm(), worksite_id: form.worksite_id });
       setTestResult(null);
       setMessage('Câmera salva e pronta para leitura facial.');
-      loadDevices();
+      await loadDevices();
     } catch {
       setMessage('Não foi possível salvar a câmera.');
     } finally {
@@ -206,7 +209,7 @@ export function DevicesPage() {
     try {
       const result = await apiClient.testSavedCamera(device.id);
       setMessage(result.message);
-      loadDevices();
+      await loadDevices();
     } catch {
       setMessage('Não foi possível testar a câmera salva.');
     } finally {
@@ -229,12 +232,12 @@ export function DevicesPage() {
         </div>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-4">
-        <MetricCard label="Câmeras" value={devices.length} icon={HardDrive} tone="gray" />
-        <MetricCard label="Online" value={activeCount} icon={Wifi} tone="green" />
-        <MetricCard label="Offline" value={offlineCount} icon={WifiOff} tone="red" />
-        <MetricCard label="Leitura habilitada" value={devices.filter((item) => item.metadata_json?.camera?.recognition_enabled).length} icon={ShieldCheck} tone="blue" />
-      </section>
+      <dl className="device-statline" aria-label="Resumo das câmeras">
+        <div><dt><HardDrive size={17} /> Câmeras</dt><dd>{devices.length}</dd></div>
+        <div data-tone="success"><dt><Wifi size={17} /> Online</dt><dd>{activeCount}</dd></div>
+        <div data-tone="danger"><dt><WifiOff size={17} /> Indisponíveis</dt><dd>{offlineCount}</dd></div>
+        <div><dt><ShieldCheck size={17} /> Leitura facial</dt><dd>{devices.filter((item) => item.metadata_json?.camera?.recognition_enabled).length}</dd></div>
+      </dl>
 
       <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
         <form onSubmit={saveCamera} className="app-card configuration-panel app-view-transition space-y-4">
@@ -327,7 +330,7 @@ export function DevicesPage() {
               <Play size={18} />
               {testing ? 'Testando' : 'Testar câmera'}
             </button>
-            <button disabled={saving || !form.worksite_id} className="btn btn-primary">
+            <button disabled={saving || !form.worksite_id || !testResult?.ok} className="btn btn-primary">
               <Save size={18} />
               {saving ? 'Salvando' : 'Salvar câmera'}
             </button>
@@ -338,6 +341,9 @@ export function DevicesPage() {
           <DataTable
             ariaLabel="Câmeras cadastradas"
             rows={devices}
+            loading={loadingDevices}
+            emptyTitle="Nenhuma câmera configurada"
+            emptyDescription="Teste e salve a primeira câmera para habilitar a leitura facial."
             columns={[
               { key: 'name', header: 'Câmera' },
               {
@@ -394,7 +400,7 @@ export function DevicesPage() {
           {selectedCamera?.camera_type === 'WEBCAM' ? (
             <CameraCapture className="h-[520px] w-full" />
           ) : previewUrl ? (
-            <img src={previewUrl} alt="" className="h-[520px] w-full object-cover" />
+            <img src={previewUrl} alt={`Prévia ao vivo da câmera ${selected?.name || ''}`} className="h-[520px] w-full object-cover" />
           ) : (
             <div className="text-center">
               <Camera size={46} className="mx-auto text-white/50" />

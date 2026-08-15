@@ -1,228 +1,97 @@
-# Design System Master File
+# Curitiba Gestão — Design System
 
-> **LOGIC:** When building a specific page, first check `design-system/pages/[page-name].md`.
-> If that file exists, its rules **override** this Master file.
-> If not, strictly follow the rules below.
+**Produto:** controle de presença e reconhecimento facial para obras
 
----
+**Direção:** central operacional industrial, precisa e humana
 
-**Project:** Curitiba Gestão
-**Generated:** 2026-08-14 19:23:48
-**Category:** B2B Service
-**Design Dials:** Variance 4/10 (Balanced / Modern) | Motion 4/10 (Standard) | Density 8/10 (Dense / Dashboard)
+**Densidade:** alta, sem sacrificar leitura
 
----
+**Motion:** discreto, funcional e sempre cancelável por `prefers-reduced-motion`
 
-## Global Rules
+## Princípios
 
-### Color Palette
+1. A câmera e o estado do registro são protagonistas; decoração nunca compete com a tarefa.
+2. A interface deve continuar legível se bordas e sombras forem removidas.
+3. Métricas formam um quadro operacional contínuo, não uma grade genérica de quatro cards.
+4. Laranja-sinal indica ação ou atenção. Verde confirma segurança. Nenhuma cor é apenas decorativa.
+5. Cantos são técnicos: 2–8 px. Formas circulares ficam restritas a indicadores e avatares.
+6. Dados reais, mensagens específicas e estados honestos substituem textos genéricos.
 
-| Role | Hex | CSS Variable |
-|------|-----|--------------|
-| Primary | `#64748B` | `--color-primary` |
-| On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#94A3B8` | `--color-secondary` |
-| Accent/CTA | `#EA580C` | `--color-accent` |
-| Background | `#F8FAFC` | `--color-background` |
-| Foreground | `#334155` | `--color-foreground` |
-| Muted | `#EBF0F5` | `--color-muted` |
-| Border | `#E2E8F0` | `--color-border` |
-| Destructive | `#DC2626` | `--color-destructive` |
-| Ring | `#64748B` | `--color-ring` |
+## Tokens semânticos
 
-**Color Notes:** Industrial grey + safety orange [Accent adjusted from #F97316 for WCAG 3:1]
+| Papel | Claro | Escuro |
+|---|---:|---:|
+| Canvas | `#F2F1ED` | `#0C1013` |
+| Superfície | `#FCFCFA` | `#141A1E` |
+| Superfície elevada | `#FFFFFF` | `#1B2328` |
+| Texto | `#1A2024` | `#F3F5F5` |
+| Texto secundário | `#58636A` | `#AAB5BA` |
+| Linha | `#D6D8D5` | `#303A40` |
+| Linha forte | `#AAB0B1` | `#526068` |
+| Ação | `#C44B18` | `#FF8A4C` |
+| Ação forte | `#963510` | `#FFB087` |
+| Sucesso | `#08775A` | `#57CAA2` |
+| Atenção | `#8A5A00` | `#E7B84B` |
+| Perigo | `#B42318` | `#FF8D83` |
 
-### Typography
+O código usa camadas `--raw-*`, `--color-*` e, quando necessário, tokens de componente. Componentes não devem depender diretamente de cores brutas.
 
-- **Heading Font:** Lexend
-- **Body Font:** Source Sans 3
-- **Mood:** corporate, trustworthy, accessible, readable, professional, clean
-- **Google Fonts:** [Lexend + Source Sans 3](https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap)
+## Tipografia
 
-**CSS Import:**
-```css
-@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
-```
+- Títulos: **Lexend Variable**, 500–650, tracking negativo sutil.
+- Corpo e dados: **Source Sans 3 Variable**, 400–700.
+- Números operacionais: Source Sans 3 com `font-variant-numeric: tabular-nums`.
+- Um único `h1` por tela; subtítulos seguem a hierarquia sem pular níveis.
 
-### Spacing Variables
+## Espaçamento e forma
 
-*Density: 8/10 — Dense / Dashboard*
+- Escala: `4, 8, 12, 16, 24, 32, 48, 64` px.
+- Controles: mínimo 44 px de altura/alvo.
+- Raios: `2px` técnico, `5px` controle, `8px` painel, `12px` apenas diálogo grande.
+- Sombras: somente menus, diálogo e câmera em tela cheia. Painéis usam contraste e estrutura, não elevação falsa.
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--space-xs` | `2px` / `0.125rem` | Tight gaps |
-| `--space-sm` | `4px` / `0.25rem` | Icon gaps, inline spacing |
-| `--space-md` | `8px` / `0.5rem` | Standard padding |
-| `--space-lg` | `12px` / `0.75rem` | Section padding |
-| `--space-xl` | `16px` / `1rem` | Large gaps |
-| `--space-2xl` | `24px` / `1.5rem` | Section margins |
-| `--space-3xl` | `32px` / `2rem` | Hero padding |
+## Composição
 
-### Shadow Depths
+- Desktop: masthead horizontal + navegação contextual; não usar sidebar genérica permanente.
+- Mobile: cabeçalho compacto e navegação inferior com área segura.
+- Dashboard: placar diário assimétrico, fluxo horário e distribuição por obra.
+- Tabelas: cabeçalho persistente quando útil, ações contextuais e alternativa rolável no mobile.
+- Formulários: agrupados por tarefa; rótulos sempre visíveis; feedback junto à ação.
+- Empty states: explicam o que falta e oferecem o próximo passo real.
 
-| Level | Value | Usage |
-|-------|-------|-------|
-| `--shadow-sm` | `0 1px 2px rgba(0,0,0,0.05)` | Subtle lift |
-| `--shadow-md` | `0 4px 6px rgba(0,0,0,0.1)` | Cards, buttons |
-| `--shadow-lg` | `0 10px 15px rgba(0,0,0,0.1)` | Modals, dropdowns |
-| `--shadow-xl` | `0 20px 25px rgba(0,0,0,0.15)` | Hero images, featured cards |
+## Estados
 
----
-
-## Component Specs
-
-### Buttons
-
-```css
-/* Primary Button */
-.btn-primary {
-  background: #EA580C;
-  color: white;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 200ms ease;
-  cursor: pointer;
-}
-
-.btn-primary:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-/* Secondary Button */
-.btn-secondary {
-  background: transparent;
-  color: #64748B;
-  border: 2px solid #64748B;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 200ms ease;
-  cursor: pointer;
-}
-```
-
-### Cards
-
-```css
-.card {
-  background: #F8FAFC;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: var(--shadow-md);
-  transition: all 200ms ease;
-  cursor: pointer;
-}
-
-.card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
-}
-```
-
-### Inputs
-
-```css
-.input {
-  padding: 12px 16px;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: border-color 200ms ease;
-}
-
-.input:focus {
-  border-color: #64748B;
-  outline: none;
-  box-shadow: 0 0 0 3px #64748B20;
-}
-```
-
-### Modals
-
-```css
-.modal-overlay {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-}
-
-.modal {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: var(--shadow-xl);
-  max-width: 500px;
-  width: 90%;
-}
-```
-
----
-
-## Style Guidelines
-
-**Style:** Trust & Authority
-
-**Keywords:** Certificates/badges displayed, expert credentials, case studies with metrics, before/after comparisons, industry recognition, security badges
-
-**Best For:** Healthcare/medical landing pages, financial services, enterprise software, premium/luxury products, legal services
-
-**Key Effects:** Badge hover effects, metric pulse animations, certificate carousel, smooth stat reveal
-
-### Page Pattern
-
-**Pattern Name:** Real-Time / Operations Landing
-
-- **Conversion Strategy:** For ops/security/iot products. Demo or sandbox link. Trust signals.
-- **CTA Placement:** Primary CTA in nav + After metrics
-- **Section Order:** 1. Hero (product + live preview or status), 2. Key metrics/indicators, 3. How it works, 4. CTA (Start trial / Contact)
-
----
+Todo fluxo relevante implementa: `idle`, `loading`, `success`, `error`, `empty` e `disabled`. Reconhecimento facial adiciona `UNKNOWN`, `POSSIBLE`, `CONFIRMING` e `CONFIRMED`. O estado não pode depender apenas de cor.
 
 ## Motion
 
-**Stagger List** (Standard) — Trigger: load or scroll | Duration: 300-450ms | Easing: `back.out(1.4)`
+- Feedback de controle: 140–180 ms.
+- Entrada de página/painel: 220–300 ms, opacidade + deslocamento máximo de 8 px.
+- Indicadores de reconhecimento: interpolação contínua sem pulos visuais.
+- Sem `transition: all`, sem bounce em tabelas, sem glow decorativo.
+- Em `prefers-reduced-motion`, duração efetiva próxima de zero e nenhum movimento contínuo.
 
-```js
-gsap.from('.grid-item', { opacity: 0, scale: 0.92, y: 16, duration: 0.4, stagger: { each: 0.06, from: 'start', grid: 'auto' }, ease: 'back.out(1.4)' });
-```
+## Acessibilidade e responsividade
 
-**Framework notes:** grid: 'auto' lets GSAP infer rows/columns from a CSS grid layout for a natural wave stagger
+- Contraste de texto WCAG AA; foco de 2 px com offset visível.
+- Labels associadas, mensagens com `role="alert"`/`status`, modais com trap de foco e Escape.
+- Validar 375, 768, 1024 e 1440 px; nenhuma rolagem horizontal da página.
+- Câmera e ações críticas permanecem utilizáveis com teclado e toque.
 
-- ✅ Combine with from: 'center' for a bento-grid layout to draw the eye inward first
-- ❌ Don't use back.out on dense data tables; the overshoot reads as sloppy on informational UI
-- ⚡ Group DOM writes; avoid interleaving layout reads (getBoundingClientRect) between staggered tweens
+## Proibido
 
----
+- Gradientes genéricos, glassmorphism, glows ou “AI purple”.
+- Cards dentro de cards e grades perfeitamente uniformes sem razão funcional.
+- Pills para texto comum, ícones decorativos em cada linha ou hero de marketing no app autenticado.
+- Botões sem ação, dados simulados em produção, spinners centrais como único skeleton.
+- Hovers que mudam layout, texto abaixo de 12 px para informação operacional ou bordas arredondadas excessivas.
 
-## Anti-Patterns (Do NOT Use)
+## Checklist
 
-- ❌ Playful design
-- ❌ Hidden credentials
-- ❌ AI purple/pink gradients
-
-### Additional Forbidden Patterns
-
-- ❌ **Emojis as icons** — Use SVG icons (Heroicons, Lucide, Simple Icons)
-- ❌ **Missing cursor:pointer** — All clickable elements must have cursor:pointer
-- ❌ **Layout-shifting hovers** — Avoid scale transforms that shift layout
-- ❌ **Low contrast text** — Maintain 4.5:1 minimum contrast ratio
-- ❌ **Instant state changes** — Always use transitions (150-300ms)
-- ❌ **Invisible focus states** — Focus states must be visible for a11y
-
----
-
-## Pre-Delivery Checklist
-
-Before delivering any UI code, verify:
-
-- [ ] No emojis used as icons (use SVG instead)
-- [ ] All icons from consistent icon set (Heroicons/Lucide)
-- [ ] `cursor-pointer` on all clickable elements
-- [ ] Hover states with smooth transitions (150-300ms)
-- [ ] Light mode: text contrast 4.5:1 minimum
-- [ ] Focus states visible for keyboard navigation
-- [ ] `prefers-reduced-motion` respected
-- [ ] Responsive: 375px, 768px, 1024px, 1440px
-- [ ] No content hidden behind fixed navbars
-- [ ] No horizontal scroll on mobile
+- [ ] Fluxos reais preservados e controles têm ação.
+- [ ] Estados loading/error/empty/success presentes.
+- [ ] Alvos de toque ≥ 44 px e foco visível.
+- [ ] `prefers-reduced-motion` respeitado.
+- [ ] Sem overflow em 375/768/1024/1440.
+- [ ] Login, dashboard, cadastro e terminal parecem partes do mesmo produto.
+- [ ] Câmera funciona com webcam local e backend facial remoto HTTPS.

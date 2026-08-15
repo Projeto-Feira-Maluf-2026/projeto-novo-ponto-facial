@@ -641,6 +641,7 @@ export function FacialTerminalPage() {
 
   const content = (
     <div className="terminal-shell">
+      <h1 className="sr-only">Ponto automático</h1>
       <section className="terminal-camera-card">
         <div className="terminal-toolbar">
           <div className="terminal-toolbar-identity">

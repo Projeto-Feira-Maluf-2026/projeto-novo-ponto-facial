@@ -15,7 +15,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { createPageMotion, moveIndicator } from '../animations/motion';
@@ -94,6 +94,19 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   const sidebarIndicatorRef = useRef<HTMLSpanElement>(null);
   const mobileNavRef = useRef<HTMLElement>(null);
   const mobileIndicatorRef = useRef<HTMLSpanElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const sidebarCloseRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuOpenerRef = useRef<HTMLElement | null>(null);
+
+  const openMobileMenu = useCallback(() => {
+    mobileMenuOpenerRef.current = document.activeElement as HTMLElement | null;
+    setMobileMenuOpen(true);
+  }, []);
+
+  const closeMobileMenu = useCallback((restoreFocus = true) => {
+    setMobileMenuOpen(false);
+    if (restoreFocus) window.requestAnimationFrame(() => mobileMenuOpenerRef.current?.focus());
+  }, []);
 
   const displayName = useMemo(() => {
     const metadataName = user?.user_metadata?.name;
@@ -131,8 +144,27 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   useEffect(() => {
     if (!mobileMenuOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
+    sidebarCloseRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileMenuOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMobileMenu();
+        return;
+      }
+      if (event.key !== 'Tab' || !sidebarRef.current) return;
+      const focusable = Array.from(sidebarRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', closeOnEscape);
@@ -140,7 +172,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', closeOnEscape);
     };
-  }, [mobileMenuOpen]);
+  }, [closeMobileMenu, mobileMenuOpen]);
 
   useLayoutEffect(() => {
     if (!mainRef.current) return undefined;
@@ -170,7 +202,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
     <div className="app-shell">
       <a href="#main-content" className="skip-link">Pular para o conteúdo</a>
 
-      <aside className="app-sidebar" data-open={mobileMenuOpen}>
+      <aside ref={sidebarRef} className="app-sidebar" data-open={mobileMenuOpen} aria-hidden={!mobileMenuOpen}>
         <div className="sidebar-brand-row">
           <NavLink to="/" viewTransition className="brand-lockup">
             <span className="brand-mark" aria-hidden="true">CE</span>
@@ -180,9 +212,10 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             </span>
           </NavLink>
           <button
+            ref={sidebarCloseRef}
             className="sidebar-close"
             type="button"
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={() => closeMobileMenu()}
             aria-label="Fechar menu"
           >
             <X size={19} />
@@ -235,7 +268,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
           className="sidebar-scrim"
           type="button"
           aria-label="Fechar menu"
-          onClick={() => setMobileMenuOpen(false)}
+          onClick={() => closeMobileMenu()}
         />
       )}
 
@@ -244,7 +277,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
           <button
             className="topbar-menu"
             type="button"
-            onClick={() => setMobileMenuOpen(true)}
+            onClick={openMobileMenu}
             aria-label="Abrir menu"
             aria-expanded={mobileMenuOpen}
           >
@@ -262,7 +295,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
           </NavLink>
           <div className="topbar-page-context min-w-0">
             <p className="topbar-context">{current.eyebrow}</p>
-            <h1 className="topbar-title">{current.title}</h1>
+            <strong className="topbar-title">{current.title}</strong>
           </div>
           <nav className="desktop-primary-nav" aria-label="Navegação principal">
             {navItems.map((item) => {
@@ -309,7 +342,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             <section className="page-heading">
               <div>
                 <span className="page-heading-kicker">{current.eyebrow}</span>
-                <h2>{current.title}</h2>
+                <h1>{current.title}</h1>
                 <p>{current.description}</p>
               </div>
               <span className={`page-status ${online ? 'is-online' : 'is-offline'}`}>
@@ -343,7 +376,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         <button
           type="button"
           data-active={moreActive || mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(true)}
+          onClick={openMobileMenu}
           aria-label="Abrir mais opções"
         >
           <MoreHorizontal size={20} strokeWidth={1.9} />

@@ -14,8 +14,9 @@ const WorksitesPage = lazy(() => import('./pages/WorksitesPage').then((module) =
 function RouteLoading() {
   return (
     <div className="route-loading" role="status" aria-live="polite">
-      <span className="auth-loading-spinner" aria-hidden="true" />
-      <span>Carregando área de trabalho…</span>
+      <span className="route-loading-label">Preparando área de trabalho</span>
+      <span className="route-loading-line" aria-hidden="true" />
+      <span className="route-loading-line is-short" aria-hidden="true" />
     </div>
   );
 }

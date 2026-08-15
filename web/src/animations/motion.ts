@@ -121,29 +121,6 @@ export function createTableMotion(root: HTMLElement): Scope {
   }).add(() => undefined);
 }
 
-export function createMetricMotion(root: HTMLElement): Scope {
-  return createScope({
-    root,
-    mediaQueries: reducedMotionMedia,
-  }).add((scope) => {
-    if (scope?.matches.reduceMotion) {
-      return;
-    }
-    const siblings = root.parentElement
-      ? Array.from(root.parentElement.querySelectorAll(':scope > .metric-card'))
-      : [];
-    const index = Math.max(0, siblings.indexOf(root));
-    animate(root, {
-      opacity: [0, 1],
-      y: [motionTokens.distance.small, 0],
-      duration: motionTokens.duration.normal,
-      delay: Math.min(index, 5) * motionTokens.stagger.tight,
-      ease: motionTokens.ease.enter,
-      onComplete: () => clearMotionStyles([root]),
-    });
-  });
-}
-
 export function createModalMotion(root: HTMLElement): Scope {
   return createScope({
     root,

@@ -1,21 +1,16 @@
 import {
-  AlertCircle,
   Camera,
-  Check,
   CheckCircle2,
   Edit3,
-  LoaderCircle,
-  Pause,
-  Play,
   Search,
   Trash2,
   UserPlus,
-  X,
 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { CameraCapture, type CameraCaptureHandle } from '../components/CameraCapture';
+import type { CameraCaptureHandle } from '../components/CameraCapture';
 import { DataTable } from '../components/DataTable';
+import { FaceEnrollmentDialog } from '../components/FaceEnrollmentDialog';
 import { playModalExit } from '../animations/motion';
 import { useModalMotion } from '../animations/useMotion';
 import { apiClient } from '../services/api';
@@ -105,7 +100,10 @@ export function EmployeesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [message, setMessage] = useState('');
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [pendingDeactivation, setPendingDeactivation] = useState<Employee | null>(null);
   const [enrolling, setEnrolling] = useState<Employee | null>(null);
   const [enrollmentSession, setEnrollmentSession] = useState<EnrollmentSessionResponse | null>(null);
   const [acceptedSamples, setAcceptedSamples] = useState(0);
@@ -120,12 +118,17 @@ export function EmployeesPage() {
   const [captureRejected, setCaptureRejected] = useState(false);
   useModalMotion(enrollmentModalRef, enrolling?.id ?? null);
 
-  const loadEmployees = () => {
-    apiClient
-      .employees()
-      .then((page) => setEmployees(page.items))
-      .catch(() => setMessage('Entre novamente e verifique se a API está online.'));
-  };
+  const loadEmployees = useCallback(async () => {
+    setLoadingEmployees(true);
+    try {
+      const page = await apiClient.employees();
+      setEmployees(page.items);
+    } catch {
+      setMessage('Entre novamente e verifique se a API está online.');
+    } finally {
+      setLoadingEmployees(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadEmployees();
@@ -133,7 +136,7 @@ export function EmployeesPage() {
       .worksites()
       .then((page) => setWorksites(page.items))
       .catch(() => undefined);
-  }, []);
+  }, [loadEmployees]);
 
   const filtered = useMemo(
     () =>
@@ -149,26 +152,68 @@ export function EmployeesPage() {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const onCreate = async (event: FormEvent) => {
+  const openCreateForm = () => {
+    setEditingEmployee(null);
+    setForm(initialForm);
+    setShowForm(true);
+    setMessage('');
+  };
+
+  const openEditForm = (employee: Employee) => {
+    setEditingEmployee(employee);
+    setForm({ ...initialForm, registration: employee.registration, name: employee.name, email: employee.email || '' });
+    setShowForm(true);
+    setMessage('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const closeEmployeeForm = () => {
+    setEditingEmployee(null);
+    setForm(initialForm);
+    setShowForm(false);
+  };
+
+  const onSaveEmployee = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
     setMessage('');
     try {
-      await apiClient.createEmployee({
-        registration: form.registration,
-        name: form.name,
-        email: form.email || null,
-        document: form.document || null,
-        phone: form.phone || null,
-        worksite_ids: form.worksite_id ? [form.worksite_id] : [],
-        status: 'ACTIVE',
-      });
+      if (editingEmployee) {
+        await apiClient.updateEmployee(editingEmployee.id, { name: form.name, email: form.email || null });
+      } else {
+        await apiClient.createEmployee({
+          registration: form.registration,
+          name: form.name,
+          email: form.email || null,
+          document: form.document || null,
+          phone: form.phone || null,
+          worksite_ids: form.worksite_id ? [form.worksite_id] : [],
+          status: 'ACTIVE',
+        });
+      }
       setForm(initialForm);
       setShowForm(false);
-      setMessage('Funcionário cadastrado.');
-      loadEmployees();
+      setEditingEmployee(null);
+      setMessage(editingEmployee ? 'Dados do funcionário atualizados.' : 'Funcionário cadastrado.');
+      await loadEmployees();
     } catch {
-      setMessage('Não foi possível cadastrar o funcionário.');
+      setMessage(editingEmployee ? 'Não foi possível atualizar o funcionário.' : 'Não foi possível cadastrar o funcionário.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deactivateEmployee = async () => {
+    if (!pendingDeactivation) return;
+    setSaving(true);
+    setMessage('');
+    try {
+      await apiClient.updateEmployee(pendingDeactivation.id, { status: 'INACTIVE' });
+      setMessage(`${pendingDeactivation.name} foi inativado.`);
+      setPendingDeactivation(null);
+      await loadEmployees();
+    } catch {
+      setMessage('Não foi possível inativar o funcionário.');
     } finally {
       setSaving(false);
     }
@@ -394,11 +439,11 @@ export function EmployeesPage() {
     <div className="app-view-transition space-y-5">
       <section className="page-actions">
         <button
-          onClick={() => setShowForm((value) => !value)}
+          onClick={() => showForm ? closeEmployeeForm() : openCreateForm()}
           className="btn btn-primary"
         >
           <UserPlus size={18} />
-          Adicionar funcionário
+          {showForm ? 'Fechar formulário' : 'Adicionar funcionário'}
         </button>
       </section>
 
@@ -408,11 +453,19 @@ export function EmployeesPage() {
         </div>
       )}
 
+      {pendingDeactivation && (
+        <section className="confirmation-strip" role="alertdialog" aria-labelledby="deactivate-title">
+          <div><strong id="deactivate-title">Inativar {pendingDeactivation.name}?</strong><span>O funcionário deixará de registrar ponto, mas o histórico será preservado.</span></div>
+          <div><button type="button" className="btn btn-secondary" onClick={() => setPendingDeactivation(null)}>Cancelar</button><button type="button" className="btn btn-danger" disabled={saving} onClick={() => void deactivateEmployee()}>Confirmar inativação</button></div>
+        </section>
+      )}
+
       {showForm && (
-        <form onSubmit={onCreate} className="form-panel app-view-transition md:grid-cols-2 xl:grid-cols-3">
+        <form onSubmit={onSaveEmployee} className="form-panel app-view-transition md:grid-cols-2 xl:grid-cols-3">
+          <div className="form-panel-heading md:col-span-2 xl:col-span-3"><span>{editingEmployee ? 'Edição de cadastro' : 'Novo cadastro'}</span><h2>{editingEmployee ? editingEmployee.name : 'Adicionar funcionário'}</h2></div>
           <label className="field-label">
             <span>Matrícula</span>
-            <input value={form.registration} onChange={(event) => setField('registration', event.target.value)} required className="input-field" />
+            <input value={form.registration} onChange={(event) => setField('registration', event.target.value)} required disabled={Boolean(editingEmployee)} className="input-field" />
           </label>
           <label className="field-label">
             <span>Nome</span>
@@ -422,15 +475,15 @@ export function EmployeesPage() {
             <span>Email</span>
             <input type="email" value={form.email} onChange={(event) => setField('email', event.target.value)} className="input-field" />
           </label>
-          <label className="field-label">
+          {!editingEmployee && <label className="field-label">
             <span>Documento</span>
             <input value={form.document} onChange={(event) => setField('document', event.target.value)} className="input-field" />
-          </label>
-          <label className="field-label">
+          </label>}
+          {!editingEmployee && <label className="field-label">
             <span>Telefone</span>
             <input value={form.phone} onChange={(event) => setField('phone', event.target.value)} className="input-field" />
-          </label>
-          <label className="field-label">
+          </label>}
+          {!editingEmployee && <label className="field-label">
             <span>Obra</span>
             <select value={form.worksite_id} onChange={(event) => setField('worksite_id', event.target.value)} className="input-field">
               <option value="">Sem obra</option>
@@ -440,12 +493,13 @@ export function EmployeesPage() {
                 </option>
               ))}
             </select>
-          </label>
+          </label>}
           <div className="flex items-end gap-2 md:col-span-2 xl:col-span-3">
             <button disabled={saving} className="btn btn-primary">
-              <UserPlus size={18} />
-              {saving ? 'Salvando' : 'Salvar funcionário'}
+              {editingEmployee ? <Edit3 size={18} /> : <UserPlus size={18} />}
+              {saving ? 'Salvando' : editingEmployee ? 'Salvar alterações' : 'Salvar funcionário'}
             </button>
+            <button type="button" onClick={closeEmployeeForm} className="btn btn-secondary">Cancelar</button>
           </div>
         </form>
       )}
@@ -480,6 +534,9 @@ export function EmployeesPage() {
       <DataTable
         ariaLabel="Funcionários cadastrados"
         rows={filtered}
+        loading={loadingEmployees}
+        emptyTitle={query || status !== 'ALL' ? 'Nenhum funcionário neste filtro' : 'Nenhum funcionário cadastrado'}
+        emptyDescription={query || status !== 'ALL' ? 'Altere a busca ou o status para ampliar os resultados.' : 'Adicione o primeiro funcionário para iniciar a operação.'}
         columns={[
           { key: 'registration', header: 'Matrícula' },
           { key: 'name', header: 'Nome' },
@@ -512,10 +569,10 @@ export function EmployeesPage() {
                 <button type="button" onClick={() => openEnrollment(row)} className="icon-button" title="Cadastrar face" aria-label={`Cadastrar face de ${row.name}`}>
                   <Camera size={16} />
                 </button>
-                <button type="button" className="icon-button" title="Editar" aria-label={`Editar ${row.name}`}>
+                <button type="button" onClick={() => openEditForm(row)} className="icon-button" title="Editar" aria-label={`Editar ${row.name}`}>
                   <Edit3 size={16} />
                 </button>
-                <button type="button" className="icon-button text-red-700 dark:text-red-300" title="Inativar" aria-label={`Inativar ${row.name}`}>
+                <button type="button" onClick={() => setPendingDeactivation(row)} disabled={row.status === 'INACTIVE'} className="icon-button text-red-700 dark:text-red-300" title="Inativar" aria-label={`Inativar ${row.name}`}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -525,222 +582,31 @@ export function EmployeesPage() {
       />
 
       {enrolling && (
-        <div ref={enrollmentModalRef} className="modal-backdrop">
-          <section
-            className="enrollment-dialog app-card text-ink dark:text-slate-100"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="enrollment-dialog-title"
-          >
-            <header className="enrollment-dialog-header">
-              <div>
-                <p className="text-xs font-medium text-steel dark:text-slate-400">Cadastro facial</p>
-                <h2 id="enrollment-dialog-title" className="mt-0.5 text-lg font-semibold">{enrolling.name}</h2>
-                <p className="text-xs text-steel dark:text-slate-400">
-                  {enrolling.registration} · coleta contínua em poucos segundos
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`status-pill ${enrollmentSession && autoCaptureEnabled ? 'status-pill-online' : 'status-pill-neutral'}`}>
-                  <span className={`status-dot ${enrollmentSession && autoCaptureEnabled ? 'status-dot-pulse' : ''}`} />
-                  {enrollmentSession ? (autoCaptureEnabled ? 'Automático' : 'Pausado') : 'Aguardando API'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setAutoCaptureEnabled((current) => !current)}
-                  disabled={!enrollmentSession}
-                  className="icon-button"
-                  title={autoCaptureEnabled ? 'Pausar captura' : 'Retomar captura'}
-                >
-                  {autoCaptureEnabled ? <Pause size={17} /> : <Play size={17} />}
-                </button>
-                <button
-                  ref={enrollmentCloseButtonRef}
-                  type="button"
-                  onClick={() => closeEnrollment()}
-                  className="icon-button"
-                  title="Fechar"
-                  aria-label="Fechar cadastro facial"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </header>
-
-            <div className="enrollment-dialog-body">
-              <div className="enrollment-camera-column">
-                {enrollmentSession ? (
-                  <CameraCapture
-                    ref={cameraRef}
-                    className="enrollment-camera"
-                    onReadyChange={setEnrollmentCameraReady}
-                    onFacePresenceChange={setEnrollmentFacePresent}
-                    faceOverlay={{
-                      label: enrollmentComplete
-                        ? 'Amostras consistentes'
-                        : enrollmentFeedback || 'Olhe naturalmente para a câmera',
-                      detail: `${acceptedSamples}/${enrollmentStepCount}`,
-                      tone: captureRejected
-                        ? 'warning'
-                        : enrollmentComplete
-                          ? 'success'
-                          : 'tracking',
-                    }}
-                  />
-                ) : (
-                  <div className="enrollment-camera grid place-items-center bg-slate-950 px-8 text-center text-white">
-                    <div className="grid max-w-sm justify-items-center gap-3">
-                      {enrollSaving
-                        ? <LoaderCircle size={32} className="animate-spin" />
-                        : <AlertCircle size={32} className="text-amber-300" />}
-                      <strong>{enrollSaving ? 'Verificando o backend facial' : 'Câmera não iniciada'}</strong>
-                      <span className="text-sm text-slate-300">
-                        A câmera só será aberta depois que a API confirmar que o modelo facial está pronto.
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div className="enrollment-camera-caption">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`enrollment-presence-dot ${
-                        enrollmentCameraReady && enrollmentFacePresent ? 'is-ready' : ''
-                      }`}
-                    />
-                    <strong>
-                      {!enrollmentSession
-                        ? enrollSaving ? 'Verificando backend' : 'Backend facial indisponível'
-                        : !enrollmentCameraReady
-                          ? 'Iniciando câmera'
-                          : enrollmentFacePresent
-                            ? enrollSaving
-                              ? 'Capturando'
-                              : 'Rosto detectado'
-                            : 'Entre no enquadramento'}
-                    </strong>
-                  </div>
-                  <span>
-                    {enrollmentSession
-                      ? 'Amostras ruins são ignoradas sem apagar o progresso.'
-                      : 'Nenhuma imagem foi capturada ou enviada.'}
-                  </span>
-                </div>
-              </div>
-
-              <aside className="enrollment-side-panel">
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-3 text-xs font-medium text-steel dark:text-slate-400">
-                    <span>Progresso do cadastro</span>
-                    <span>{acceptedSamples} de {enrollmentStepCount}</span>
-                  </div>
-                  <div className="enrollment-progress-track">
-                    <span style={{ width: `${Math.max(enrollmentProgress, acceptedSamples ? 20 : 4)}%` }} />
-                  </div>
-                </div>
-
-                <div
-                  className={`enrollment-instruction ${
-                    captureRejected ? 'is-warning' : enrollmentComplete ? 'is-success' : ''
-                  }`}
-                  aria-live="polite"
-                >
-                  <div className="enrollment-instruction-icon">
-                    {enrollSaving
-                      ? <LoaderCircle size={20} className="animate-spin" />
-                      : captureRejected
-                        ? <AlertCircle size={20} />
-                        : enrollmentComplete
-                          ? <Check size={20} />
-                          : <Camera size={20} />}
-                  </div>
-                  <div>
-                    <span>
-                      {enrollmentComplete
-                        ? 'Finalizando'
-                        : acceptedSamples
-                          ? `${acceptedSamples} amostras preservadas`
-                          : 'Preparando'}
-                    </span>
-                    <strong>{enrollmentFeedback}</strong>
-                  </div>
-                </div>
-
-                {sampleResult && (
-                  <dl className="enrollment-diagnostics" aria-label="Diagnóstico da última leitura">
-                    <div>
-                      <dt>Qualidade</dt>
-                      <dd>{Math.round((sampleResult.quality_score || 0) * 100)}%</dd>
-                    </div>
-                    <div>
-                      <dt>Rosto no quadro</dt>
-                      <dd>{((sampleResult.face_area_ratio || 0) * 100).toFixed(1)}%</dd>
-                    </div>
-                    <div>
-                      <dt>Luz</dt>
-                      <dd>{Math.round(sampleResult.luminance_mean || 0)}</dd>
-                    </div>
-                    <div>
-                      <dt>Processamento</dt>
-                      <dd>{Math.round(sampleResult.processing_ms || 0)} ms</dd>
-                    </div>
-                  </dl>
-                )}
-
-                <div className="enrollment-steps" aria-label="Amostras faciais preservadas">
-                  {Array.from({ length: enrollmentStepCount }).map((_, index) => {
-                    const preview = capturePreviews[index];
-                    const active = index === acceptedSamples && !enrollmentComplete;
-                    return (
-                      <div
-                        key={index}
-                        className={`enrollment-step ${preview ? 'is-complete' : ''} ${active ? 'is-active' : ''}`}
-                      >
-                        {preview ? (
-                          <img src={preview} alt="" />
-                        ) : (
-                          <span>{index + 1}</span>
-                        )}
-                        <div>
-                          <strong>Amostra {index + 1}</strong>
-                          <small>{preview ? 'Preservada' : active ? 'Coletando' : 'A seguir'}</small>
-                        </div>
-                        {preview && <CheckCircle2 size={17} />}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-auto grid gap-2">
-                  {!autoCaptureEnabled && !enrollmentComplete && (
-                    <button
-                      type="button"
-                      onClick={() => void captureFace()}
-                      disabled={enrollSaving || !enrollmentSession || !enrollmentFacePresent}
-                      className="btn btn-primary w-full"
-                    >
-                      <Camera size={18} />
-                      Capturar agora
-                    </button>
-                  )}
-                  {enrollmentComplete && captureRejected && (
-                    <button
-                      type="button"
-                      onClick={() => void submitEnrollment()}
-                      disabled={enrollSaving}
-                      className="btn btn-primary w-full"
-                    >
-                      <CheckCircle2 size={18} />
-                      Tentar finalizar novamente
-                    </button>
-                  )}
-                  <p className="text-xs leading-5 text-steel dark:text-slate-400">
-                    O sistema seleciona automaticamente nitidez e variação. Nenhuma sequência rígida de poses é exigida.
-                  </p>
-                </div>
-              </aside>
-            </div>
-          </section>
-        </div>
+        <FaceEnrollmentDialog
+          employee={enrolling}
+          dialogRef={enrollmentModalRef}
+          closeButtonRef={enrollmentCloseButtonRef}
+          cameraRef={cameraRef}
+          session={enrollmentSession}
+          acceptedSamples={acceptedSamples}
+          targetSamples={enrollmentStepCount}
+          progress={enrollmentProgress}
+          complete={enrollmentComplete}
+          sampleResult={sampleResult}
+          capturePreviews={capturePreviews}
+          feedback={enrollmentFeedback}
+          saving={enrollSaving}
+          cameraReady={enrollmentCameraReady}
+          facePresent={enrollmentFacePresent}
+          autoCaptureEnabled={autoCaptureEnabled}
+          captureRejected={captureRejected}
+          onClose={() => closeEnrollment()}
+          onToggleAutoCapture={() => setAutoCaptureEnabled((current) => !current)}
+          onCapture={() => void captureFace()}
+          onFinalize={() => void submitEnrollment()}
+          onCameraReadyChange={setEnrollmentCameraReady}
+          onFacePresenceChange={setEnrollmentFacePresent}
+        />
       )}
     </div>
   );

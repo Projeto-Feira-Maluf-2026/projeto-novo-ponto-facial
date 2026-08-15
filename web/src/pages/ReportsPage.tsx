@@ -1,61 +1,205 @@
-import { Download, FileSpreadsheet, FileText, Filter } from 'lucide-react';
-import { useState } from 'react';
+import {
+  AlertCircle,
+  CalendarRange,
+  CheckCircle2,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  LoaderCircle,
+  Table2,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { apiClient } from '../services/api';
+import { apiClient, type ReportExportPayload } from '../services/api';
+import type { Employee, Worksite } from '../types/domain';
+
+type ReportKind = ReportExportPayload['kind'];
+type ReportFormat = ReportExportPayload['format'];
+
+const kindOptions: Array<{ value: ReportKind; label: string }> = [
+  { value: 'daily', label: 'Diário' },
+  { value: 'weekly', label: 'Semanal' },
+  { value: 'monthly', label: 'Mensal' },
+  { value: 'employee', label: 'Por funcionário' },
+  { value: 'worksite', label: 'Por obra' },
+  { value: 'custom', label: 'Período personalizado' },
+];
+
+const formatOptions = [
+  { key: 'pdf' as const, label: 'PDF', description: 'Documento pronto para auditoria', icon: FileText },
+  { key: 'xlsx' as const, label: 'Excel', description: 'Planilha para fechamento de folha', icon: FileSpreadsheet },
+  { key: 'csv' as const, label: 'CSV', description: 'Dados simples para integração', icon: Table2 },
+];
+
+function toDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function presetRange(kind: ReportKind) {
+  const end = new Date();
+  const start = new Date(end);
+  if (kind === 'weekly') start.setDate(end.getDate() - 6);
+  if (kind !== 'daily' && kind !== 'weekly') start.setDate(1);
+  return { start: toDateInput(start), end: toDateInput(end) };
+}
+
+function apiDate(date: string, endOfDay = false) {
+  return new Date(`${date}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}`).toISOString();
+}
 
 export function ReportsPage() {
-  const [format, setFormat] = useState<'pdf' | 'xlsx' | 'csv'>('pdf');
+  const initialRange = presetRange('monthly');
+  const [kind, setKind] = useState<ReportKind>('monthly');
+  const [format, setFormat] = useState<ReportFormat>('pdf');
+  const [startsAt, setStartsAt] = useState(initialRange.start);
+  const [endsAt, setEndsAt] = useState(initialRange.end);
+  const [employeeId, setEmployeeId] = useState('');
+  const [worksiteId, setWorksiteId] = useState('');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [worksites, setWorksites] = useState<Worksite[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
-  const exportReport = async () => {
-    const response = await apiClient.exportReport(format);
-    const url = URL.createObjectURL(response.data);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `relatorio-ponto.${format}`;
-    link.click();
-    URL.revokeObjectURL(url);
+  useEffect(() => {
+    Promise.all([apiClient.employees(), apiClient.worksites()])
+      .then(([employeePage, worksitePage]) => {
+        setEmployees(employeePage.items);
+        setWorksites(worksitePage.items);
+      })
+      .catch(() => setFeedback({
+        tone: 'error',
+        text: 'Os filtros de funcionário e obra não puderam ser carregados.',
+      }));
+  }, []);
+
+  const validationMessage = useMemo(() => {
+    if (!startsAt || !endsAt) return 'Informe o início e o fim do período.';
+    if (startsAt > endsAt) return 'A data inicial não pode ser posterior à data final.';
+    if (kind === 'employee' && !employeeId) return 'Selecione o funcionário deste relatório.';
+    if (kind === 'worksite' && !worksiteId) return 'Selecione a obra deste relatório.';
+    return '';
+  }, [employeeId, endsAt, kind, startsAt, worksiteId]);
+
+  const changeKind = (nextKind: ReportKind) => {
+    setKind(nextKind);
+    setFeedback(null);
+    if (nextKind === 'daily' || nextKind === 'weekly' || nextKind === 'monthly') {
+      const range = presetRange(nextKind);
+      setStartsAt(range.start);
+      setEndsAt(range.end);
+    }
   };
 
-  const options = [
-    { key: 'pdf' as const, label: 'PDF', description: 'Auditoria e assinatura', icon: FileText },
-    { key: 'xlsx' as const, label: 'Excel', description: 'Fechamento de folha', icon: FileSpreadsheet },
-    { key: 'csv' as const, label: 'CSV', description: 'Integrações externas', icon: Filter },
-  ];
+  const exportReport = async () => {
+    if (validationMessage) {
+      setFeedback({ tone: 'error', text: validationMessage });
+      return;
+    }
+    setExporting(true);
+    setFeedback(null);
+    try {
+      const result = await apiClient.exportReport({
+        kind,
+        format,
+        starts_at: apiDate(startsAt),
+        ends_at: apiDate(endsAt, true),
+        employee_id: kind === 'employee' ? employeeId : null,
+        worksite_id: kind === 'worksite' ? worksiteId : null,
+      });
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+      setFeedback({ tone: 'success', text: `Relatório ${result.filename} gerado com sucesso.` });
+    } catch {
+      setFeedback({ tone: 'error', text: 'Não foi possível gerar o relatório. Confira o período e tente novamente.' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
-    <div className="app-view-transition space-y-5">
-      <section className="form-panel app-view-transition lg:grid-cols-4">
-        <label className="field-label">
-          <span>Tipo</span>
-          <select className="input-field">
-            <option>Mensal</option><option>Semanal</option><option>Diário</option><option>Funcionário</option><option>Obra</option>
-          </select>
-        </label>
-        <label className="field-label"><span>Início</span><input type="date" className="input-field" /></label>
-        <label className="field-label"><span>Fim</span><input type="date" className="input-field" /></label>
-        <label className="field-label">
-          <span>Formato</span>
-          <div className="segmented-control w-full">
-            {(['pdf', 'xlsx', 'csv'] as const).map((item) => (
-              <button key={item} type="button" onClick={() => setFormat(item)} className="segmented-button flex-1 uppercase" data-active={format === item} aria-pressed={format === item}>{item}</button>
-            ))}
+    <div className="app-view-transition reports-workspace">
+      <section className="report-filter-panel" aria-labelledby="report-filter-heading">
+        <header className="report-section-heading">
+          <span className="report-section-index">01</span>
+          <div>
+            <h2 id="report-filter-heading">Defina o recorte</h2>
+            <p>Escolha o período e limite os registros quando precisar de um funcionário ou obra.</p>
           </div>
-        </label>
+        </header>
+        <div className="report-filter-grid">
+          <label className="field-label">
+            <span>Tipo de relatório</span>
+            <select value={kind} onChange={(event) => changeKind(event.target.value as ReportKind)} className="input-field">
+              {kindOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="field-label"><span>Início</span><input value={startsAt} onChange={(event) => setStartsAt(event.target.value)} type="date" className="input-field" /></label>
+          <label className="field-label"><span>Fim</span><input value={endsAt} onChange={(event) => setEndsAt(event.target.value)} type="date" className="input-field" /></label>
+          {kind === 'employee' && (
+            <label className="field-label">
+              <span>Funcionário</span>
+              <select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} className="input-field" required>
+                <option value="">Selecione</option>
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.registration} · {employee.name}</option>)}
+              </select>
+            </label>
+          )}
+          {kind === 'worksite' && (
+            <label className="field-label">
+              <span>Obra</span>
+              <select value={worksiteId} onChange={(event) => setWorksiteId(event.target.value)} className="input-field" required>
+                <option value="">Selecione</option>
+                {worksites.map((worksite) => <option key={worksite.id} value={worksite.id}>{worksite.code} · {worksite.name}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-3" aria-label="Opções de exportação">
-        {options.map(({ key, label, description, icon: Icon }) => (
-          <button key={key} type="button" onClick={() => setFormat(key)} className="report-format-card app-view-transition" data-active={format === key} aria-pressed={format === key}>
-            <span className="report-format-icon"><Icon size={20} /></span>
-            <span><strong>{label}</strong><small>{description}</small></span>
-            <span className="report-format-check" aria-hidden="true" />
-          </button>
-        ))}
+      <fieldset className="report-format-panel">
+        <legend className="sr-only">Formato do arquivo</legend>
+        <header className="report-section-heading">
+          <span className="report-section-index">02</span>
+          <div><h2>Escolha o arquivo</h2><p>O conteúdo é o mesmo; escolha o formato adequado ao próximo uso.</p></div>
+        </header>
+        <div className="report-format-list">
+          {formatOptions.map(({ key, label, description, icon: Icon }) => (
+            <label key={key} className="report-format-option" data-active={format === key}>
+              <input type="radio" name="report-format" value={key} checked={format === key} onChange={() => setFormat(key)} />
+              <span className="report-format-icon"><Icon size={20} /></span>
+              <span><strong>{label}</strong><small>{description}</small></span>
+              <span className="report-format-radio" aria-hidden="true" />
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <section className="report-export-bar" aria-label="Gerar relatório">
+        <div className="report-export-summary">
+          <CalendarRange size={19} aria-hidden="true" />
+          <span><strong>{kindOptions.find((option) => option.value === kind)?.label}</strong><small>{startsAt.split('-').reverse().join('/')} até {endsAt.split('-').reverse().join('/')}</small></span>
+        </div>
+        <button type="button" onClick={() => void exportReport()} disabled={exporting} className="btn btn-primary">
+          {exporting ? <LoaderCircle size={18} className="animate-spin" /> : <Download size={18} />}
+          {exporting ? 'Gerando arquivo' : `Exportar ${format.toUpperCase()}`}
+        </button>
       </section>
 
-      <div className="page-actions">
-        <button type="button" onClick={exportReport} className="btn btn-primary"><Download size={18} /> Exportar relatório</button>
-      </div>
+      {feedback && (
+        <div className={`feedback-banner report-feedback is-${feedback.tone}`} role={feedback.tone === 'error' ? 'alert' : 'status'}>
+          {feedback.tone === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+          <span>{feedback.text}</span>
+        </div>
+      )}
     </div>
   );
 }

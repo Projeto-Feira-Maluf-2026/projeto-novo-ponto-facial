@@ -174,6 +174,22 @@ export interface EmployeeCreatePayload {
   status?: Employee['status'];
 }
 
+export interface EmployeeUpdatePayload {
+  name?: string;
+  email?: string | null;
+  status?: Employee['status'];
+  worksite_ids?: string[];
+}
+
+export interface ReportExportPayload {
+  kind: 'daily' | 'weekly' | 'monthly' | 'employee' | 'worksite' | 'custom';
+  format: 'pdf' | 'xlsx' | 'csv';
+  starts_at: string;
+  ends_at: string;
+  employee_id?: string | null;
+  worksite_id?: string | null;
+}
+
 export interface WorksiteCreatePayload {
   name: string;
   code: string;
@@ -230,6 +246,10 @@ export const apiClient = {
   },
   createEmployee: async (payload: EmployeeCreatePayload) => {
     const response = await api.post<Employee>('/employees', payload);
+    return response.data;
+  },
+  updateEmployee: async (employeeId: string, payload: EmployeeUpdatePayload) => {
+    const response = await api.patch<Employee>(`/employees/${employeeId}`, payload);
     return response.data;
   },
   createWorksite: async (payload: WorksiteCreatePayload) => {
@@ -309,11 +329,14 @@ export const apiClient = {
     const response = await faceApi.post<AttendanceDecision>('/attendance/punch', payload);
     return response.data;
   },
-  exportReport: (format: 'pdf' | 'xlsx' | 'csv') =>
-    api.post('/reports/export', {
-      kind: 'monthly',
-      format,
-      starts_at: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
-      ends_at: new Date().toISOString(),
-    }, { responseType: 'blob' }),
+  exportReport: async (payload: ReportExportPayload) => {
+    const response = await api.post<Blob>('/reports/export', payload, { responseType: 'blob' });
+    const disposition = String(response.headers['content-disposition'] ?? '');
+    const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+    const basicName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+    const filename = encodedName
+      ? decodeURIComponent(encodedName)
+      : basicName || `relatorio-ponto.${payload.format}`;
+    return { blob: response.data, filename };
+  },
 };

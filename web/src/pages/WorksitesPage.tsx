@@ -1,8 +1,7 @@
 import { Building2, ChevronRight, MapPin, Plus, ScanFace, ShieldCheck } from 'lucide-react';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useState } from 'react';
 
 import { DataTable } from '../components/DataTable';
-import { MetricCard } from '../components/MetricCard';
 import { apiClient } from '../services/api';
 import type { Worksite } from '../types/domain';
 
@@ -21,19 +20,25 @@ export function WorksitesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [selectedWorksiteId, setSelectedWorksiteId] = useState('');
 
   const selectedWorksite = worksites.find((item) => item.id === selectedWorksiteId) ?? worksites[0] ?? null;
 
-  const loadWorksites = () => {
-    apiClient
-      .worksites()
-      .then((page) => setWorksites(page.items))
-      .catch(() => setMessage('Entre novamente e verifique se a API está online.'));
-  };
+  const loadWorksites = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = await apiClient.worksites();
+      setWorksites(page.items);
+    } catch {
+      setMessage('Entre novamente e verifique se a API está online.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(loadWorksites, []);
+  useEffect(() => { void loadWorksites(); }, [loadWorksites]);
 
   const setField = (field: keyof typeof initialForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -71,7 +76,7 @@ export function WorksitesPage() {
       setForm(initialForm);
       setShowForm(false);
       setMessage('Obra cadastrada.');
-      loadWorksites();
+      await loadWorksites();
     } catch {
       setMessage('Não foi possível cadastrar a obra.');
     } finally {
@@ -140,11 +145,11 @@ export function WorksitesPage() {
         </form>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <MetricCard label="Obras cadastradas" value={worksites.length} icon={Building2} tone="gray" />
-        <MetricCard label="Geofences ativos" value={worksites.filter((item) => item.active).length} icon={ShieldCheck} tone="green" />
-        <MetricCard label="Raio médio" value={`${Math.round(worksites.reduce((acc, item) => acc + item.geofence_radius_meters, 0) / Math.max(worksites.length, 1))}m`} icon={MapPin} tone="blue" />
-      </section>
+      <dl className="worksite-statline" aria-label="Resumo das obras">
+        <div><dt><Building2 size={17} /> Obras cadastradas</dt><dd>{worksites.length}</dd></div>
+        <div><dt><ShieldCheck size={17} /> Geofences ativos</dt><dd>{worksites.filter((item) => item.active).length}</dd></div>
+        <div><dt><MapPin size={17} /> Raio médio</dt><dd>{Math.round(worksites.reduce((acc, item) => acc + item.geofence_radius_meters, 0) / Math.max(worksites.length, 1))}m</dd></div>
+      </dl>
 
       <section className="worksite-ops-section app-card" aria-labelledby="worksite-ops-heading">
         <header className="worksite-ops-header">
@@ -158,7 +163,7 @@ export function WorksitesPage() {
 
         {selectedWorksite ? (
           <div className="worksite-ops-layout">
-            <div className="worksite-ops-selector" role="tablist" aria-label="Escolher obra para visualizar">
+            <div className="worksite-ops-selector" role="tablist" aria-orientation="vertical" aria-label="Escolher obra para visualizar">
               <div className="worksite-selector-heading">
                 <span>Obras disponíveis</span>
                 <strong>{String(worksites.length).padStart(2, '0')}</strong>
@@ -172,11 +177,24 @@ export function WorksitesPage() {
                       id={`worksite-tab-${worksite.id}`}
                       type="button"
                       role="tab"
+                      tabIndex={selected ? 0 : -1}
                       aria-selected={selected}
                       aria-controls="worksite-ops-panel"
                       className="worksite-selector-item"
                       data-active={selected}
                       onClick={() => setSelectedWorksiteId(worksite.id)}
+                      onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+                        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+                        event.preventDefault();
+                        const nextIndex = event.key === 'Home'
+                          ? 0
+                          : event.key === 'End'
+                            ? worksites.length - 1
+                            : (index + (event.key === 'ArrowDown' ? 1 : -1) + worksites.length) % worksites.length;
+                        const next = worksites[nextIndex];
+                        setSelectedWorksiteId(next.id);
+                        document.getElementById(`worksite-tab-${next.id}`)?.focus();
+                      }}
                     >
                       <span className="worksite-selector-index">{String(index + 1).padStart(2, '0')}</span>
                       <span className="worksite-selector-copy">
@@ -237,6 +255,9 @@ export function WorksitesPage() {
       <DataTable
         ariaLabel="Obras cadastradas"
         rows={worksites}
+        loading={loading}
+        emptyTitle="Nenhuma obra cadastrada"
+        emptyDescription="Cadastre a primeira obra para configurar geofence e terminais."
         columns={[
           { key: 'code', header: 'Código' },
           { key: 'name', header: 'Obra' },

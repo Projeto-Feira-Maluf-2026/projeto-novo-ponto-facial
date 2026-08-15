@@ -7,12 +7,18 @@ interface DataTableProps<T> {
   columns: Array<{ key: keyof T | string; header: string; render?: (row: T) => ReactNode }>;
   rows: T[];
   ariaLabel?: string;
+  loading?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 export function DataTable<T extends { id: string }>({
   columns,
   rows,
   ariaLabel = 'Tabela de dados',
+  loading = false,
+  emptyTitle = 'Nenhum registro encontrado',
+  emptyDescription = 'Os dados aparecerão aqui assim que forem cadastrados.',
 }: DataTableProps<T>) {
   const tableRef = useRef<HTMLDivElement>(null);
   const rowMotionKey = rows.slice(0, 12).map((row) => row.id).join('|');
@@ -32,20 +38,29 @@ export function DataTable<T extends { id: string }>({
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {loading && Array.from({ length: 5 }).map((_, rowIndex) => (
+              <tr key={`skeleton-${rowIndex}`} aria-hidden="true">
+                {columns.map((column, columnIndex) => (
+                  <td key={`${String(column.key)}-${columnIndex}`}>
+                    <span className="table-cell-skeleton" style={{ width: `${52 + ((rowIndex + columnIndex) % 4) * 11}%` }} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+            {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={columns.length}>
                   <div className="data-table-empty">
                     <span className="data-table-empty-icon" aria-hidden="true">
                       <Inbox size={21} />
                     </span>
-                    <strong>Nenhum registro encontrado</strong>
-                    <small>Os dados aparecerão aqui assim que forem cadastrados.</small>
+                    <strong>{emptyTitle}</strong>
+                    <small>{emptyDescription}</small>
                   </div>
                 </td>
               </tr>
             )}
-            {rows.map((row) => (
+            {!loading && rows.map((row) => (
               <tr key={row.id}>
                 {columns.map((column) => (
                   <td key={String(column.key)} className="whitespace-nowrap">
