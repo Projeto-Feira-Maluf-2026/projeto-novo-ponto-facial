@@ -4195,6 +4195,10 @@ h3,
   border-radius: 9px;
 }
 
+.login-input label {
+  min-height: 44px;
+}
+
 .login-submit {
   box-shadow: none;
 }
