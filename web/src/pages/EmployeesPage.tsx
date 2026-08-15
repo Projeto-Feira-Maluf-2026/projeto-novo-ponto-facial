@@ -1,10 +1,16 @@
 import {
+  CalendarDays,
   Camera,
   CheckCircle2,
   Edit3,
+  Eye,
+  Fingerprint,
+  IdCard,
+  Mail,
   Search,
   Trash2,
   UserPlus,
+  X,
 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -88,6 +94,7 @@ export function EmployeesPage() {
   const cameraRef = useRef<CameraCaptureHandle | null>(null);
   const enrollmentModalRef = useRef<HTMLDivElement>(null);
   const enrollmentCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const detailCloseButtonRef = useRef<HTMLButtonElement>(null);
   const enrollmentOpenerRef = useRef<HTMLElement | null>(null);
   const enrollmentClosingRef = useRef(false);
   const captureInFlightRef = useRef(false);
@@ -116,7 +123,23 @@ export function EmployeesPage() {
   const [enrollmentFacePresent, setEnrollmentFacePresent] = useState(false);
   const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
   const [captureRejected, setCaptureRejected] = useState(false);
+  const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
   useModalMotion(enrollmentModalRef, enrolling?.id ?? null);
+
+  useEffect(() => {
+    if (!detailEmployee) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDetailEmployee(null);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    window.requestAnimationFrame(() => detailCloseButtonRef.current?.focus());
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [detailEmployee]);
 
   const loadEmployees = useCallback(async () => {
     setLoadingEmployees(true);
@@ -539,7 +562,20 @@ export function EmployeesPage() {
         emptyDescription={query || status !== 'ALL' ? 'Altere a busca ou o status para ampliar os resultados.' : 'Adicione o primeiro funcionário para iniciar a operação.'}
         columns={[
           { key: 'registration', header: 'Matrícula' },
-          { key: 'name', header: 'Nome' },
+          {
+            key: 'name',
+            header: 'Funcionário',
+            render: (row) => (
+              <button type="button" className="employee-identity" onClick={() => setDetailEmployee(row)}>
+                <span className="employee-avatar">
+                  {row.photo_url
+                    ? <img src={row.photo_url} alt="" />
+                    : row.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+                </span>
+                <span><strong>{row.name}</strong><small>{row.registration}</small></span>
+              </button>
+            ),
+          },
           { key: 'email', header: 'Email' },
           {
             key: 'status',
@@ -566,6 +602,9 @@ export function EmployeesPage() {
             header: '',
             render: (row) => (
               <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setDetailEmployee(row)} className="icon-button" title="Ver detalhes" aria-label={`Ver detalhes de ${row.name}`}>
+                  <Eye size={16} />
+                </button>
                 <button type="button" onClick={() => openEnrollment(row)} className="icon-button" title="Cadastrar face" aria-label={`Cadastrar face de ${row.name}`}>
                   <Camera size={16} />
                 </button>
@@ -580,6 +619,52 @@ export function EmployeesPage() {
           },
         ]}
       />
+
+      {detailEmployee && (
+        <div className="employee-drawer-layer">
+          <button type="button" className="employee-drawer-scrim" aria-label="Fechar detalhes" onClick={() => setDetailEmployee(null)} />
+          <aside className="employee-drawer" role="dialog" aria-modal="true" aria-labelledby="employee-detail-title">
+            <header className="employee-drawer-header">
+              <span>Perfil operacional</span>
+              <button ref={detailCloseButtonRef} type="button" className="icon-button" onClick={() => setDetailEmployee(null)} aria-label="Fechar detalhes">
+                <X size={18} />
+              </button>
+            </header>
+            <div className="employee-profile-hero">
+              <span className="employee-profile-avatar">
+                {detailEmployee.photo_url
+                  ? <img src={detailEmployee.photo_url} alt="" />
+                  : detailEmployee.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+              </span>
+              <div>
+                <span className={`status-pill ${detailEmployee.status === 'ACTIVE' ? 'status-pill-online' : detailEmployee.status === 'ON_LEAVE' ? 'status-pill-warn' : 'status-pill-neutral'}`}>
+                  <span className="status-dot" /> {employeeStatusLabels[detailEmployee.status]}
+                </span>
+                <h2 id="employee-detail-title">{detailEmployee.name}</h2>
+                <p>Matrícula {detailEmployee.registration}</p>
+              </div>
+            </div>
+            <dl className="employee-detail-list">
+              <div><dt><IdCard size={16} /> Matrícula</dt><dd>{detailEmployee.registration}</dd></div>
+              <div><dt><Mail size={16} /> E-mail</dt><dd>{detailEmployee.email || 'Não informado'}</dd></div>
+              <div><dt><Fingerprint size={16} /> Biometria facial</dt><dd>{detailEmployee.biometric_reenrollment_required ? 'Recadastro necessário' : detailEmployee.consent_biometric_at ? 'Cadastro ativo' : 'Cadastro pendente'}</dd></div>
+              <div><dt><CalendarDays size={16} /> Atualizado em</dt><dd>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(detailEmployee.updated_at))}</dd></div>
+            </dl>
+            {detailEmployee.biometric_reenrollment_reason && (
+              <div className="employee-biometric-note" role="status">{detailEmployee.biometric_reenrollment_reason}</div>
+            )}
+            <div className="employee-drawer-actions">
+              <button type="button" className="btn btn-primary" onClick={() => { setDetailEmployee(null); void openEnrollment(detailEmployee); }}>
+                <Camera size={17} /> {detailEmployee.consent_biometric_at ? 'Atualizar face' : 'Cadastrar face'}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setDetailEmployee(null); openEditForm(detailEmployee); }}>
+                <Edit3 size={17} /> Editar cadastro
+              </button>
+            </div>
+            <p className="employee-data-note">Horas, cargo e obra atual não aparecem aqui porque esses campos ainda não são retornados pelo cadastro da API.</p>
+          </aside>
+        </div>
+      )}
 
       {enrolling && (
         <FaceEnrollmentDialog

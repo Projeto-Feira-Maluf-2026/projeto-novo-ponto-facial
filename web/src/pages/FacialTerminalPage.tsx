@@ -638,10 +638,45 @@ export function FacialTerminalPage() {
 
   const ResultIcon = resultPresentation.icon;
   const cameraClass = fullscreen ? 'h-[calc(100vh-164px)] min-h-[560px]' : 'h-[clamp(440px,62vh,690px)]';
+  const flowStage = !cameraReady
+    ? 1
+    : mode === 'confirming'
+      ? 3
+      : mode === 'submitting'
+        ? 4
+        : mode === 'accepted'
+          ? 5
+          : 2;
+  const flowSteps = [
+    { label: 'Câmera', detail: cameraReady ? 'Disponível' : 'Iniciando', icon: Camera },
+    { label: 'Reconhecimento', detail: analysis?.face_count === 1 ? 'Rosto localizado' : 'Aguardando rosto', icon: Focus },
+    { label: 'Identificado', detail: recognition.employeeName || 'Aguardando identidade', icon: UserRoundCheck },
+    { label: 'Registrado', detail: mode === 'accepted' ? 'Ponto confirmado' : 'Aguardando confirmação', icon: CheckCircle2 },
+  ];
 
   const content = (
     <div className="terminal-shell">
       <h1 className="sr-only">Ponto automático</h1>
+      <section className="terminal-flow" aria-label="Etapas do registro facial">
+        {flowSteps.map((step, index) => {
+          const Icon = step.icon;
+          const stepNumber = index + 1;
+          const state = flowStage > stepNumber
+            ? 'complete'
+            : flowStage === stepNumber
+              ? 'active'
+              : 'pending';
+          return (
+            <div key={step.label} className="terminal-flow-step" data-state={state}>
+              <span className="terminal-flow-icon">
+                {state === 'complete' ? <Check size={17} /> : <Icon size={17} />}
+              </span>
+              <span><strong>{step.label}</strong><small>{step.detail}</small></span>
+              {index < flowSteps.length - 1 && <i aria-hidden="true" />}
+            </div>
+          );
+        })}
+      </section>
       <section className="terminal-camera-card">
         <div className="terminal-toolbar">
           <div className="terminal-toolbar-identity">

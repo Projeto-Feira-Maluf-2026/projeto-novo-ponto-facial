@@ -14,7 +14,6 @@ import {
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CameraCapture } from '../components/CameraCapture';
-import { DataTable } from '../components/DataTable';
 import { apiClient } from '../services/api';
 import type { CameraConfig, CameraTestResponse, Device, Worksite } from '../types/domain';
 
@@ -337,51 +336,45 @@ export function DevicesPage() {
           </div>
         </form>
 
-        <div className="space-y-4">
-          <DataTable
-            ariaLabel="Câmeras cadastradas"
-            rows={devices}
-            loading={loadingDevices}
-            emptyTitle="Nenhuma câmera configurada"
-            emptyDescription="Teste e salve a primeira câmera para habilitar a leitura facial."
-            columns={[
-              { key: 'name', header: 'Câmera' },
-              {
-                key: 'metadata_json',
-                header: 'Tipo',
-                render: (row) => row.metadata_json?.camera?.camera_type ?? 'WEBCAM',
-              },
-              {
-                key: 'location',
-                header: 'Local',
-                render: (row) => row.metadata_json?.camera?.location_label ?? '-',
-              },
-              {
-                key: 'status',
-                header: 'Status',
-                render: (row) => (
-                  <span className={`status-pill ${statusPill(row.status)}`}>
-                    <span className="status-dot" />
-                    {row.status === 'ACTIVE' ? 'Online' : row.status === 'MAINTENANCE' ? 'Atenção' : 'Offline'}
-                  </span>
-                ),
-              },
-              {
-                key: 'actions',
-                header: '',
-                render: (row) => (
-                  <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => loadPreview(row)} className="icon-button" title="Ver prévia" aria-label={`Ver prévia de ${row.name}`}>
-                      <Eye size={16} />
-                    </button>
-                    <button type="button" onClick={() => testSavedCamera(row)} className="icon-button" title="Testar câmera" aria-label={`Testar ${row.name}`}>
-                      <RefreshCcw size={16} />
-                    </button>
+        <div className="camera-portfolio" aria-label="Câmeras cadastradas">
+          <header className="camera-portfolio-heading">
+            <div><span>Fontes disponíveis</span><strong>{devices.length} {devices.length === 1 ? 'câmera' : 'câmeras'}</strong></div>
+            <small>Selecione uma fonte para abrir a prévia.</small>
+          </header>
+          <div className="camera-card-list">
+            {loadingDevices && Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="camera-card skeleton" aria-hidden="true" />
+            ))}
+            {!loadingDevices && devices.length === 0 && (
+              <div className="camera-portfolio-empty">
+                <Camera size={25} />
+                <strong>Nenhuma câmera configurada</strong>
+                <span>Teste e salve a primeira câmera para habilitar a leitura facial.</span>
+              </div>
+            )}
+            {!loadingDevices && devices.map((device) => {
+              const worksite = worksites.find((item) => item.id === device.worksite_id);
+              const active = selected?.id === device.id;
+              return (
+                <article key={device.id} className="camera-card" data-active={active}>
+                  <button type="button" className="camera-card-preview" onClick={() => loadPreview(device)} aria-label={`Abrir prévia de ${device.name}`}>
+                    <span className="camera-card-grid" aria-hidden="true" />
+                    <Camera size={30} />
+                    <span className="camera-card-live"><i /> {device.status === 'ACTIVE' ? 'Online' : device.status === 'MAINTENANCE' ? 'Atenção' : 'Offline'}</span>
+                    <span className="camera-card-play"><Eye size={17} /> Ver prévia</span>
+                  </button>
+                  <div className="camera-card-copy">
+                    <div><strong>{device.name}</strong><span>{device.metadata_json?.camera?.location_label || worksite?.name || 'Local não informado'}</span></div>
+                    <span className={`status-pill ${statusPill(device.status)}`}><span className="status-dot" /> {device.metadata_json?.camera?.camera_type ?? 'WEBCAM'}</span>
                   </div>
-                ),
-              },
-            ]}
-          />
+                  <div className="camera-card-actions">
+                    <span>{device.last_seen_at ? `Visto ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(device.last_seen_at))}` : 'Sem atividade recente'}</span>
+                    <button type="button" onClick={() => testSavedCamera(device)} className="icon-button" title="Testar câmera" aria-label={`Testar ${device.name}`}><RefreshCcw size={16} /></button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
       </section>
 

@@ -1,97 +1,144 @@
-# Curitiba Gestão — Design System
+# Curitiba Gestão — Design System Premium Mineral
 
-**Produto:** controle de presença e reconhecimento facial para obras
+**Produto:** gestão de presença e reconhecimento facial para obras
 
-**Direção:** central operacional industrial, precisa e humana
+**Direção:** B2B premium, engenharia contemporânea, humana e confiável
 
-**Densidade:** alta, sem sacrificar leitura
+**Personalidade:** precisão sem frieza; tecnologia sem estética genérica de SaaS
 
-**Motion:** discreto, funcional e sempre cancelável por `prefers-reduced-motion`
+**Densidade:** moderada no contexto e alta apenas nos dados operacionais
 
 ## Princípios
 
-1. A câmera e o estado do registro são protagonistas; decoração nunca compete com a tarefa.
-2. A interface deve continuar legível se bordas e sombras forem removidas.
-3. Métricas formam um quadro operacional contínuo, não uma grade genérica de quatro cards.
-4. Laranja-sinal indica ação ou atenção. Verde confirma segurança. Nenhuma cor é apenas decorativa.
-5. Cantos são técnicos: 2–8 px. Formas circulares ficam restritas a indicadores e avatares.
-6. Dados reais, mensagens específicas e estados honestos substituem textos genéricos.
+1. Em até três segundos o dashboard informa obras ativas, presentes, ausentes, horas, alertas e concentração de atividade.
+2. A composição é editorial e assimétrica: módulos variam conforme importância, sem grades repetitivas de cards idênticos.
+3. Verde floresta comunica estrutura e ação; neutros minerais quentes mantêm o produto acolhedor.
+4. O gêmeo digital 3D é funcional: contextualiza a obra e oferece exploração progressiva, sem bloquear o restante da página.
+5. Nenhuma tela inventa dados. Indisponibilidade do contrato da API é assumida de forma honesta.
+6. Estados e ações não dependem apenas de cor; ícone, texto, contraste e movimento trabalham juntos.
 
-## Tokens semânticos
+## Arquitetura de tokens
 
-| Papel | Claro | Escuro |
+O código usa três camadas:
+
+1. Primitiva: `--mineral-*`, `--forest-*`, `--red-*`, `--amber-*`.
+2. Semântica: `--color-canvas`, `--color-surface`, `--color-accent`, `--color-success`.
+3. Componente: `--button-*`, `--card-*`, `--radius-*`, `--shadow-*`.
+
+Componentes não usam cores brutas quando existe token semântico apropriado.
+
+## Paleta semântica
+
+| Papel | Tema claro | Tema escuro |
 |---|---:|---:|
-| Canvas | `#F2F1ED` | `#0C1013` |
-| Superfície | `#FCFCFA` | `#141A1E` |
-| Superfície elevada | `#FFFFFF` | `#1B2328` |
-| Texto | `#1A2024` | `#F3F5F5` |
-| Texto secundário | `#58636A` | `#AAB5BA` |
-| Linha | `#D6D8D5` | `#303A40` |
-| Linha forte | `#AAB0B1` | `#526068` |
-| Ação | `#C44B18` | `#FF8A4C` |
-| Ação forte | `#963510` | `#FFB087` |
-| Sucesso | `#08775A` | `#57CAA2` |
-| Atenção | `#8A5A00` | `#E7B84B` |
-| Perigo | `#B42318` | `#FF8D83` |
-
-O código usa camadas `--raw-*`, `--color-*` e, quando necessário, tokens de componente. Componentes não devem depender diretamente de cores brutas.
+| Canvas | `#F7F5ED` | `#111A15` |
+| Superfície | `#FFFEF9` | `#18241D` |
+| Superfície elevada | `#FFFFFF` | `#1D2B23` |
+| Texto | `#18211B` | `#F6F4EC` |
+| Texto secundário | `#566159` | `#BDC8BF` |
+| Linha | `#DEDDD2` | `#34473B` |
+| Ação | `#2F6844` | `#79B987` |
+| Ação forte | `#183F2A` | `#A6D3AD` |
+| Sucesso | `#257148` | `#80C997` |
+| Atenção | `#A87521` | `#E5BD73` |
+| Perigo | `#B64B44` | `#F29A91` |
 
 ## Tipografia
 
-- Títulos: **Lexend Variable**, 500–650, tracking negativo sutil.
-- Corpo e dados: **Source Sans 3 Variable**, 400–700.
-- Números operacionais: Source Sans 3 com `font-variant-numeric: tabular-nums`.
-- Um único `h1` por tela; subtítulos seguem a hierarquia sem pular níveis.
+- Títulos: **Lexend Variable**, pesos 500–650 e tracking negativo.
+- Corpo e dados: **Source Sans 3 Variable**, pesos 400–750.
+- Métricas usam números tabulares.
+- Um `h1` por tela. Módulos usam `h2` e conteúdo interno usa `h3`.
+- Texto operacional nunca fica abaixo de 12 px; microtexto de apoio pode usar 10,5–11 px quando não carrega decisão.
 
-## Espaçamento e forma
+## Forma e profundidade
 
-- Escala: `4, 8, 12, 16, 24, 32, 48, 64` px.
-- Controles: mínimo 44 px de altura/alvo.
-- Raios: `2px` técnico, `5px` controle, `8px` painel, `12px` apenas diálogo grande.
-- Sombras: somente menus, diálogo e câmera em tela cheia. Painéis usam contraste e estrutura, não elevação falsa.
+- Cards: 20–28 px.
+- Painéis principais: 28 px.
+- Controles: 14–16 px.
+- Botões: 14 px.
+- Alvos interativos: mínimo 44 × 44 px.
+- Sombras são suaves, verdes e de baixa opacidade; hover aumenta elevação sem alterar o layout.
+- Pills ficam restritas a status, conectividade e metadados curtos.
 
-## Composição
+## Composição por área
 
-- Desktop: masthead horizontal + navegação contextual; não usar sidebar genérica permanente.
-- Mobile: cabeçalho compacto e navegação inferior com área segura.
-- Dashboard: placar diário assimétrico, fluxo horário e distribuição por obra.
-- Tabelas: cabeçalho persistente quando útil, ações contextuais e alternativa rolável no mobile.
-- Formulários: agrupados por tarefa; rótulos sempre visíveis; feedback junto à ação.
-- Empty states: explicam o que falta e oferecem o próximo passo real.
+### Dashboard
 
-## Estados
+- Hero compacto em verde floresta com resumo e presença circular.
+- Mosaico de métricas com pesos distintos.
+- Gráfico horário e ranking por obra com dados reais.
+- Alertas e ausência aparecem como atenção operacional, não como decoração.
 
-Todo fluxo relevante implementa: `idle`, `loading`, `success`, `error`, `empty` e `disabled`. Reconhecimento facial adiciona `UNKNOWN`, `POSSIBLE`, `CONFIRMING` e `CONFIRMED`. O estado não pode depender apenas de cor.
+### Obras
+
+- Portfólio lateral e painel principal contextual.
+- Gêmeo digital 3D lazy-loaded, pausado fora da viewport e reduzido no mobile.
+- Movimentações, dispositivos, responsável, geofence e prontidão derivam somente do backend.
+- Progresso físico não aparece até existir no contrato da API.
+
+### Funcionários
+
+- Identidade visual com avatar/iniciais.
+- Busca e filtros preservados.
+- Detalhes abrem em drawer; edição e matrícula facial continuam no mesmo contexto.
+- Campos não fornecidos pela API não são simulados.
+
+### Ponto facial
+
+- Fluxo visível: Câmera → Reconhecimento → Identificado → Registrado.
+- Câmera continua protagonista.
+- Movimento respiratório existe apenas no estado ativo.
+- Em falha, a mensagem explica a próxima ação possível.
+
+### Câmeras
+
+- Portfólio visual com status, local, última atividade e ações no hover/foco.
+- Somente a fonte selecionada abre stream/snapshot, evitando custo desnecessário.
+- Configuração mantém teste obrigatório antes de salvar.
 
 ## Motion
 
-- Feedback de controle: 140–180 ms.
-- Entrada de página/painel: 220–300 ms, opacidade + deslocamento máximo de 8 px.
-- Indicadores de reconhecimento: interpolação contínua sem pulos visuais.
-- Sem `transition: all`, sem bounce em tabelas, sem glow decorativo.
-- Em `prefers-reduced-motion`, duração efetiva próxima de zero e nenhum movimento contínuo.
+- Microinteração: 140–210 ms.
+- Entrada de página: 340–480 ms.
+- Drawer: 360 ms.
+- Hover: 220–260 ms.
+- Stagger curto: 40–54 ms.
+- Easing principal: `cubic-bezier(.22, 1, .36, 1)`.
+- Movimento contínuo somente em indicadores ativos e visualização 3D.
+- `prefers-reduced-motion` remove pulsos, entrada espacial e movimentos ambientais.
 
-## Acessibilidade e responsividade
+## Acessibilidade
 
-- Contraste de texto WCAG AA; foco de 2 px com offset visível.
-- Labels associadas, mensagens com `role="alert"`/`status`, modais com trap de foco e Escape.
-- Validar 375, 768, 1024 e 1440 px; nenhuma rolagem horizontal da página.
-- Câmera e ações críticas permanecem utilizáveis com teclado e toque.
+- Contraste WCAG AA.
+- Foco visível de 2 px com offset de 3 px.
+- Labels sempre visíveis e associados.
+- Mensagens dinâmicas usam `role="status"` ou `role="alert"`.
+- Dialogs e drawers fecham com Escape.
+- Navegação de seleção de obras usa padrão de tabs e setas.
+- Alternativa textual acompanha gráficos e canvas 3D.
 
-## Proibido
+## Performance
 
-- Gradientes genéricos, glassmorphism, glows ou “AI purple”.
-- Cards dentro de cards e grades perfeitamente uniformes sem razão funcional.
-- Pills para texto comum, ícones decorativos em cada linha ou hero de marketing no app autenticado.
-- Botões sem ação, dados simulados em produção, spinners centrais como único skeleton.
-- Hovers que mudam layout, texto abaixo de 12 px para informação operacional ou bordas arredondadas excessivas.
+- Rotas são lazy-loaded.
+- O módulo Three.js fica em chunk separado e só monta perto da viewport.
+- O renderer 3D pausa fora da viewport e com a aba oculta.
+- Pixel ratio é limitado; recursos WebGL são liberados ao desmontar.
+- Prévia de câmera só é buscada ao selecionar uma fonte.
 
-## Checklist
+## Breakpoints de validação
 
-- [ ] Fluxos reais preservados e controles têm ação.
-- [ ] Estados loading/error/empty/success presentes.
-- [ ] Alvos de toque ≥ 44 px e foco visível.
-- [ ] `prefers-reduced-motion` respeitado.
-- [ ] Sem overflow em 375/768/1024/1440.
-- [ ] Login, dashboard, cadastro e terminal parecem partes do mesmo produto.
-- [ ] Câmera funciona com webcam local e backend facial remoto HTTPS.
+- 375 px: navegação inferior, módulos em coluna e 3D simplificado.
+- 768 px: hero e digital twin em composição dividida.
+- 1024 px: navegação horizontal e painéis operacionais lado a lado.
+- 1440 px: composição editorial completa, com largura de leitura controlada.
+
+## Critérios de aceite
+
+- [ ] Fluxos reais preservados.
+- [ ] Loading, error, empty, success e disabled presentes.
+- [ ] Nenhum dado operacional simulado em produção.
+- [ ] 3D carregado sob demanda e funcional com teclado/toque.
+- [ ] Sem overflow horizontal em 375/768/1024/1440.
+- [ ] Foco, contraste e reduced motion validados.
+- [ ] Login, dashboard, funcionários, obras, câmeras, relatórios e terminal compartilham a mesma linguagem.
