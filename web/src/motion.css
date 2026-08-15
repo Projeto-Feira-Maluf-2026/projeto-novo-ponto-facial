@@ -273,14 +273,110 @@ html[data-theme-transition="true"]::view-transition-new(root) {
   background-color: color-mix(in srgb, var(--color-surface-muted) 62%, transparent);
 }
 
+/* Hover descendants need their own transitions; parent transitions do not cascade. */
+:where(button:not(:disabled), a, label:has(input), [role="button"])
+  :where(svg, span, i),
+:where(button:not(:disabled), a, label:has(input), [role="button"])::before,
+:where(button:not(:disabled), a, label:has(input), [role="button"])::after {
+  transition:
+    color 200ms ease,
+    background-color 240ms ease,
+    border-color 240ms ease,
+    box-shadow 320ms var(--motion-ease-gentle),
+    opacity 220ms ease,
+    filter 240ms ease,
+    transform 360ms var(--motion-ease-gentle);
+}
+
+.login-submit svg,
+.sidebar-close svg,
+.camera-restart-button svg,
+.worksite-world-tools button svg,
+.terminal-event-icon,
+.employee-identity strong,
+.employee-identity small {
+  transition:
+    color 200ms ease,
+    background-color 240ms ease,
+    border-color 240ms ease,
+    opacity 200ms ease,
+    filter 240ms ease,
+    transform 360ms var(--motion-ease-gentle);
+}
+
+.login-submit:hover:not(:disabled) svg {
+  transform: translateX(4px);
+}
+
+.sidebar-close:hover svg {
+  transform: rotate(90deg) scale(1.04);
+}
+
+.camera-restart-button:hover:not(:disabled) svg {
+  transform: rotate(-32deg) scale(1.05);
+}
+
+.choice-card:hover svg {
+  transform: rotate(-3deg) scale(1.07);
+}
+
+.terminal-event:hover .terminal-event-icon {
+  transform: rotate(-3deg) scale(1.06);
+}
+
+.employee-identity:hover strong {
+  color: var(--color-accent-strong);
+}
+
+.employee-identity:hover small {
+  color: var(--color-muted);
+}
+
+.worksite-ranking-row:hover .worksite-progress span {
+  filter: brightness(1.08);
+  transform: scaleY(1.06);
+}
+
+.worksite-plan-boundary,
+.worksite-plan-pin,
+.worksite-plan-building {
+  transition:
+    color 220ms ease,
+    border-color 280ms ease,
+    background-color 280ms ease,
+    box-shadow 360ms var(--motion-ease-gentle),
+    opacity 240ms ease,
+    transform 420ms var(--motion-ease-gentle);
+}
+
+.choice-card:active,
+.report-format-option:active,
+.employee-identity:active,
+.camera-card:active,
+.worksite-selector-item:active {
+  transform: translateY(1px) scale(0.985);
+  transition-duration: 80ms;
+}
+
+.choice-card:focus-visible,
+.report-format-option:focus-within,
+.camera-card:focus-within,
+.worksite-selector-item:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: var(--ring-focus);
+}
+
 .worksite-progress span,
 .presence-progress span,
 .enrollment-progress-track span,
 .terminal-progress span {
+  transform-origin: center;
   transition:
     width 560ms var(--motion-ease-gentle),
     background-color 260ms ease,
-    box-shadow 360ms var(--motion-ease-gentle);
+    box-shadow 360ms var(--motion-ease-gentle),
+    filter 240ms ease,
+    transform 360ms var(--motion-ease-gentle);
 }
 
 .form-panel.app-view-transition,
@@ -400,11 +496,14 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 .timeline-bar {
   transform-origin: bottom;
   animation: motion-grow-bar 720ms var(--motion-ease-out) both;
+  transition:
+    filter 240ms ease,
+    transform 360ms var(--motion-ease-gentle);
 }
 
 .timeline-column:hover .timeline-bar {
   filter: brightness(1.08);
-  transform: scaleX(1.08);
+  transform: scale(1.08, 1.06);
 }
 
 .timeline-value {
@@ -1032,7 +1131,26 @@ html[data-theme-transition="true"]::view-transition-new(root) {
   .camera-card-play,
   .terminal-primary-status,
   .terminal-status-symbol,
-  .enrollment-instruction {
+  .enrollment-instruction,
+  .login-submit svg,
+  .sidebar-close svg,
+  .camera-restart-button svg,
+  .worksite-world-tools button svg,
+  .terminal-event-icon,
+  .employee-identity strong,
+  .employee-identity small,
+  .worksite-progress span,
+  .presence-progress span,
+  .enrollment-progress-track span,
+  .terminal-progress span,
+  .timeline-bar,
+  .worksite-plan-boundary,
+  .worksite-plan-pin,
+  .worksite-plan-building,
+  :where(button:not(:disabled), a, label:has(input), [role="button"])
+    :where(svg, span, i),
+  :where(button:not(:disabled), a, label:has(input), [role="button"])::before,
+  :where(button:not(:disabled), a, label:has(input), [role="button"])::after {
     transition-duration: 1ms !important;
   }
 }
