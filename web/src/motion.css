@@ -1,0 +1,762 @@
+/* Motion system: functional transitions first, cinematic motion only at key moments. */
+:root {
+  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-spring: cubic-bezier(0.2, 1.35, 0.35, 1);
+  --motion-fast: 180ms;
+  --motion-normal: 340ms;
+  --motion-slow: 680ms;
+}
+
+@property --presence-motion {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* Route and theme transitions */
+::view-transition-old(root) {
+  animation: motion-route-old 210ms ease both;
+}
+
+::view-transition-new(root) {
+  animation: motion-route-new 420ms var(--motion-ease-out) both;
+}
+
+.app-sidebar {
+  view-transition-name: app-sidebar;
+}
+
+.app-topbar {
+  view-transition-name: app-topbar;
+}
+
+.mobile-nav {
+  view-transition-name: mobile-nav;
+}
+
+::view-transition-old(app-sidebar),
+::view-transition-new(app-sidebar),
+::view-transition-old(app-topbar),
+::view-transition-new(app-topbar),
+::view-transition-old(mobile-nav),
+::view-transition-new(mobile-nav) {
+  animation: none;
+}
+
+html[data-theme-transition="true"]::view-transition-old(root),
+html[data-theme-transition="true"]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-theme-transition="true"]::view-transition-old(root) {
+  z-index: 1;
+}
+
+html[data-theme-transition="true"]::view-transition-new(root) {
+  z-index: 9999;
+}
+
+/* Global interaction feedback */
+.btn,
+.icon-button,
+.topbar-icon,
+.topbar-menu,
+.sidebar-theme,
+.segmented-button,
+.report-format-option,
+.employee-identity,
+.camera-card,
+.worksite-selector-item {
+  transform-origin: center;
+}
+
+.btn:active:not(:disabled),
+.icon-button:active:not(:disabled),
+.topbar-icon:active,
+.topbar-menu:active,
+.sidebar-theme:active,
+.segmented-button:active {
+  transform: translateY(1px) scale(0.975);
+  transition-duration: 80ms;
+}
+
+.btn svg,
+.icon-button svg,
+.topbar-icon svg,
+.topbar-menu svg,
+.sidebar-theme svg,
+.report-format-icon svg {
+  transition: transform var(--motion-normal) var(--motion-ease-out);
+}
+
+.btn:hover:not(:disabled) svg {
+  transform: translateX(2px);
+}
+
+.icon-button:hover:not(:disabled) svg,
+.topbar-icon:hover svg,
+.topbar-menu:hover svg {
+  transform: rotate(-5deg) scale(1.08);
+}
+
+.input-field,
+.login-input,
+.search-field {
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-normal) var(--motion-ease-out),
+    transform var(--motion-normal) var(--motion-ease-out),
+    background-color var(--motion-fast) ease;
+}
+
+.input-field:focus,
+.login-input:focus-within,
+.search-field:focus-within {
+  transform: translateY(-1px);
+}
+
+.feedback-banner,
+.confirmation-strip,
+.report-feedback {
+  animation: motion-feedback-in 460ms var(--motion-ease-out) both;
+  transform-origin: left center;
+}
+
+.feedback-banner::before,
+.confirmation-strip::before {
+  animation: motion-feedback-line 620ms var(--motion-ease-out) both;
+}
+
+/* Login: one cinematic moment, then a quiet form. */
+.login-context-grid {
+  animation: motion-grid-arrive 1.2s var(--motion-ease-out) both;
+}
+
+.login-blueprint-line,
+.login-blueprint-floor,
+.login-blueprint-accent {
+  stroke-dasharray: 1500;
+  stroke-dashoffset: 1500;
+  animation: motion-draw-blueprint 2.1s var(--motion-ease-out) forwards;
+}
+
+.login-blueprint-floor {
+  animation-duration: 1.65s;
+  animation-delay: 280ms;
+}
+
+.login-blueprint-accent {
+  animation-duration: 1.35s;
+  animation-delay: 720ms;
+}
+
+.login-blueprint-volume {
+  animation: motion-blueprint-volume 1.1s 520ms ease both;
+}
+
+.login-blueprint-crane {
+  transform-origin: 560px 694px;
+  animation: motion-crane-settle 1.25s 360ms var(--motion-ease-out) both;
+}
+
+.login-blueprint-scan {
+  animation: motion-blueprint-scan 5.5s 1.5s ease-in-out infinite;
+}
+
+.login-brand-mark,
+.brand-mark {
+  transition:
+    transform 420ms var(--motion-ease-spring),
+    box-shadow 320ms var(--motion-ease-out);
+}
+
+.login-brand:hover .login-brand-mark,
+.brand-lockup:hover .brand-mark,
+.topbar-brand-desktop:hover .brand-mark {
+  transform: rotate(-4deg) scale(1.06);
+}
+
+.login-submit[disabled] {
+  transform: scale(0.995);
+}
+
+.login-submit:not(:disabled):active {
+  transform: translateY(1px) scale(0.985);
+}
+
+.login-error {
+  animation: motion-error-in 420ms var(--motion-ease-out) both;
+}
+
+/* Dashboard and data */
+.presence-ring {
+  --presence-motion: var(--presence);
+  background: conic-gradient(#b5dfbd var(--presence-motion), rgb(255 255 255 / 0.13) 0);
+  animation: motion-presence-fill 1.15s 180ms var(--motion-ease-out) both;
+}
+
+.metric-tile,
+.activity-module,
+.worksite-module {
+  transition:
+    transform 380ms var(--motion-ease-out),
+    border-color 220ms ease,
+    box-shadow 380ms var(--motion-ease-out);
+}
+
+.metric-tile:hover {
+  transform: translateY(-5px);
+}
+
+.metric-tile:hover .metric-icon {
+  transform: rotate(-5deg) scale(1.08);
+}
+
+.metric-icon {
+  transition: transform 420ms var(--motion-ease-spring);
+}
+
+.timeline-bar {
+  transform-origin: bottom;
+  animation: motion-grow-bar 720ms var(--motion-ease-out) both;
+}
+
+.timeline-column:hover .timeline-bar {
+  filter: brightness(1.08);
+  transform: scaleX(1.08);
+}
+
+.timeline-value {
+  transition: transform 260ms var(--motion-ease-out), color 180ms ease;
+}
+
+.timeline-column:hover .timeline-value {
+  transform: translateY(-3px);
+}
+
+.dashboard-hero-status > div:hover svg,
+.worksite-statline > div:hover svg,
+.device-statline > div:hover svg {
+  transform: scale(1.12) rotate(-4deg);
+}
+
+.dashboard-hero-status svg,
+.worksite-statline svg,
+.device-statline svg {
+  transition: transform 360ms var(--motion-ease-spring);
+}
+
+/* Tables, filters and drawers */
+.data-table tbody tr {
+  transition:
+    background-color 160ms ease,
+    box-shadow 260ms var(--motion-ease-out),
+    transform 260ms var(--motion-ease-out);
+}
+
+.data-table tbody tr:not(:has(.data-table-empty)):hover {
+  position: relative;
+  z-index: 1;
+  transform: translateX(3px);
+  box-shadow: -3px 0 0 var(--color-accent);
+}
+
+.employee-avatar,
+.employee-profile-avatar {
+  transition: transform 420ms var(--motion-ease-spring), box-shadow 320ms ease;
+}
+
+.employee-identity:hover .employee-avatar {
+  transform: rotate(-3deg) scale(1.07);
+}
+
+.employee-drawer .employee-profile-avatar {
+  animation: motion-avatar-arrive 560ms 120ms var(--motion-ease-spring) both;
+}
+
+.employee-detail-list > div,
+.employee-drawer-actions > * {
+  animation: motion-detail-row 430ms var(--motion-ease-out) both;
+}
+
+.employee-detail-list > div:nth-child(2) { animation-delay: 45ms; }
+.employee-detail-list > div:nth-child(3) { animation-delay: 90ms; }
+.employee-detail-list > div:nth-child(4) { animation-delay: 135ms; }
+.employee-drawer-actions > *:nth-child(1) { animation-delay: 150ms; }
+.employee-drawer-actions > *:nth-child(2) { animation-delay: 195ms; }
+
+.segmented-button[data-active="true"],
+.report-format-option[data-active="true"] {
+  animation: motion-select 330ms var(--motion-ease-spring) both;
+}
+
+.report-format-option[data-active="true"] .report-format-radio {
+  animation: motion-radio-pop 360ms var(--motion-ease-spring) both;
+}
+
+.report-format-option:hover .report-format-icon {
+  transform: translateY(-2px) rotate(-3deg);
+}
+
+/* Enrollment */
+.enrollment-progress-track span,
+.terminal-progress span {
+  transition: width 520ms var(--motion-ease-out);
+}
+
+.enrollment-step {
+  transition:
+    transform 360ms var(--motion-ease-out),
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 360ms var(--motion-ease-out);
+}
+
+.enrollment-step.is-active {
+  transform: translateX(4px);
+  box-shadow: -3px 0 0 var(--color-accent);
+}
+
+.enrollment-step.is-complete {
+  animation: motion-sample-complete 520ms var(--motion-ease-spring) both;
+}
+
+.enrollment-step.is-complete img {
+  animation: motion-avatar-arrive 520ms var(--motion-ease-spring) both;
+}
+
+.enrollment-dialog[data-complete="true"] .enrollment-instruction-icon {
+  animation: motion-success-icon 720ms var(--motion-ease-spring) both;
+}
+
+.enrollment-dialog[data-complete="true"] .enrollment-progress-track {
+  box-shadow: 0 0 0 4px var(--color-success-soft);
+  transition: box-shadow 420ms ease;
+}
+
+.enrollment-diagnostics > div {
+  animation: motion-detail-row 360ms var(--motion-ease-out) both;
+}
+
+.enrollment-diagnostics > div:nth-child(2) { animation-delay: 45ms; }
+.enrollment-diagnostics > div:nth-child(3) { animation-delay: 90ms; }
+.enrollment-diagnostics > div:nth-child(4) { animation-delay: 135ms; }
+
+/* Camera and terminal */
+.face-outline {
+  transition:
+    left 90ms linear,
+    top 90ms linear,
+    width 90ms linear,
+    height 90ms linear,
+    color 180ms ease;
+}
+
+.face-track-label {
+  animation: motion-face-label 320ms var(--motion-ease-out) both;
+}
+
+.camera-chip,
+.camera-device-controls {
+  animation: motion-camera-controls 420ms 180ms var(--motion-ease-out) both;
+}
+
+.terminal-flow-step,
+.terminal-flow-icon {
+  transition:
+    color 220ms ease,
+    background-color 260ms ease,
+    border-color 260ms ease,
+    transform 360ms var(--motion-ease-out),
+    box-shadow 360ms var(--motion-ease-out);
+}
+
+.terminal-flow-step[data-state="complete"] .terminal-flow-icon {
+  animation: motion-stage-complete 480ms var(--motion-ease-spring) both;
+}
+
+.terminal-result[data-mode="confirming"] {
+  animation: motion-result-confirming 520ms var(--motion-ease-out) both;
+}
+
+.terminal-result[data-mode="accepted"] {
+  animation: motion-result-accepted 720ms var(--motion-ease-spring) both;
+}
+
+.terminal-result[data-mode="attention"],
+.terminal-result[data-mode="review"] {
+  animation: motion-result-attention 420ms var(--motion-ease-out) both;
+}
+
+.terminal-result-icon {
+  transition: transform 480ms var(--motion-ease-spring), color 220ms ease;
+}
+
+.terminal-result[data-mode="accepted"] .terminal-result-icon {
+  animation: motion-success-icon 720ms 80ms var(--motion-ease-spring) both;
+}
+
+.terminal-evidence-meter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.terminal-evidence-meter > span {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.terminal-evidence-meter i {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-line);
+  transition:
+    transform 420ms var(--motion-ease-spring),
+    background-color 260ms ease,
+    box-shadow 360ms ease;
+}
+
+.terminal-evidence-meter i[data-complete="true"] {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  transform: scaleY(1.3);
+  animation: motion-evidence-lock 520ms var(--motion-ease-spring) both;
+}
+
+.terminal-evidence-meter strong {
+  min-width: 31px;
+  color: var(--color-accent-strong);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.terminal-camera-frame {
+  isolation: isolate;
+}
+
+.terminal-camera-frame[data-mode="accepted"] {
+  animation: motion-camera-accepted 780ms var(--motion-ease-out) both;
+}
+
+.terminal-success-burst {
+  position: absolute;
+  z-index: 12;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.terminal-success-burst > span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  height: 120px;
+  border: 3px solid #8ed19c;
+  border-radius: 50%;
+  animation: motion-biometric-ring 1.05s var(--motion-ease-out) both;
+}
+
+.terminal-success-burst i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b5dfbd;
+  box-shadow: 0 0 14px rgb(181 223 189 / 0.75);
+  animation: motion-biometric-particle 920ms var(--motion-ease-out) both;
+}
+
+.terminal-success-burst i:nth-of-type(1) { --burst-x: 180px; --burst-y: -110px; }
+.terminal-success-burst i:nth-of-type(2) { --burst-x: -190px; --burst-y: -95px; }
+.terminal-success-burst i:nth-of-type(3) { --burst-x: 205px; --burst-y: 35px; }
+.terminal-success-burst i:nth-of-type(4) { --burst-x: -205px; --burst-y: 42px; }
+.terminal-success-burst i:nth-of-type(5) { --burst-x: 130px; --burst-y: 135px; }
+.terminal-success-burst i:nth-of-type(6) { --burst-x: -145px; --burst-y: 145px; }
+.terminal-success-burst i:nth-of-type(7) { --burst-x: 20px; --burst-y: -165px; }
+.terminal-success-burst i:nth-of-type(8) { --burst-x: -35px; --burst-y: 175px; }
+.terminal-success-burst i:nth-of-type(9) { --burst-x: 240px; --burst-y: -25px; }
+.terminal-success-burst i:nth-of-type(10) { --burst-x: -245px; --burst-y: 5px; }
+
+.terminal-event:first-child {
+  animation: motion-event-arrive 520ms var(--motion-ease-out) both;
+}
+
+/* Worksites and 3D */
+.worksite-world-canvas {
+  transition: filter 720ms ease, opacity 520ms ease, transform 900ms var(--motion-ease-out);
+}
+
+.worksite-world-frame:not([data-ready="true"]) .worksite-world-canvas {
+  filter: blur(8px) saturate(0.7);
+  opacity: 0;
+  transform: scale(1.035);
+}
+
+.worksite-world-frame[data-ready="true"] .worksite-world-hud,
+.worksite-world-frame[data-ready="true"] .worksite-world-tools,
+.worksite-world-frame[data-ready="true"] .worksite-world-guide,
+.worksite-world-frame[data-ready="true"] .worksite-world-caption {
+  animation: motion-world-hud 620ms var(--motion-ease-out) both;
+}
+
+.worksite-world-frame[data-ready="true"] .worksite-world-tools { animation-delay: 120ms; }
+.worksite-world-frame[data-ready="true"] .worksite-world-guide { animation-delay: 190ms; }
+.worksite-world-frame[data-ready="true"] .worksite-world-caption { animation-delay: 260ms; }
+
+.worksite-world-tools button:hover svg {
+  transform: rotate(-12deg) scale(1.08);
+}
+
+.worksite-selector-item,
+.camera-card {
+  transition:
+    transform 380ms var(--motion-ease-out),
+    border-color 220ms ease,
+    box-shadow 380ms var(--motion-ease-out),
+    background-color 220ms ease;
+}
+
+.worksite-selector-item:hover,
+.camera-card:hover {
+  transform: translateY(-3px);
+}
+
+.worksite-selector-item[data-active="true"] {
+  animation: motion-select 360ms var(--motion-ease-spring) both;
+}
+
+.fallback-building {
+  transform-origin: center bottom;
+  animation: motion-building-rise 1.1s var(--motion-ease-out) both;
+}
+
+.fallback-building-core {
+  transform-origin: center bottom;
+  animation: motion-building-rise 900ms 160ms var(--motion-ease-out) both;
+}
+
+.fallback-crane {
+  transform-origin: center bottom;
+  animation: motion-crane-settle 1.1s 250ms var(--motion-ease-out) both;
+}
+
+@keyframes motion-route-old {
+  to { opacity: 0; transform: translateY(-6px) scale(0.995); filter: blur(2px); }
+}
+
+@keyframes motion-route-new {
+  from { opacity: 0; transform: translateY(12px) scale(0.992); filter: blur(3px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes motion-feedback-in {
+  from { opacity: 0; transform: translateX(-16px) scaleX(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-feedback-line {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes motion-grid-arrive {
+  from { opacity: 0; transform: scale(1.04); }
+  to { opacity: 0.24; transform: none; }
+}
+
+@keyframes motion-draw-blueprint {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes motion-blueprint-volume {
+  from { fill-opacity: 0; opacity: 0; }
+  to { fill-opacity: 1; opacity: 1; }
+}
+
+@keyframes motion-crane-settle {
+  from { opacity: 0; transform: translateY(45px) rotate(-2deg); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-blueprint-scan {
+  0%, 100% { opacity: 0; transform: translateX(-90px); }
+  18%, 76% { opacity: 0.5; }
+  86% { opacity: 0; transform: translateX(560px); }
+}
+
+@keyframes motion-error-in {
+  0% { opacity: 0; transform: translateX(-10px); }
+  45% { transform: translateX(4px); }
+  72% { transform: translateX(-2px); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes motion-presence-fill {
+  from { --presence-motion: 0deg; transform: rotate(-8deg) scale(0.86); opacity: 0; }
+  to { --presence-motion: var(--presence); transform: none; opacity: 1; }
+}
+
+@keyframes motion-grow-bar {
+  from { transform: scaleY(0.04); opacity: 0.35; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes motion-avatar-arrive {
+  from { opacity: 0; transform: rotate(-8deg) scale(0.65); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-detail-row {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-select {
+  0% { transform: scale(0.97); }
+  65% { transform: scale(1.015); }
+  100% { transform: none; }
+}
+
+@keyframes motion-radio-pop {
+  0% { transform: scale(0.45); }
+  70% { transform: scale(1.18); }
+  100% { transform: none; }
+}
+
+@keyframes motion-sample-complete {
+  0% { transform: translateX(4px) scale(0.98); }
+  65% { transform: translateX(0) scale(1.018); }
+  100% { transform: none; }
+}
+
+@keyframes motion-face-label {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+
+@keyframes motion-camera-controls {
+  from { opacity: 0; transform: translateY(-9px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-stage-complete {
+  0% { transform: scale(0.82); }
+  65% { transform: scale(1.12); box-shadow: 0 0 0 7px var(--color-success-soft); }
+  100% { transform: none; }
+}
+
+@keyframes motion-result-confirming {
+  from { opacity: 0.72; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-result-accepted {
+  0% { transform: scale(0.96); opacity: 0.6; }
+  60% { transform: scale(1.025); }
+  100% { transform: none; opacity: 1; }
+}
+
+@keyframes motion-result-attention {
+  0% { transform: translateX(-6px); opacity: 0.65; }
+  55% { transform: translateX(3px); }
+  100% { transform: none; opacity: 1; }
+}
+
+@keyframes motion-success-icon {
+  0% { transform: rotate(-24deg) scale(0.45); }
+  65% { transform: rotate(4deg) scale(1.18); }
+  100% { transform: none; }
+}
+
+@keyframes motion-evidence-lock {
+  0% { transform: scaleX(0.2) scaleY(1.3); }
+  68% { transform: scaleX(1.06) scaleY(1.45); }
+  100% { transform: scaleY(1.3); }
+}
+
+@keyframes motion-camera-accepted {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(142 209 156 / 0); }
+  45% { box-shadow: inset 0 0 0 4px rgb(142 209 156 / 0.72), 0 0 48px rgb(142 209 156 / 0.26); }
+}
+
+@keyframes motion-biometric-ring {
+  0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.28); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(6.5); }
+}
+
+@keyframes motion-biometric-particle {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  20% { opacity: 1; }
+  82% { opacity: 0.9; transform: translate(calc(-50% + var(--burst-x)), calc(-50% + var(--burst-y))) scale(1); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--burst-x)), calc(-50% + var(--burst-y))) scale(0.2); }
+}
+
+@keyframes motion-event-arrive {
+  from { opacity: 0; transform: translateX(18px); background: var(--color-success-soft); }
+  to { opacity: 1; transform: none; background: transparent; }
+}
+
+@keyframes motion-world-hud {
+  from { opacity: 0; transform: translateY(15px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-building-rise {
+  from { opacity: 0; transform: scaleY(0.05) translateY(35px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+
+  .login-context-grid,
+  .login-blueprint-line,
+  .login-blueprint-floor,
+  .login-blueprint-accent,
+  .login-blueprint-volume,
+  .login-blueprint-crane,
+  .login-blueprint-scan,
+  .presence-ring,
+  .timeline-bar,
+  .feedback-banner,
+  .confirmation-strip,
+  .report-feedback,
+  .terminal-flow-icon,
+  .terminal-result,
+  .terminal-result-icon,
+  .terminal-success-burst *,
+  .terminal-event,
+  .employee-profile-avatar,
+  .employee-detail-list > div,
+  .employee-drawer-actions > *,
+  .enrollment-step,
+  .enrollment-step img,
+  .enrollment-diagnostics > div,
+  .worksite-world-frame * {
+    animation: none !important;
+  }
+
+  .face-outline,
+  .worksite-world-canvas,
+  .metric-tile,
+  .activity-module,
+  .worksite-module,
+  .data-table tbody tr,
+  .worksite-selector-item,
+  .camera-card {
+    transition-duration: 1ms !important;
+  }
+}

@@ -323,8 +323,9 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     scene.fog = new THREE.Fog(0xe4e8e6, 34, 76);
     const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 120);
     const homePosition = new THREE.Vector3(24, 18, 27);
+    const introPosition = new THREE.Vector3(35, 27, 39);
     const homeTarget = new THREE.Vector3(0, 2.8, 0);
-    camera.position.copy(homePosition);
+    camera.position.copy(reduceMotion ? homePosition : introPosition);
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.shadowMap.enabled = true;
@@ -347,12 +348,17 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     scene.add(sun);
 
     const world = buildWorld(worksite);
-    world.root.position.y = reduceMotion ? 0 : -0.22;
+    world.root.position.y = reduceMotion ? 0 : -1.4;
+    world.root.scale.set(reduceMotion ? 1 : 0.9, reduceMotion ? 1 : 0.06, reduceMotion ? 1 : 0.9);
+    world.root.rotation.y = reduceMotion ? 0 : -0.12;
     scene.add(world.root);
     const grid = new THREE.GridHelper(46, 46, 0x7f8b87, 0xaeb6b2);
     grid.position.y = 0.035;
     const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
-    gridMaterials.forEach((material) => { material.transparent = true; material.opacity = 0.1; });
+    gridMaterials.forEach((material) => {
+      material.transparent = true;
+      material.opacity = reduceMotion ? 0.1 : 0;
+    });
     scene.add(grid);
 
     const controls = new OrbitControls(camera, canvas);
@@ -385,6 +391,38 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
+    type CameraTransition = {
+      startedAt: number;
+      duration: number;
+      fromPosition: THREE.Vector3;
+      fromTarget: THREE.Vector3;
+      toPosition: THREE.Vector3;
+      toTarget: THREE.Vector3;
+    };
+    let cameraTransition: CameraTransition | null = null;
+    let entranceComplete = reduceMotion;
+    const finishWorldEntrance = () => {
+      entranceComplete = true;
+      world.root.position.y = 0;
+      world.root.scale.setScalar(1);
+      world.root.rotation.y = 0;
+      gridMaterials.forEach((material) => { material.opacity = 0.1; });
+    };
+    const beginCameraTransition = (
+      toPosition: THREE.Vector3,
+      toTarget: THREE.Vector3,
+      duration = 780,
+    ) => {
+      finishWorldEntrance();
+      cameraTransition = {
+        startedAt: performance.now(),
+        duration,
+        fromPosition: camera.position.clone(),
+        fromTarget: controls.target.clone(),
+        toPosition: toPosition.clone(),
+        toTarget: toTarget.clone(),
+      };
+    };
     let pointerDown = { x: 0, y: 0 };
     const updatePointer = (event: PointerEvent) => {
       const bounds = canvas.getBoundingClientRect();
@@ -393,16 +431,18 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       raycaster.setFromCamera(pointer, camera);
       return raycaster.intersectObjects(world.interactables, true)[0]?.object ?? null;
     };
-    const assetName = (object: THREE.Object3D | null) => {
+    const assetInfo = (object: THREE.Object3D | null) => {
       let current = object;
       while (current) {
-        if (typeof current.userData.assetLabel === 'string') return current.userData.assetLabel as string;
+        if (typeof current.userData.assetLabel === 'string') {
+          return { label: current.userData.assetLabel as string, object: current };
+        }
         current = current.parent;
       }
       return null;
     };
     const onPointerMove = (event: PointerEvent) => {
-      canvas.style.cursor = assetName(updatePointer(event)) ? 'pointer' : 'grab';
+      canvas.style.cursor = assetInfo(updatePointer(event)) ? 'pointer' : 'grab';
     };
     const onPointerDown = (event: PointerEvent) => {
       pointerDown = { x: event.clientX, y: event.clientY };
@@ -410,7 +450,22 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     };
     const onPointerUp = (event: PointerEvent) => {
       const movement = Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y);
-      if (movement < 5) setSelectedAsset(assetName(updatePointer(event)));
+      if (movement >= 5) return;
+      const selected = assetInfo(updatePointer(event));
+      setSelectedAsset(selected?.label ?? null);
+      if (!selected || reduceMotion) return;
+
+      const bounds = new THREE.Box3().setFromObject(selected.object);
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3()).length();
+      const direction = camera.position.clone().sub(controls.target).normalize();
+      const distance = THREE.MathUtils.clamp(size * 1.9, 8, 18);
+      beginCameraTransition(
+        center.clone().add(direction.multiplyScalar(distance)),
+        center,
+        820,
+      );
+      startAnimation();
     };
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerdown', onPointerDown);
@@ -428,18 +483,34 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
         return;
       }
       const elapsed = time - startedAt;
-      if (!reduceMotion) {
-        const entrance = Math.min(1, elapsed / 520);
-        world.root.position.y = -0.22 * (1 - (1 - Math.pow(1 - entrance, 3)));
+      if (!entranceComplete && !interacting) {
+        const entrance = Math.min(1, elapsed / 1_450);
+        const eased = 1 - Math.pow(1 - entrance, 4);
+        world.root.position.y = THREE.MathUtils.lerp(-1.4, 0, eased);
+        world.root.scale.set(
+          THREE.MathUtils.lerp(0.9, 1, eased),
+          THREE.MathUtils.lerp(0.06, 1, eased),
+          THREE.MathUtils.lerp(0.9, 1, eased),
+        );
+        world.root.rotation.y = THREE.MathUtils.lerp(-0.12, 0, eased);
+        camera.position.lerpVectors(introPosition, homePosition, eased);
+        gridMaterials.forEach((material) => { material.opacity = 0.1 * eased; });
+        if (entrance >= 1) entranceComplete = true;
       }
-      if (ambientMotion && !interacting) {
+      if (cameraTransition) {
+        const progress = Math.min(1, (time - cameraTransition.startedAt) / cameraTransition.duration);
+        const eased = 1 - Math.pow(1 - progress, 4);
+        camera.position.lerpVectors(cameraTransition.fromPosition, cameraTransition.toPosition, eased);
+        controls.target.lerpVectors(cameraTransition.fromTarget, cameraTransition.toTarget, eased);
+        if (progress >= 1) cameraTransition = null;
+      }
+      if (ambientMotion && entranceComplete && !interacting && !cameraTransition) {
         world.root.rotation.y = Math.sin(elapsed * 0.00012) * 0.012;
       }
       controls.update();
       renderer.render(scene, camera);
       if (settleFrames > 0) settleFrames -= 1;
-      const entranceRunning = !reduceMotion && elapsed < 540;
-      if (ambientMotion || entranceRunning || interacting || settleFrames > 0) {
+      if (ambientMotion || !entranceComplete || cameraTransition || interacting || settleFrames > 0) {
         animationFrame = window.requestAnimationFrame(animate);
       }
       else animationFrame = 0;
@@ -448,6 +519,8 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       if (!animationFrame && running && visible && !document.hidden) animationFrame = window.requestAnimationFrame(animate);
     };
     const onControlStart = () => {
+      if (!entranceComplete) finishWorldEntrance();
+      cameraTransition = null;
       interacting = true;
       startAnimation();
     };
@@ -460,11 +533,15 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     controls.addEventListener('end', onControlEnd);
 
     resetRef.current = () => {
-      camera.position.copy(homePosition);
-      controls.target.copy(homeTarget);
-      controls.update();
-      settleFrames = 2;
-      startAnimation();
+      if (reduceMotion) {
+        camera.position.copy(homePosition);
+        controls.target.copy(homeTarget);
+        controls.update();
+      } else {
+        beginCameraTransition(homePosition, homeTarget, 860);
+        settleFrames = 52;
+        startAnimation();
+      }
       setSelectedAsset(null);
     };
 

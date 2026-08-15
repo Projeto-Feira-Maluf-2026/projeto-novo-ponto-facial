@@ -30,7 +30,7 @@ export function LoginPage() {
     setError('');
     try {
       await signIn(email.trim(), password);
-      navigate('/');
+      navigate('/', { viewTransition: true });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message.toLowerCase() : '';
       setError(

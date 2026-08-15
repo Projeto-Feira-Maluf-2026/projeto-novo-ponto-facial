@@ -7,6 +7,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import './styles.css';
 import './premium.css';
+import './motion.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

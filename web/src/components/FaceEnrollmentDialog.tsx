@@ -68,6 +68,8 @@ export function FaceEnrollmentDialog({
     <div ref={dialogRef} className="modal-backdrop">
       <section
         className="enrollment-dialog app-card text-ink dark:text-slate-100"
+        data-complete={complete}
+        data-sample-count={acceptedSamples}
         role="dialog"
         aria-modal="true"
         aria-labelledby="enrollment-dialog-title"

@@ -659,7 +659,7 @@ export function FacialTerminalPage() {
   ];
 
   const content = (
-    <div className="terminal-shell">
+    <div className="terminal-shell" data-mode={mode}>
       <h1 className="sr-only">Ponto automático</h1>
       <section className="terminal-flow" aria-label="Etapas do registro facial">
         {flowSteps.map((step, index) => {
@@ -681,7 +681,7 @@ export function FacialTerminalPage() {
           );
         })}
       </section>
-      <section className="terminal-camera-card">
+      <section className="terminal-camera-card" data-mode={mode}>
         <div className="terminal-toolbar">
           <div className="terminal-toolbar-identity">
             <div>
@@ -731,7 +731,7 @@ export function FacialTerminalPage() {
           </div>
         </div>
 
-        <div className="terminal-camera-frame">
+        <div className="terminal-camera-frame" data-mode={mode}>
           <CameraCapture
             ref={cameraRef}
             className={cameraClass}
@@ -739,6 +739,12 @@ export function FacialTerminalPage() {
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
           />
+          {mode === 'accepted' && (
+            <div className="terminal-success-burst" aria-hidden="true">
+              <span />
+              {Array.from({ length: 10 }).map((_, index) => <i key={index} />)}
+            </div>
+          )}
         </div>
 
         <div className="terminal-status-strip">
@@ -794,15 +800,27 @@ export function FacialTerminalPage() {
         </section>
 
         <section className="terminal-panel">
-          <div className="terminal-result" data-tone={resultPresentation.tone} aria-live="polite">
+          <div className="terminal-result" data-tone={resultPresentation.tone} data-mode={mode} aria-live="polite">
             <div className="terminal-result-icon">
               <ResultIcon size={25} strokeWidth={1.8} />
             </div>
             <h3>{resultPresentation.title}</h3>
             <p>{resultPresentation.detail}</p>
             {(mode === 'confirming' || mode === 'submitting') && (
-              <div className="terminal-progress" aria-label="Progresso da confirmação">
-                <span style={{ width: `${Math.max(12, (stableReadings / REQUIRED_STABLE_READINGS) * 100)}%` }} />
+              <div
+                className="terminal-evidence-meter"
+                role="progressbar"
+                aria-label="Progresso da confirmação"
+                aria-valuemin={0}
+                aria-valuemax={REQUIRED_STABLE_READINGS}
+                aria-valuenow={stableReadings}
+              >
+                <span>
+                  {Array.from({ length: REQUIRED_STABLE_READINGS }).map((_, index) => (
+                    <i key={index} data-complete={index < stableReadings} />
+                  ))}
+                </span>
+                <strong>{stableReadings}/{REQUIRED_STABLE_READINGS}</strong>
               </div>
             )}
           </div>

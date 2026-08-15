@@ -72,7 +72,7 @@ const pageCopy: Record<string, { title: string; description: string; eyebrow: st
 interface LayoutProps {
   dark: boolean;
   onLogout: () => Promise<void>;
-  onToggleTheme: () => void;
+  onToggleTheme: (origin?: { x: number; y: number }) => void;
   children: React.ReactNode;
 }
 
@@ -244,7 +244,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         </nav>
 
         <div className="sidebar-footer">
-          <button onClick={onToggleTheme} className="sidebar-theme" type="button">
+          <button onClick={(event) => onToggleTheme({ x: event.clientX, y: event.clientY })} className="sidebar-theme" type="button">
             {dark ? <Sun size={17} /> : <Moon size={17} />}
             {dark ? 'Usar tema claro' : 'Usar tema escuro'}
           </button>
@@ -312,7 +312,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
               <CalendarDays size={15} />
               {currentDate}
             </span>
-            <button onClick={onToggleTheme} className="topbar-icon" type="button" aria-label={dark ? 'Usar tema claro' : 'Usar tema escuro'}>
+            <button onClick={(event) => onToggleTheme({ x: event.clientX, y: event.clientY })} className="topbar-icon" type="button" aria-label={dark ? 'Usar tema claro' : 'Usar tema escuro'}>
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <div className="topbar-profile" title={user?.email ?? undefined}>
