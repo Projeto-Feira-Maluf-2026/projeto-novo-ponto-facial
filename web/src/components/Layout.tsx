@@ -9,7 +9,6 @@ import {
   Menu,
   MoreHorizontal,
   Moon,
-  ShieldCheck,
   Sun,
   Users,
   X,
@@ -245,13 +244,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         </nav>
 
         <div className="sidebar-footer">
-          <div className="sidebar-security">
-            <span className="sidebar-security-icon"><ShieldCheck size={18} /></span>
-            <span>
-              <strong>Ambiente protegido</strong>
-              <small>Biometria com acesso restrito</small>
-            </span>
-          </div>
           <button onClick={onToggleTheme} className="sidebar-theme" type="button">
             {dark ? <Sun size={17} /> : <Moon size={17} />}
             {dark ? 'Usar tema claro' : 'Usar tema escuro'}
@@ -320,10 +312,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
               <CalendarDays size={15} />
               {currentDate}
             </span>
-            <span className={`connection-badge ${online ? 'is-online' : 'is-offline'}`}>
-              <span className="connection-dot" />
-              {online ? 'Conectado' : 'Sem conexão'}
-            </span>
             <button onClick={onToggleTheme} className="topbar-icon" type="button" aria-label={dark ? 'Usar tema claro' : 'Usar tema escuro'}>
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
@@ -345,10 +333,12 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
                 <h1>{current.title}</h1>
                 <p>{current.description}</p>
               </div>
-              <span className={`page-status ${online ? 'is-online' : 'is-offline'}`}>
-                <span className="status-dot" />
-                {online ? 'Rede disponível' : 'Trabalhando offline'}
-              </span>
+              {!online && (
+                <span className="page-status is-offline">
+                  <span className="status-dot" />
+                  Sem conexão
+                </span>
+              )}
             </section>
           )}
           {children}

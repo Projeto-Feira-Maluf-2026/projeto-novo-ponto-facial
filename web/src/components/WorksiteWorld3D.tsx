@@ -531,7 +531,6 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       />
 
       <div className="worksite-world-hud worksite-world-hud-top">
-        <span className="world-live-pill"><i /> Modelo ativo</span>
         <span>{worksite.code}</span>
       </div>
 

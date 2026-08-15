@@ -37,7 +37,7 @@ export default function App() {
           <div className="auth-loading-mark">CE</div>
           <div className="auth-loading-spinner" aria-hidden="true" />
           <h1>Preparando seu acesso</h1>
-          <p>Validando a sessão com segurança.</p>
+          <p>Validando a sessão.</p>
         </section>
       </main>
     );

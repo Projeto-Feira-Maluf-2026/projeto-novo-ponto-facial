@@ -625,7 +625,7 @@ export function EmployeesPage() {
           <button type="button" className="employee-drawer-scrim" aria-label="Fechar detalhes" onClick={() => setDetailEmployee(null)} />
           <aside className="employee-drawer" role="dialog" aria-modal="true" aria-labelledby="employee-detail-title">
             <header className="employee-drawer-header">
-              <span>Perfil operacional</span>
+              <span>Detalhes do funcionário</span>
               <button ref={detailCloseButtonRef} type="button" className="icon-button" onClick={() => setDetailEmployee(null)} aria-label="Fechar detalhes">
                 <X size={18} />
               </button>

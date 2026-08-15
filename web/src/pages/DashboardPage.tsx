@@ -4,7 +4,6 @@ import {
   Building2,
   Clock3,
   HardDrive,
-  Radio,
   RefreshCw,
   ShieldCheck,
   UserCheck,
@@ -126,14 +125,12 @@ function DashboardContent({
     <div className="app-view-transition operations-board premium-dashboard">
       <section className="dashboard-hero" aria-labelledby="operations-heading">
         <div className="dashboard-hero-copy">
-          <span className="operations-label"><Radio size={14} /> Operação sincronizada</span>
           <h2 id="operations-heading">Hoje, em campo.</h2>
           <p>Uma leitura objetiva de pessoas, obras e pontos registrados nos últimos vinte segundos.</p>
           <div className="dashboard-hero-actions">
             <Link to="/terminal-facial" viewTransition className="btn btn-on-dark">
               Abrir ponto automático <ArrowUpRight size={17} />
             </Link>
-            <span><i /> Atualização automática</span>
           </div>
         </div>
 
@@ -178,7 +175,6 @@ function DashboardContent({
         <article className="activity-module" aria-labelledby="activity-title">
           <header className="module-heading">
             <div><span>Ritmo do dia</span><h2 id="activity-title">Concentração de atividade</h2><p>Volume real de marcações por faixa de horário.</p></div>
-            <span className="live-note"><i /> Ao vivo</span>
           </header>
           {metrics.timeline.length ? (
             <>

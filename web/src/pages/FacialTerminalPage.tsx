@@ -31,6 +31,7 @@ import type {
   PunchType,
   Worksite,
 } from '../types/domain';
+import { appendRecognitionEvidence, type TemporalEvidence } from '../utils/facialRecognition';
 
 type TerminalMode =
   | 'starting'
@@ -44,14 +45,6 @@ type TerminalMode =
   | 'paused';
 
 type TemporalRecognitionState = 'UNKNOWN' | 'POSSIBLE' | 'CONFIRMING' | 'CONFIRMED';
-
-type TemporalEvidence = {
-  employeeId: string;
-  image: string;
-  score: number;
-  quality: number;
-  capturedAt: number;
-};
 
 type LiveRecognition = {
   employeeId?: string | null;
@@ -71,10 +64,18 @@ type RecentRecord = {
 
 const REQUIRED_STABLE_READINGS = 3;
 const RECOGNITION_INTERVAL_MS = 850;
-const TEMPORAL_WINDOW_MS = 4_000;
-const TRANSIENT_MISS_GRACE_MS = 1_250;
+const TEMPORAL_WINDOW_MS = 10_000;
+const TRANSIENT_MISS_GRACE_MS = 4_500;
 const RESULT_HOLD_MS = 6_000;
 const EMPLOYEE_COOLDOWN_MS = 45_000;
+const TRANSIENT_MISS_REASONS = new Set([
+  'NO_FACE',
+  'FACE_TOO_SMALL',
+  'IMAGE_TOO_BLURRY',
+  'LOW_DETECTION_CONFIDENCE',
+  'LOW_SIMILARITY',
+  'AMBIGUOUS_FACE',
+]);
 
 const punchLabels: Record<PunchType, string> = {
   ENTRY: 'Entrada',
@@ -421,12 +422,6 @@ export function FacialTerminalPage() {
 
         setAnalysis(result);
         setDecision(null);
-        setRecognition({
-          employeeId: result.employee_id,
-          employeeName: result.employee_name,
-          tone: result.matched ? 'tracking' : result.accepted ? 'warning' : 'tracking',
-          faceBox: result.face_box,
-        });
 
         if (result.matched && result.face_box) {
           const evidenceCrop = cameraRef.current?.capture({
@@ -449,29 +444,46 @@ export function FacialTerminalPage() {
             (item) => now - item.capturedAt <= TEMPORAL_WINDOW_MS,
           );
           const lastEvidence = recentEvidence[recentEvidence.length - 1];
-          const transientMiss = lastEvidence
+          const transientMiss = Boolean(lastEvidence
             && now - lastEvidence.capturedAt <= TRANSIENT_MISS_GRACE_MS
-            && result.reasons.some((reason) => [
-              'NO_FACE',
-              'FACE_TOO_SMALL',
-              'IMAGE_TOO_BLURRY',
-              'LOW_DETECTION_CONFIDENCE',
-            ].includes(reason.toUpperCase()));
+            && result.reasons.some((reason) => TRANSIENT_MISS_REASONS.has(reason.toUpperCase())));
           if (transientMiss) {
             temporalEvidenceRef.current = recentEvidence;
-            setStableReadings(recentEvidence.length);
+            setStableReadings(Math.min(recentEvidence.length, REQUIRED_STABLE_READINGS));
             setTemporalState(recentEvidence.length > 1 ? 'CONFIRMING' : 'POSSIBLE');
+            setRecognition((current) => ({
+              ...current,
+              tone: 'tracking',
+              faceBox: result.face_box || current.faceBox,
+            }));
+            setMode('confirming');
+            setGuidance(
+              `Mantendo confirmação (${recentEvidence.length}/${REQUIRED_STABLE_READINGS}). Fique de frente para a câmera.`,
+            );
           } else {
             temporalEvidenceRef.current = [];
             setStableReadings(0);
             setTemporalState('UNKNOWN');
+            setRecognition({
+              employeeId: null,
+              employeeName: null,
+              tone: result.accepted ? 'warning' : 'tracking',
+              faceBox: result.face_box,
+            });
+            setMode(result.reasons.some((reason) => reason.toUpperCase() === 'NO_COMPATIBLE_TEMPLATES')
+              ? 'attention'
+              : 'scanning');
+            setGuidance(guidanceForResult(result));
           }
-          setMode(result.reasons.some((reason) => reason.toUpperCase() === 'NO_COMPATIBLE_TEMPLATES')
-            ? 'attention'
-            : 'scanning');
-          setGuidance(guidanceForResult(result));
           return;
         }
+
+        setRecognition({
+          employeeId: result.employee_id,
+          employeeName: result.employee_name,
+          tone: 'tracking',
+          faceBox: result.face_box,
+        });
 
         const cooldownUntil = cooldownsRef.current.get(result.employee_id) || 0;
         if (cooldownUntil > Date.now()) {
@@ -484,24 +496,16 @@ export function FacialTerminalPage() {
         }
 
         const now = Date.now();
-        const currentEvidence = temporalEvidenceRef.current.filter(
-          (item) => (
-            item.employeeId === result.employee_id
-            && now - item.capturedAt <= TEMPORAL_WINDOW_MS
-          ),
+        const stableEvidence = appendRecognitionEvidence(
+          temporalEvidenceRef.current,
+          {
+            employeeId: result.employee_id,
+            image: recognizedImage,
+            capturedAt: now,
+          },
+          TEMPORAL_WINDOW_MS,
+          REQUIRED_STABLE_READINGS,
         );
-        currentEvidence.push({
-          employeeId: result.employee_id,
-          image: recognizedImage,
-          score: result.similarity_score || 0,
-          quality: result.quality_score,
-          capturedAt: now,
-        });
-        const scoreValues = currentEvidence.map((item) => item.score);
-        const scoreSpread = Math.max(...scoreValues) - Math.min(...scoreValues);
-        const stableEvidence = scoreSpread <= 0.12
-          ? currentEvidence.slice(-REQUIRED_STABLE_READINGS)
-          : [currentEvidence[currentEvidence.length - 1]];
         temporalEvidenceRef.current = stableEvidence;
         const nextCount = stableEvidence.length;
         setStableReadings(Math.min(nextCount, REQUIRED_STABLE_READINGS));

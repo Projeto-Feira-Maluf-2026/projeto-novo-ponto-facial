@@ -210,7 +210,6 @@ export function WorksitesPage() {
             <h2 id="worksite-command-title">Obra em contexto</h2>
             <p>Explore a implantação 3D e confira os sinais operacionais cadastrados para cada local.</p>
           </div>
-          <span className="worksite-ops-sync"><i /> Dados reais da operação</span>
         </header>
 
         {selectedWorksite ? (

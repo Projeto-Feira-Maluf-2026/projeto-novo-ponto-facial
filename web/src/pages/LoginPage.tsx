@@ -1,14 +1,10 @@
 import {
   ArrowRight,
-  Building2,
-  Camera,
-  CheckCircle2,
   Eye,
   EyeOff,
   LoaderCircle,
   LockKeyhole,
   Mail,
-  ShieldCheck,
 } from 'lucide-react';
 import { FormEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -93,24 +89,9 @@ export function LoginPage() {
           </div>
 
           <div className="login-context-content">
-            <span className="login-context-label"><Building2 size={14} /> Central operacional</span>
             <h2>A operação começa com quem faz acontecer.</h2>
-            <p>Pessoas, obras e pontos faciais em uma visão segura, atualizada e pronta para a rotina de campo.</p>
-
-            <div className="login-operation-card">
-              <div className="login-operation-header">
-                <div><span>Proteção e controle</span><strong>Recursos da plataforma</strong></div>
-                <span className="login-live-indicator"><ShieldCheck size={14} /> Acesso seguro</span>
-              </div>
-              <div className="login-operation-list">
-                <div><Camera size={17} /><span>Terminais faciais</span><CheckCircle2 size={17} /></div>
-                <div><Building2 size={17} /><span>Gestão por obra</span><CheckCircle2 size={17} /></div>
-                <div><ShieldCheck size={17} /><span>Acesso monitorado</span><CheckCircle2 size={17} /></div>
-              </div>
-            </div>
+            <p>Gestão de funcionários, obras e registros de ponto.</p>
           </div>
-
-          <p className="login-context-footer"><ShieldCheck size={15} /> Ambiente corporativo · acesso restrito</p>
         </aside>
 
         <section className="login-access">
@@ -180,7 +161,6 @@ export function LoginPage() {
               {loading ? <LoaderCircle className="login-spinner" size={18} /> : <ArrowRight size={18} />}
             </button>
 
-            <p className="login-privacy"><ShieldCheck size={14} /> Suas ações administrativas são registradas para segurança.</p>
           </form>
         </section>
       </div>

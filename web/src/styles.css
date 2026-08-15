@@ -76,13 +76,13 @@
   /* Camera */
   .camera-view { position: relative; overflow: hidden; border-radius: var(--radius-sm); background: #080d10; }
   .camera-view video { transform: scaleX(-1); }
-  .face-landmark-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
-  .face-outline { position: absolute; z-index: 3; pointer-events: none; color: #cbd5db; transform: scaleX(-1); transform-origin: center; }
+  .face-landmark-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .face-outline { position: absolute; z-index: 3; pointer-events: none; color: #cbd5db; }
   .face-outline[data-tone="success"] { color: #57caa2; }
   .face-outline[data-tone="warning"] { color: #e7b84b; }
   .face-outline[data-tone="danger"] { color: #ff8d83; }
   .face-outline-vector { width: 100%; height: 100%; filter: none; }
-  .face-track-label { position: absolute; bottom: calc(100% + 8px); left: 50%; display: flex; min-width: 130px; transform: translateX(-50%) scaleX(-1); justify-content: center; gap: 7px; border-left: 3px solid currentColor; background: rgb(8 13 16 / 0.86); padding: 6px 9px; color: #fff; font-size: 0.7rem; font-weight: 750; white-space: nowrap; }
+  .face-track-label { position: absolute; bottom: calc(100% + 8px); left: 50%; display: flex; min-width: 130px; transform: translateX(-50%); justify-content: center; gap: 7px; border-left: 3px solid currentColor; background: rgb(8 13 16 / 0.86); padding: 6px 9px; color: #fff; font-size: 0.7rem; font-weight: 750; white-space: nowrap; }
   .face-track-label span { color: #b7c3c8; }
   .face-track-label-inside { top: 10px; bottom: auto; }
   .camera-chip { z-index: 5; display: inline-flex; min-height: 32px; align-items: center; gap: 7px; border-left: 3px solid #57caa2; background: rgb(8 13 16 / 0.82); padding: 5px 9px; color: #f1f5f6; font-size: 0.7rem; font-weight: 750; backdrop-filter: blur(8px); }
