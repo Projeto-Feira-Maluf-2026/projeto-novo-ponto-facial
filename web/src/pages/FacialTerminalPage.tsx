@@ -224,6 +224,9 @@ export function FacialTerminalPage() {
   }, [fullscreen]);
 
   const selectedWorksite = worksites.find((worksite) => worksite.id === worksiteId);
+  const handleLocalFacePresence = useCallback((present: boolean) => {
+    localFacePresentRef.current = present;
+  }, []);
 
   const submitAutomaticPunch = useCallback(async (
     employeeId: string,
@@ -638,9 +641,7 @@ export function FacialTerminalPage() {
             faceOverlay={faceOverlay}
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
-            onFacePresenceChange={(present) => {
-              localFacePresentRef.current = present;
-            }}
+            onFacePresenceChange={handleLocalFacePresence}
           />
           {mode === 'accepted' && (
             <div className="terminal-success-burst" aria-hidden="true">
