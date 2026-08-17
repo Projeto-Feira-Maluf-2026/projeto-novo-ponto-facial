@@ -19,12 +19,9 @@ interface FaceEnrollmentDialogProps {
   closeButtonRef: RefObject<HTMLButtonElement>;
   cameraRef: RefObject<CameraCaptureHandle>;
   session: EnrollmentSessionResponse | null;
-  acceptedSamples: number;
-  targetSamples: number;
-  progress: number;
   complete: boolean;
   sampleResult: EnrollmentSampleResponse | null;
-  capturePreviews: string[];
+  capturePreview?: string;
   feedback: string;
   saving: boolean;
   cameraReady: boolean;
@@ -45,12 +42,9 @@ export function FaceEnrollmentDialog({
   closeButtonRef,
   cameraRef,
   session,
-  acceptedSamples,
-  targetSamples,
-  progress,
   complete,
   sampleResult,
-  capturePreviews,
+  capturePreview,
   feedback,
   saving,
   cameraReady,
@@ -69,7 +63,6 @@ export function FaceEnrollmentDialog({
       <section
         className="enrollment-dialog app-card text-ink dark:text-slate-100"
         data-complete={complete}
-        data-sample-count={acceptedSamples}
         role="dialog"
         aria-modal="true"
         aria-labelledby="enrollment-dialog-title"
@@ -79,7 +72,7 @@ export function FaceEnrollmentDialog({
             <p className="text-xs font-medium text-steel dark:text-slate-400">Cadastro facial</p>
             <h2 id="enrollment-dialog-title" className="mt-0.5 text-lg font-semibold">{employee.name}</h2>
             <p className="text-xs text-steel dark:text-slate-400">
-              {employee.registration} · coleta contínua em poucos segundos
+              {employee.registration} · uma foto nítida é suficiente
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -112,8 +105,7 @@ export function FaceEnrollmentDialog({
                 onReadyChange={onCameraReadyChange}
                 onFacePresenceChange={onFacePresenceChange}
                 faceOverlay={{
-                  label: complete ? 'Amostras consistentes' : feedback || 'Olhe naturalmente para a câmera',
-                  detail: `${acceptedSamples}/${targetSamples}`,
+                  label: complete ? 'Foto aprovada' : feedback || 'Olhe de frente para a câmera',
                   tone: captureRejected ? 'warning' : complete ? 'success' : 'tracking',
                 }}
               />
@@ -139,24 +131,17 @@ export function FaceEnrollmentDialog({
                         : 'Entre no enquadramento'}
                 </strong>
               </div>
-              <span>{session ? 'Amostras ruins são ignoradas sem apagar o progresso.' : 'Nenhuma imagem foi capturada ou enviada.'}</span>
+              <span>{session ? 'A foto só é usada quando nitidez, luz e posição estiverem adequadas.' : 'Nenhuma imagem foi capturada ou enviada.'}</span>
             </div>
           </div>
 
           <aside className="enrollment-side-panel">
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3 text-xs font-medium text-steel dark:text-slate-400">
-                <span>Progresso do cadastro</span><span>{acceptedSamples} de {targetSamples}</span>
-              </div>
-              <div className="enrollment-progress-track"><span style={{ width: `${Math.max(progress, acceptedSamples ? 20 : 4)}%` }} /></div>
-            </div>
-
             <div className={`enrollment-instruction ${captureRejected ? 'is-warning' : complete ? 'is-success' : ''}`} aria-live="polite">
               <div className="enrollment-instruction-icon">
                 {saving ? <LoaderCircle size={20} className="animate-spin" /> : captureRejected ? <AlertCircle size={20} /> : complete ? <Check size={20} /> : <Camera size={20} />}
               </div>
               <div>
-                <span>{complete ? 'Finalizando' : acceptedSamples ? `${acceptedSamples} amostras preservadas` : 'Preparando'}</span>
+                <span>{complete ? 'Finalizando cadastro' : saving ? 'Analisando foto' : 'Pronto para fotografar'}</span>
                 <strong>{feedback}</strong>
               </div>
             </div>
@@ -170,18 +155,15 @@ export function FaceEnrollmentDialog({
               </dl>
             )}
 
-            <div className="enrollment-steps" aria-label="Amostras faciais preservadas">
-              {Array.from({ length: targetSamples }).map((_, index) => {
-                const preview = capturePreviews[index];
-                const active = index === acceptedSamples && !complete;
-                return (
-                  <div key={index} className={`enrollment-step ${preview ? 'is-complete' : ''} ${active ? 'is-active' : ''}`}>
-                    {preview ? <img src={preview} alt={`Amostra facial ${index + 1} preservada`} /> : <span>{index + 1}</span>}
-                    <div><strong>Amostra {index + 1}</strong><small>{preview ? 'Preservada' : active ? 'Coletando' : 'A seguir'}</small></div>
-                    {preview && <CheckCircle2 size={17} />}
-                  </div>
-                );
-              })}
+            <div className="enrollment-steps" aria-label="Foto do cadastro facial">
+              <div className={`enrollment-step ${capturePreview ? 'is-complete' : 'is-active'}`}>
+                {capturePreview ? <img src={capturePreview} alt="Foto facial aprovada" /> : <Camera size={20} />}
+                <div>
+                  <strong>{capturePreview ? 'Foto selecionada' : 'Aguardando foto'}</strong>
+                  <small>{capturePreview ? 'Qualidade aprovada' : 'Olhe de frente para a câmera'}</small>
+                </div>
+                {capturePreview && <CheckCircle2 size={17} />}
+              </div>
             </div>
 
             <div className="mt-auto grid gap-2">
@@ -195,7 +177,7 @@ export function FaceEnrollmentDialog({
                   <CheckCircle2 size={18} /> Tentar finalizar novamente
                 </button>
               )}
-              <p className="text-xs leading-5 text-steel dark:text-slate-400">O sistema seleciona automaticamente nitidez e variação. Nenhuma sequência rígida de poses é exigida.</p>
+              <p className="text-xs leading-5 text-steel dark:text-slate-400">Mantenha o rosto de frente, sem óculos escuros e com luz uniforme. O sistema fotografa assim que a imagem estiver adequada.</p>
             </div>
           </aside>
         </div>

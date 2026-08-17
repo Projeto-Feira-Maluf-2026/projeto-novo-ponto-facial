@@ -61,7 +61,7 @@ class EnrollmentSessionResponse(BaseModel):
     embedding_dimension: int
     collection_mode: str = "AUTOMATIC"
     accepted_samples: int = 0
-    target_samples: int = 5
+    target_samples: int = 1
     ready: bool = False
 
 

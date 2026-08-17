@@ -113,7 +113,6 @@ export function EmployeesPage() {
   const [pendingDeactivation, setPendingDeactivation] = useState<Employee | null>(null);
   const [enrolling, setEnrolling] = useState<Employee | null>(null);
   const [enrollmentSession, setEnrollmentSession] = useState<EnrollmentSessionResponse | null>(null);
-  const [acceptedSamples, setAcceptedSamples] = useState(0);
   const [enrollmentReady, setEnrollmentReady] = useState(false);
   const [sampleResult, setSampleResult] = useState<EnrollmentSampleResponse | null>(null);
   const [capturePreviews, setCapturePreviews] = useState<string[]>([]);
@@ -249,7 +248,6 @@ export function EmployeesPage() {
     autoCaptureNotBeforeRef.current = Date.now() + 1_000;
     setEnrolling(employee);
     setEnrollmentSession(null);
-    setAcceptedSamples(0);
     setEnrollmentReady(false);
     setSampleResult(null);
     setCapturePreviews([]);
@@ -294,7 +292,6 @@ export function EmployeesPage() {
       enrollmentClosingRef.current = false;
       setEnrolling(null);
       setEnrollmentSession(null);
-      setAcceptedSamples(0);
       setEnrollmentReady(false);
       setSampleResult(null);
       setCapturePreviews([]);
@@ -344,7 +341,7 @@ export function EmployeesPage() {
     captureInFlightRef.current = true;
     setCaptureRejected(false);
     setEnrollSaving(true);
-    setEnrollmentFeedback('Analisando nitidez, luz e variação facial...');
+    setEnrollmentFeedback('Analisando nitidez, luz e posição do rosto...');
     try {
       const image = cameraRef.current?.capture({ faceCrop: true });
       if (!image) throw new Error('camera_not_ready');
@@ -354,10 +351,9 @@ export function EmployeesPage() {
         { image_base64: image, captured_at: new Date().toISOString() },
       );
       setSampleResult(result);
-      setAcceptedSamples(result.accepted_samples);
       setEnrollmentReady(result.ready);
       if (result.accepted) {
-        setCapturePreviews((current) => [...current, image].slice(-7));
+        setCapturePreviews([image]);
         autoCaptureNotBeforeRef.current = Date.now() + 620;
         setEnrollmentFeedback(result.instruction);
       } else {
@@ -382,25 +378,25 @@ export function EmployeesPage() {
       || !enrollmentReady
       || finalizeInFlightRef.current
     ) {
-      setEnrollmentFeedback('Aguarde a coleta de amostras consistentes.');
+      setEnrollmentFeedback('Aguarde uma foto frontal com qualidade suficiente.');
       return;
     }
     finalizeInFlightRef.current = true;
     setEnrollSaving(true);
     setCaptureRejected(false);
-    setEnrollmentFeedback('Validando a consistência das imagens...');
+    setEnrollmentFeedback('Protegendo o modelo facial...');
     setMessage('');
     try {
       const result = await apiClient.finalizeFaceEnrollment(
         enrolling.id,
         enrollmentSession.session_id,
       );
-      setMessage(`Face cadastrada: ${result.templates_created} templates, qualidade ${Math.round(result.quality_average * 100)}%.`);
+      setMessage(`Face cadastrada com sucesso. Qualidade da foto: ${Math.round(result.quality_average * 100)}%.`);
       closeEnrollment(false);
       apiClient.employees().then((page) => setEmployees(page.items)).catch(() => undefined);
     } catch (error) {
       setCaptureRejected(true);
-      setEnrollmentFeedback(enrollmentError(error, 'A consistência final foi rejeitada. Continue a coleta por alguns instantes.'));
+      setEnrollmentFeedback(enrollmentError(error, 'A foto não passou pela validação final. Posicione-se de frente e tente novamente.'));
     } finally {
       finalizeInFlightRef.current = false;
       setEnrollSaving(false);
@@ -452,11 +448,7 @@ export function EmployeesPage() {
     return () => window.clearTimeout(timer);
   }, [captureRejected, enrollSaving, enrollmentReady, enrollmentSession, submitEnrollment]);
 
-  const enrollmentStepCount = enrollmentSession?.target_samples ?? 5;
   const enrollmentComplete = enrollmentReady;
-  const enrollmentProgress = Math.round(
-    (sampleResult?.progress ?? (acceptedSamples / Math.max(enrollmentStepCount, 1))) * 100,
-  );
 
   return (
     <div className="app-view-transition space-y-5">
@@ -673,12 +665,9 @@ export function EmployeesPage() {
           closeButtonRef={enrollmentCloseButtonRef}
           cameraRef={cameraRef}
           session={enrollmentSession}
-          acceptedSamples={acceptedSamples}
-          targetSamples={enrollmentStepCount}
-          progress={enrollmentProgress}
           complete={enrollmentComplete}
           sampleResult={sampleResult}
-          capturePreviews={capturePreviews}
+          capturePreview={capturePreviews[capturePreviews.length - 1]}
           feedback={enrollmentFeedback}
           saving={enrollSaving}
           cameraReady={enrollmentCameraReady}

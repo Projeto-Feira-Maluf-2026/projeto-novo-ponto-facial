@@ -164,8 +164,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           ...(requestedDeviceId
             ? { deviceId: { exact: requestedDeviceId } }
             : { facingMode: { ideal: 'user' } }),
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           frameRate: { ideal: 30, max: 30 },
         };
 
@@ -646,11 +646,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             );
             return canvas.toDataURL('image/jpeg', 0.90);
           }
-          const captureScale = Math.min(
-            1,
-            1280 / video.videoWidth,
-            960 / video.videoHeight,
-          );
+          const captureScale = Math.min(1, 1920 / video.videoWidth, 1080 / video.videoHeight);
           canvas.width = Math.round(video.videoWidth * captureScale);
           canvas.height = Math.round(video.videoHeight * captureScale);
           const context = canvas.getContext('2d');
@@ -658,7 +654,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             return null;
           }
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          return canvas.toDataURL('image/jpeg', 0.88);
+          return canvas.toDataURL('image/jpeg', 0.92);
         },
         restart: start,
       }),

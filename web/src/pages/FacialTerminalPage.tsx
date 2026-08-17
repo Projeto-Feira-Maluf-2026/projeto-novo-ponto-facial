@@ -31,7 +31,6 @@ import type {
   PunchType,
   Worksite,
 } from '../types/domain';
-import { appendRecognitionEvidence, type TemporalEvidence } from '../utils/facialRecognition';
 
 type TerminalMode =
   | 'starting'
@@ -43,8 +42,6 @@ type TerminalMode =
   | 'review'
   | 'attention'
   | 'paused';
-
-type TemporalRecognitionState = 'UNKNOWN' | 'POSSIBLE' | 'CONFIRMING' | 'CONFIRMED';
 
 type LiveRecognition = {
   employeeId?: string | null;
@@ -62,20 +59,9 @@ type RecentRecord = {
   occurredAt: Date;
 };
 
-const REQUIRED_STABLE_READINGS = 3;
-const RECOGNITION_INTERVAL_MS = 850;
-const TEMPORAL_WINDOW_MS = 10_000;
-const TRANSIENT_MISS_GRACE_MS = 4_500;
+const RECOGNITION_INTERVAL_MS = 280;
 const RESULT_HOLD_MS = 6_000;
 const EMPLOYEE_COOLDOWN_MS = 45_000;
-const TRANSIENT_MISS_REASONS = new Set([
-  'NO_FACE',
-  'FACE_TOO_SMALL',
-  'IMAGE_TOO_BLURRY',
-  'LOW_DETECTION_CONFIDENCE',
-  'LOW_SIMILARITY',
-  'AMBIGUOUS_FACE',
-]);
 
 const punchLabels: Record<PunchType, string> = {
   ENTRY: 'Entrada',
@@ -179,7 +165,7 @@ export function FacialTerminalPage() {
   const cameraRef = useRef<CameraCaptureHandle | null>(null);
   const requestInFlightRef = useRef(false);
   const punchInFlightRef = useRef(false);
-  const temporalEvidenceRef = useRef<TemporalEvidence[]>([]);
+  const localFacePresentRef = useRef(false);
   const cooldownsRef = useRef(new Map<string, number>());
   const resultHoldUntilRef = useRef(0);
 
@@ -193,8 +179,6 @@ export function FacialTerminalPage() {
   const [recognition, setRecognition] = useState<LiveRecognition>(initialRecognition);
   const [decision, setDecision] = useState<AttendanceDecision | null>(null);
   const [guidance, setGuidance] = useState('Iniciando a câmera...');
-  const [stableReadings, setStableReadings] = useState(0);
-  const [temporalState, setTemporalState] = useState<TemporalRecognitionState>('UNKNOWN');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [clock, setClock] = useState(new Date());
@@ -244,22 +228,19 @@ export function FacialTerminalPage() {
   const submitAutomaticPunch = useCallback(async (
     employeeId: string,
     recognizedName?: string | null,
-    evidenceImages: string[] = [],
+    evidenceImage?: string | null,
   ) => {
     if (!worksiteId || punchInFlightRef.current) return;
-    const images = evidenceImages.length
-      ? evidenceImages.slice(-REQUIRED_STABLE_READINGS)
-      : [cameraRef.current?.capture({ faceCrop: true })].filter((image): image is string => Boolean(image));
-    if (images.length < REQUIRED_STABLE_READINGS) {
+    const image = evidenceImage || cameraRef.current?.capture({ faceCrop: true });
+    if (!image) {
       setMode('attention');
-      setGuidance('A câmera ainda não reuniu evidências suficientes. Permaneça por mais um instante.');
+      setGuidance('Não foi possível preservar a foto reconhecida. A câmera tentará novamente.');
       return;
     }
 
     punchInFlightRef.current = true;
     setMode('submitting');
     setGuidance('Identidade confirmada. Registrando o ponto...');
-    setStableReadings(REQUIRED_STABLE_READINGS);
 
     try {
       const result = await apiClient.punch({
@@ -267,7 +248,7 @@ export function FacialTerminalPage() {
         worksite_id: worksiteId,
         punch_type: null,
         location,
-        face: { images_base64: images },
+        face: { image_base64: image },
         offline_batch_id: `terminal-${crypto.randomUUID()}`,
       });
       setDecision(result);
@@ -324,8 +305,6 @@ export function FacialTerminalPage() {
       setGuidance('O serviço de ponto não respondeu. A câmera continuará tentando.');
     } finally {
       punchInFlightRef.current = false;
-      temporalEvidenceRef.current = [];
-      setTemporalState('UNKNOWN');
     }
   }, [employees, location, worksiteId]);
 
@@ -370,7 +349,8 @@ export function FacialTerminalPage() {
         return;
       }
 
-      const image = cameraRef.current?.capture();
+      const preferFaceCrop = localFacePresentRef.current;
+      const image = cameraRef.current?.capture({ faceCrop: preferFaceCrop });
       if (!image) {
         setMode('starting');
         setGuidance('Aguardando imagem da câmera...');
@@ -389,6 +369,8 @@ export function FacialTerminalPage() {
           result.reasons.map((reason) => reason.toUpperCase()),
         );
         if (
+          !preferFaceCrop
+          &&
           !result.matched
           && (
             retryReasons.has('NO_FACE')
@@ -423,58 +405,17 @@ export function FacialTerminalPage() {
         setAnalysis(result);
         setDecision(null);
 
-        if (result.matched && result.face_box) {
-          const evidenceCrop = cameraRef.current?.capture({
-            faceCrop: true,
-            sourceFaceBox: {
-              x: result.face_box.x,
-              y: result.face_box.y,
-              width: result.face_box.width,
-              height: result.face_box.height,
-              sourceWidth: result.face_box.source_width,
-              sourceHeight: result.face_box.source_height,
-            },
-          });
-          if (evidenceCrop) recognizedImage = evidenceCrop;
-        }
-
         if (!result.matched || !result.employee_id) {
-          const now = Date.now();
-          const recentEvidence = temporalEvidenceRef.current.filter(
-            (item) => now - item.capturedAt <= TEMPORAL_WINDOW_MS,
-          );
-          const lastEvidence = recentEvidence[recentEvidence.length - 1];
-          const transientMiss = Boolean(lastEvidence
-            && now - lastEvidence.capturedAt <= TRANSIENT_MISS_GRACE_MS
-            && result.reasons.some((reason) => TRANSIENT_MISS_REASONS.has(reason.toUpperCase())));
-          if (transientMiss) {
-            temporalEvidenceRef.current = recentEvidence;
-            setStableReadings(Math.min(recentEvidence.length, REQUIRED_STABLE_READINGS));
-            setTemporalState(recentEvidence.length > 1 ? 'CONFIRMING' : 'POSSIBLE');
-            setRecognition((current) => ({
-              ...current,
-              tone: 'tracking',
-              faceBox: result.face_box || current.faceBox,
-            }));
-            setMode('confirming');
-            setGuidance(
-              `Mantendo confirmação (${recentEvidence.length}/${REQUIRED_STABLE_READINGS}). Fique de frente para a câmera.`,
-            );
-          } else {
-            temporalEvidenceRef.current = [];
-            setStableReadings(0);
-            setTemporalState('UNKNOWN');
-            setRecognition({
-              employeeId: null,
-              employeeName: null,
-              tone: result.accepted ? 'warning' : 'tracking',
-              faceBox: result.face_box,
-            });
-            setMode(result.reasons.some((reason) => reason.toUpperCase() === 'NO_COMPATIBLE_TEMPLATES')
-              ? 'attention'
-              : 'scanning');
-            setGuidance(guidanceForResult(result));
-          }
+          setRecognition({
+            employeeId: null,
+            employeeName: null,
+            tone: result.accepted ? 'warning' : 'tracking',
+            faceBox: result.face_box,
+          });
+          setMode(result.reasons.some((reason) => reason.toUpperCase() === 'NO_COMPATIBLE_TEMPLATES')
+            ? 'attention'
+            : 'scanning');
+          setGuidance(guidanceForResult(result));
           return;
         }
 
@@ -487,54 +428,16 @@ export function FacialTerminalPage() {
 
         const cooldownUntil = cooldownsRef.current.get(result.employee_id) || 0;
         if (cooldownUntil > Date.now()) {
-          temporalEvidenceRef.current = [];
-          setStableReadings(0);
-          setTemporalState('UNKNOWN');
           setMode('ready');
           setGuidance(`Ponto de ${result.employee_name || 'funcionário'} já registrado. Próxima pessoa pode se aproximar.`);
           return;
         }
 
-        const now = Date.now();
-        const stableEvidence = appendRecognitionEvidence(
-          temporalEvidenceRef.current,
-          {
-            employeeId: result.employee_id,
-            image: recognizedImage,
-            capturedAt: now,
-          },
-          TEMPORAL_WINDOW_MS,
-          REQUIRED_STABLE_READINGS,
-        );
-        temporalEvidenceRef.current = stableEvidence;
-        const nextCount = stableEvidence.length;
-        setStableReadings(Math.min(nextCount, REQUIRED_STABLE_READINGS));
-        setTemporalState(
-          nextCount >= REQUIRED_STABLE_READINGS
-            ? 'CONFIRMED'
-            : nextCount > 1
-              ? 'CONFIRMING'
-              : 'POSSIBLE',
-        );
         setMode('confirming');
-        setGuidance(
-          nextCount >= REQUIRED_STABLE_READINGS
-            ? 'Identidade confirmada.'
-            : `Fique parado por mais um instante (${nextCount}/${REQUIRED_STABLE_READINGS}).`,
-        );
-
-        if (nextCount >= REQUIRED_STABLE_READINGS) {
-          await submitAutomaticPunch(
-            result.employee_id,
-            result.employee_name,
-            stableEvidence.map((item) => item.image),
-          );
-        }
+        setGuidance('Identidade localizada. Registrando o ponto...');
+        await submitAutomaticPunch(result.employee_id, result.employee_name, recognizedImage);
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {
-          temporalEvidenceRef.current = [];
-          setStableReadings(0);
-          setTemporalState('UNKNOWN');
           setMode('attention');
           setGuidance('Reconhecimento temporariamente indisponível. Tentaremos novamente.');
           setRecognition({ tone: 'warning' });
@@ -556,19 +459,16 @@ export function FacialTerminalPage() {
 
   const faceOverlay = useMemo<FaceOverlayState>(() => ({
     label: mode === 'confirming'
-      ? temporalState === 'POSSIBLE' ? 'Possível correspondência' : 'Confirmando identidade'
+      ? 'Identidade localizada'
       : mode === 'accepted'
         ? 'Registro concluído'
         : 'Posicione o rosto',
-    detail: mode === 'confirming'
-      ? `${temporalState} · ${stableReadings}/${REQUIRED_STABLE_READINGS}`
-      : undefined,
     tone: mode === 'accepted'
       ? 'success'
       : mode === 'attention' || mode === 'review'
         ? 'warning'
         : recognition.tone,
-  }), [mode, recognition.tone, stableReadings, temporalState]);
+  }), [mode, recognition.tone]);
 
   const detectedFaceBox = useMemo<FaceSourceBox | null>(() => (
     recognition.faceBox
@@ -738,6 +638,9 @@ export function FacialTerminalPage() {
             faceOverlay={faceOverlay}
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
+            onFacePresenceChange={(present) => {
+              localFacePresentRef.current = present;
+            }}
           />
           {mode === 'accepted' && (
             <div className="terminal-success-burst" aria-hidden="true">
@@ -784,8 +687,8 @@ export function FacialTerminalPage() {
               <strong>{qualityLabel(analysis)}</strong>
             </div>
             <div className="terminal-signal">
-              <span>Confirmação</span>
-              <strong>{temporalState}</strong>
+              <span>Identificação</span>
+              <strong>{recognition.employeeName || 'Aguardando'}</strong>
             </div>
           </div>
         </div>
@@ -806,23 +709,6 @@ export function FacialTerminalPage() {
             </div>
             <h3>{resultPresentation.title}</h3>
             <p>{resultPresentation.detail}</p>
-            {(mode === 'confirming' || mode === 'submitting') && (
-              <div
-                className="terminal-evidence-meter"
-                role="progressbar"
-                aria-label="Progresso da confirmação"
-                aria-valuemin={0}
-                aria-valuemax={REQUIRED_STABLE_READINGS}
-                aria-valuenow={stableReadings}
-              >
-                <span>
-                  {Array.from({ length: REQUIRED_STABLE_READINGS }).map((_, index) => (
-                    <i key={index} data-complete={index < stableReadings} />
-                  ))}
-                </span>
-                <strong>{stableReadings}/{REQUIRED_STABLE_READINGS}</strong>
-              </div>
-            )}
           </div>
         </section>
 

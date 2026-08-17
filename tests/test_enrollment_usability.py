@@ -92,41 +92,38 @@ def test_enrollment_keeps_rejecting_faces_below_the_distance_floor() -> None:
 def test_enrollment_uses_its_own_quality_floor_for_challenging_cameras() -> None:
     reasons = FaceEnrollmentService._effective_quality_reasons(
         EnrollmentPose.FRONTAL,
-        _processed(quality_score=0.49),
+        _processed(quality_score=0.56),
         ["LOW_OVERALL_QUALITY"],
     )
 
     assert reasons == []
 
 
-def test_automatic_enrollment_needs_quality_samples_and_soft_pose_variation() -> None:
+def test_automatic_enrollment_is_ready_after_one_frontal_photo() -> None:
     candidates = [
         SimpleNamespace(
             pose_json={"bucket": "FRONTAL", "yaw": 0.0, "pitch": 0.0},
-        ),
-        SimpleNamespace(
-            pose_json={"bucket": "FRONTAL", "yaw": 2.0, "pitch": 1.0},
-        ),
-        SimpleNamespace(
-            pose_json={"bucket": "NATURAL", "yaw": 5.0, "pitch": 2.0},
-        ),
-        SimpleNamespace(
-            pose_json={"bucket": "RIGHT", "yaw": 13.0, "pitch": 1.0},
-        ),
-        SimpleNamespace(
-            pose_json={"bucket": "LEFT", "yaw": -12.0, "pitch": 0.0},
-        ),
+        )
     ]
 
     assert FaceEnrollmentService._automatic_ready(candidates) is True
 
 
-def test_automatic_enrollment_does_not_claim_ready_for_repeated_pose() -> None:
+def test_automatic_enrollment_rejects_a_single_photo_with_excessive_pose() -> None:
     candidates = [
         SimpleNamespace(
-            pose_json={"bucket": "FRONTAL", "yaw": 1.0, "pitch": 1.0},
+            pose_json={"bucket": "RIGHT", "yaw": 31.0, "pitch": 1.0},
         )
-        for _ in range(5)
     ]
 
     assert FaceEnrollmentService._automatic_ready(candidates) is False
+
+
+def test_single_photo_consistency_is_valid_without_artificial_pairs() -> None:
+    result = FaceEnrollmentService._consistency_from_vectors([[1.0, 0.0]])
+
+    assert result.pair_count == 0
+    assert result.minimum_similarity == 1.0
+    assert result.median_similarity == 1.0
+    assert result.similarity_stddev == 0.0
+    assert result.outlier_steps == []

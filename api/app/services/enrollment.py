@@ -592,7 +592,7 @@ class FaceEnrollmentService:
         if not self._automatic_ready(candidates):
             raise AppError(
                 "ENROLLMENT_NOT_READY",
-                "Continue por alguns instantes para obter variação facial suficiente",
+                "Capture uma foto frontal, nítida e bem iluminada",
                 409,
                 {
                     "accepted_samples": len(candidates),
@@ -831,7 +831,7 @@ class FaceEnrollmentService:
             abs(yaw) <= 18 and abs(pitch) <= 18
             for yaw, pitch in zip(yaw_values, pitch_values)
         )
-        has_variation = (
+        has_variation = settings.FACE_ENROLLMENT_MIN_IMAGES == 1 or (
             len(coverage) >= 2
             or (max(yaw_values) - min(yaw_values)) >= 8
             or (max(pitch_values) - min(pitch_values)) >= 6
@@ -841,9 +841,9 @@ class FaceEnrollmentService:
     @staticmethod
     def _automatic_instruction(candidates: list[FaceTemplate], *, ready: bool) -> str:
         if ready:
-            return "Amostras consistentes; finalizando o cadastro"
+            return "Foto aprovada; finalizando o cadastro"
         if not candidates:
-            return "Posicione o rosto naturalmente dentro da área da câmera"
+            return "Olhe de frente para a câmera para tirar a foto"
         coverage = FaceEnrollmentService._pose_coverage(candidates)
         if "FRONTAL" not in coverage and "NATURAL" not in coverage:
             return "Olhe naturalmente para a câmera por um instante"
@@ -1308,6 +1308,16 @@ class FaceEnrollmentService:
     def _consistency_from_vectors(
         vectors: list[list[float] | np.ndarray],
     ) -> EnrollmentConsistencyResponse:
+        if len(vectors) == 1:
+            return EnrollmentConsistencyResponse(
+                pair_count=0,
+                minimum_similarity=1.0,
+                median_similarity=1.0,
+                similarity_stddev=0.0,
+                outlier_steps=[],
+            )
+        if not vectors:
+            raise ValueError("Ao menos um vetor facial e necessario")
         pair_values = _pairwise_similarities(vectors)
         per_step_values: dict[int, list[float]] = {index: [] for index in range(len(vectors))}
         for (left_index, right_index), value in zip(combinations(range(len(vectors)), 2), pair_values):
