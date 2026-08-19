@@ -15,7 +15,6 @@ from app.models.entities import (
 )
 from app.models.enums import AlertSeverity, AttendanceStatus, FraudType, PunchType
 from app.schemas.attendance import AttendanceDecision, AttendanceRead, PunchCreate
-from app.services.geofencing import is_inside_geofence
 
 
 PUNCH_SEQUENCE = [PunchType.ENTRY, PunchType.LUNCH_OUT, PunchType.LUNCH_IN, PunchType.EXIT]
@@ -213,47 +212,6 @@ class AttendanceService:
                 ),
             )
 
-        location = payload.location
-        inside, distance = is_inside_geofence(
-            worksite.latitude,
-            worksite.longitude,
-            location.latitude if location else None,
-            location.longitude if location else None,
-            worksite.geofence_radius_meters,
-        )
-        if not inside:
-            await self._flag_attempt(
-                payload,
-                FraudType.OUT_OF_GEOFENCE,
-                distance or 0,
-                ["out_of_geofence"],
-                employee_id=employee.id,
-            )
-            await self.session.commit()
-            return AttendanceDecision(
-                accepted=False,
-                status=AttendanceStatus.REJECTED,
-                employee_id=employee.id,
-                employee_name=employee.name,
-                employee_registration=employee.registration,
-                employee_photo_url=employee.photo_url,
-                punch_type=None,
-                confidence_score=0.0,
-                similarity_score=similarity,
-                second_best_similarity_score=second_similarity,
-                match_margin=margin,
-                match_confidence_score=match_confidence,
-                liveness_score=None,
-                quality_score=quality_score,
-                reasons=["out_of_geofence"],
-                temporal_evidence_count=len(vectors),
-                temporal_similarity_median=(
-                    round(temporal_similarity_median, 4)
-                    if temporal_similarity_median is not None
-                    else None
-                ),
-            )
-
         punch_type = payload.punch_type or await self._infer_next_punch(employee.id)
         confidence = attendance_confidence(match_confidence, quality_score)
         status = AttendanceStatus.ACCEPTED if confidence >= settings.SUSPICIOUS_SCORE_THRESHOLD else AttendanceStatus.MANUAL_REVIEW
@@ -264,15 +222,14 @@ class AttendanceService:
             punch_type=punch_type,
             status=status,
             occurred_at=(payload.occurred_at or datetime.now(UTC)).replace(tzinfo=None),
-            latitude=location.latitude if location else None,
-            longitude=location.longitude if location else None,
+            latitude=None,
+            longitude=None,
             similarity_score=similarity,
             liveness_score=None,
             quality_score=quality_score,
             confidence_score=confidence,
             offline_batch_id=payload.offline_batch_id,
             metadata_json={
-                "geofence_distance_meters": distance,
                 "second_best_similarity_score": second_similarity,
                 "match_margin": margin,
                 "match_confidence_score": match_confidence,
@@ -421,7 +378,7 @@ class AttendanceService:
                 worksite_id=payload.worksite_id,
                 device_id=payload.device_id,
                 fraud_type=fraud_type,
-                severity=AlertSeverity.HIGH if fraud_type != FraudType.OUT_OF_GEOFENCE else AlertSeverity.MEDIUM,
+                severity=AlertSeverity.HIGH,
                 confidence_score=float(confidence),
                 details={"reasons": reasons, "offline_batch_id": payload.offline_batch_id},
             )

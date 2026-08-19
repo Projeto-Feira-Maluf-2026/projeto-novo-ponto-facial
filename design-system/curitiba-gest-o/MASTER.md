@@ -74,7 +74,7 @@ Componentes não usam cores brutas quando existe token semântico apropriado.
 
 - Portfólio lateral e painel principal contextual.
 - Gêmeo digital 3D lazy-loaded, pausado fora da viewport e reduzido no mobile.
-- Movimentações, dispositivos, responsável, geofence e prontidão derivam somente do backend.
+- Movimentações, dispositivos, responsável e prontidão derivam somente do backend.
 - Progresso físico não aparece até existir no contrato da API.
 
 ### Funcionários

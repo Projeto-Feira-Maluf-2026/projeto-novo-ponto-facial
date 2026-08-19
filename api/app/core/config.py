@@ -94,7 +94,6 @@ class Settings(BaseSettings):
     FACE_THRESHOLD_PROFILE: str = "development-uncalibrated"
     FACE_THRESHOLDS_CALIBRATED: bool = False
 
-    DEFAULT_GEOFENCE_RADIUS_METERS: int = 120
     SUSPICIOUS_SCORE_THRESHOLD: float = 0.55
 
     @cached_property

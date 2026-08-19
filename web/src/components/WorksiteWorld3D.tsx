@@ -154,7 +154,7 @@ function createBuilding(
 }
 
 function buildWorld(worksite: Worksite): WorldBuild {
-  const seed = hashSeed(`${worksite.id}:${worksite.code}:${worksite.name}:${worksite.geofence_radius_meters}`);
+  const seed = hashSeed(`${worksite.id}:${worksite.code}:${worksite.name}`);
   const random = createRandom(seed);
   const palette = palettes[seed % palettes.length];
   const variant = seed % 3;
@@ -275,20 +275,6 @@ function buildWorld(worksite: Worksite): WorldBuild {
     tree.add(crown);
     root.add(tree);
   }
-
-  const boundaryRadius = 13.2 + Math.min(2.2, worksite.geofence_radius_meters / 190);
-  const boundary = new THREE.Mesh(
-    new THREE.RingGeometry(boundaryRadius, boundaryRadius + 0.045, 160),
-    new THREE.MeshBasicMaterial({
-      color: worksite.active ? 0x4c8876 : 0x8c7b60,
-      transparent: true,
-      opacity: 0.62,
-      side: THREE.DoubleSide,
-    }),
-  );
-  boundary.rotation.x = -Math.PI / 2;
-  boundary.position.y = 0.06;
-  root.add(boundary);
 
   return { root, interactables };
 }

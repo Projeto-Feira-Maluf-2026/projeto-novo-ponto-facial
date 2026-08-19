@@ -149,9 +149,6 @@ function attendanceReasonMessage(reasons: string[]) {
   if (reasonSet.has('NO_COMPATIBLE_TEMPLATES')) {
     return 'O cadastro facial deste funcionário precisa ser atualizado.';
   }
-  if (reasonSet.has('OUT_OF_GEOFENCE')) {
-    return 'Este terminal está fora da área configurada para a obra.';
-  }
   if (reasonSet.has('INACTIVE_EMPLOYEE')) {
     return 'O cadastro deste funcionário não está ativo.';
   }
@@ -180,7 +177,6 @@ export function FacialTerminalPage() {
   const [decision, setDecision] = useState<AttendanceDecision | null>(null);
   const [guidance, setGuidance] = useState('Iniciando a câmera...');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
-  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [clock, setClock] = useState(new Date());
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -199,16 +195,6 @@ export function FacialTerminalPage() {
       })
       .catch(() => setGuidance('Não foi possível carregar as obras.'));
 
-    navigator.geolocation?.getCurrentPosition(
-      (position) => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-      },
-      () => setLocation(null),
-      { enableHighAccuracy: true, timeout: 8_000 },
-    );
   }, []);
 
   useEffect(() => {
@@ -250,7 +236,6 @@ export function FacialTerminalPage() {
         employee_id: employeeId,
         worksite_id: worksiteId,
         punch_type: null,
-        location,
         face: { image_base64: image },
         offline_batch_id: `terminal-${crypto.randomUUID()}`,
       });
@@ -309,7 +294,7 @@ export function FacialTerminalPage() {
     } finally {
       punchInFlightRef.current = false;
     }
-  }, [employees, location, worksiteId]);
+  }, [employees, worksiteId]);
 
   useEffect(() => {
     const controller = new AbortController();

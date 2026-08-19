@@ -135,9 +135,9 @@ const fallbackWorksites: Page<Worksite> = {
   size: 10,
   total: 3,
   items: [
-    { id: 'w1', name: 'Obra Batel', code: 'BATEL', address: 'Av. do Batel, Curitiba', manager_name: 'Paulo', latitude: -25.443, longitude: -49.287, geofence_radius_meters: 120, active: true, created_at: '2026-06-01', updated_at: '2026-06-12' },
-    { id: 'w2', name: 'Canteiro CIC', code: 'CIC', address: 'Cidade Industrial, Curitiba', manager_name: 'Alisson', latitude: -25.49, longitude: -49.35, geofence_radius_meters: 180, active: true, created_at: '2026-06-01', updated_at: '2026-06-12' },
-    { id: 'w3', name: 'Reforma Centro', code: 'CENTRO', address: 'Centro, Curitiba', manager_name: 'Allannis', latitude: -25.428, longitude: -49.273, geofence_radius_meters: 90, active: true, created_at: '2026-06-01', updated_at: '2026-06-12' },
+    { id: 'w1', name: 'Obra Batel', code: 'BATEL', address: 'Av. do Batel, Curitiba', manager_name: 'Paulo', active: true, created_at: '2026-06-01', updated_at: '2026-06-12' },
+    { id: 'w2', name: 'Canteiro CIC', code: 'CIC', address: 'Cidade Industrial, Curitiba', manager_name: 'Alisson', active: true, created_at: '2026-06-01', updated_at: '2026-06-12' },
+    { id: 'w3', name: 'Reforma Centro', code: 'CENTRO', address: 'Centro, Curitiba', manager_name: 'Allannis', active: true, created_at: '2026-06-01', updated_at: '2026-06-12' },
   ],
 };
 
@@ -195,9 +195,6 @@ export interface WorksiteCreatePayload {
   code: string;
   address: string;
   manager_name?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  geofence_radius_meters: number;
   active: boolean;
 }
 
@@ -215,7 +212,6 @@ export interface PunchPayload {
   worksite_id: string;
   device_id?: string | null;
   punch_type?: PunchType | null;
-  location?: { latitude: number; longitude: number } | null;
   face: {
     image_base64?: string;
     images_base64?: string[];

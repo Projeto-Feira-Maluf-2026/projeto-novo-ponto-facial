@@ -6,7 +6,6 @@ import {
   MapPin,
   Plus,
   RadioTower,
-  ShieldCheck,
   UsersRound,
 } from 'lucide-react';
 import {
@@ -32,9 +31,6 @@ const initialForm = {
   code: '',
   address: '',
   manager_name: '',
-  latitude: '',
-  longitude: '',
-  geofence_radius_meters: '120',
 };
 
 function VisibleDigitalTwin({ worksite }: { worksite: Worksite }) {
@@ -118,20 +114,6 @@ export function WorksitesPage() {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const useCurrentLocation = () => {
-    navigator.geolocation?.getCurrentPosition(
-      (position) => {
-        setForm((current) => ({
-          ...current,
-          latitude: String(position.coords.latitude),
-          longitude: String(position.coords.longitude),
-        }));
-      },
-      () => setMessage('Não foi possível obter a localização atual.'),
-      { enableHighAccuracy: true, timeout: 8000 },
-    );
-  };
-
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -142,9 +124,6 @@ export function WorksitesPage() {
         code: form.code,
         address: form.address,
         manager_name: form.manager_name || null,
-        latitude: form.latitude ? Number(form.latitude) : null,
-        longitude: form.longitude ? Number(form.longitude) : null,
-        geofence_radius_meters: Number(form.geofence_radius_meters || 120),
         active: true,
       });
       setForm(initialForm);
@@ -157,10 +136,6 @@ export function WorksitesPage() {
       setSaving(false);
     }
   };
-
-  const averageRadius = Math.round(
-    worksites.reduce((acc, item) => acc + item.geofence_radius_meters, 0) / Math.max(worksites.length, 1),
-  );
 
   return (
     <div className="app-view-transition space-y-5 premium-worksites">
@@ -187,11 +162,7 @@ export function WorksitesPage() {
           <label className="field-label"><span>Código</span><input value={form.code} onChange={(event) => setField('code', event.target.value.toUpperCase())} required className="input-field" /></label>
           <label className="field-label md:col-span-2"><span>Endereço</span><input value={form.address} onChange={(event) => setField('address', event.target.value)} required className="input-field" /></label>
           <label className="field-label"><span>Responsável</span><input value={form.manager_name} onChange={(event) => setField('manager_name', event.target.value)} className="input-field" /></label>
-          <label className="field-label"><span>Latitude</span><input value={form.latitude} onChange={(event) => setField('latitude', event.target.value)} inputMode="decimal" className="input-field" /></label>
-          <label className="field-label"><span>Longitude</span><input value={form.longitude} onChange={(event) => setField('longitude', event.target.value)} inputMode="decimal" className="input-field" /></label>
-          <label className="field-label"><span>Raio da geofence</span><input type="number" min={10} value={form.geofence_radius_meters} onChange={(event) => setField('geofence_radius_meters', event.target.value)} className="input-field" /></label>
           <div className="flex flex-col items-stretch gap-2 md:col-span-2 sm:flex-row sm:items-end xl:col-span-4">
-            <button type="button" onClick={useCurrentLocation} className="btn btn-secondary"><MapPin size={18} /> Usar localização</button>
             <button disabled={saving} className="btn btn-primary"><Plus size={18} /> {saving ? 'Salvando' : 'Salvar obra'}</button>
           </div>
         </form>
@@ -199,8 +170,8 @@ export function WorksitesPage() {
 
       <dl className="worksite-statline" aria-label="Resumo das obras">
         <div><dt><Building2 size={17} /> Obras cadastradas</dt><dd>{worksites.length}</dd></div>
-        <div><dt><ShieldCheck size={17} /> Geofences ativos</dt><dd>{worksites.filter((item) => item.active).length}</dd></div>
-        <div><dt><MapPin size={17} /> Raio médio</dt><dd>{averageRadius}m</dd></div>
+        <div><dt><Camera size={17} /> Câmeras e terminais</dt><dd>{devices.length}</dd></div>
+        <div><dt><Activity size={17} /> Registros hoje</dt><dd>{metrics?.records_today ?? 0}</dd></div>
       </dl>
 
       <section className="worksite-command" aria-labelledby="worksite-command-title">
@@ -273,13 +244,13 @@ export function WorksitesPage() {
                   <div><dt><Activity size={16} /> Movimentações hoje</dt><dd>{selectedMovement}</dd><small>Registros desta obra</small></div>
                   <div><dt><Camera size={16} /> Câmeras e terminais</dt><dd>{selectedDevices.length}</dd><small>{selectedDevices.filter((device) => device.status === 'ACTIVE').length} ativos</small></div>
                   <div><dt><UsersRound size={16} /> Responsável</dt><dd className="is-text">{selectedWorksite.manager_name || 'Não informado'}</dd><small>Cadastro administrativo</small></div>
-                  <div><dt><ShieldCheck size={16} /> Área permitida</dt><dd>{selectedWorksite.geofence_radius_meters}<small>m</small></dd><small>Raio da geofence</small></div>
+                  <div><dt><Building2 size={16} /> Código operacional</dt><dd className="is-text">{selectedWorksite.code}</dd><small>Identificação da obra</small></div>
                 </dl>
                 <div className="worksite-readiness">
                   <span>Prontidão do cadastro</span>
                   <div>
                     <i data-ready={Boolean(selectedWorksite.manager_name)} /> Responsável
-                    <i data-ready={selectedWorksite.latitude != null && selectedWorksite.longitude != null} /> Coordenadas
+                    <i data-ready={Boolean(selectedWorksite.address)} /> Endereço
                     <i data-ready={selectedDevices.length > 0} /> Dispositivo
                   </div>
                 </div>
@@ -289,7 +260,7 @@ export function WorksitesPage() {
         ) : (
           <div className="worksite-ops-empty">
             <span><Building2 size={24} /></span>
-            <div><strong>Nenhuma obra para visualizar</strong><p>Cadastre a primeira obra para ativar o gêmeo digital e configurar a cobertura.</p></div>
+            <div><strong>Nenhuma obra para visualizar</strong><p>Cadastre a primeira obra para ativar o gêmeo digital e seus terminais.</p></div>
             <button type="button" className="btn btn-secondary" onClick={() => setShowForm(true)}><Plus size={17} /> Cadastrar obra</button>
           </div>
         )}
@@ -300,13 +271,12 @@ export function WorksitesPage() {
         rows={worksites}
         loading={loading}
         emptyTitle="Nenhuma obra cadastrada"
-        emptyDescription="Cadastre a primeira obra para configurar geofence e terminais."
+        emptyDescription="Cadastre a primeira obra para configurar seus terminais."
         columns={[
           { key: 'code', header: 'Código' },
           { key: 'name', header: 'Obra' },
           { key: 'address', header: 'Endereço' },
           { key: 'manager_name', header: 'Responsável' },
-          { key: 'geofence_radius_meters', header: 'Raio' },
           {
             key: 'active',
             header: 'Acesso',

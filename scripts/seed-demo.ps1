@@ -30,9 +30,6 @@ $worksiteBody = @{
   code = "DEMO"
   address = "Rua Demo, Curitiba"
   manager_name = "Gestor Demo"
-  latitude = -25.443
-  longitude = -49.287
-  geofence_radius_meters = 5000
   active = $true
 } | ConvertTo-Json
 

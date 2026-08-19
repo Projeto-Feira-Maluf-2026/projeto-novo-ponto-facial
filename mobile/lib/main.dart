@@ -97,13 +97,12 @@ class _PunchPageState extends State<PunchPage> {
   Future<void> punch() async {
     setState(() {
       loading = true;
-      result = 'Validando face e localizacao...';
+      result = 'Validando face...';
     });
 
     final payload = {
       'worksite_id': 'w1',
       'device_id': 'mobile',
-      'location': {'latitude': -25.443, 'longitude': -49.287},
       'face': {
         'embedding': List<double>.filled(512, 0.02),
         'liveness_score': 0.93,
@@ -167,13 +166,6 @@ class _PunchPageState extends State<PunchPage> {
           ),
         ),
         const SizedBox(height: 12),
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.location_on),
-            title: Text('Obra Batel'),
-            subtitle: Text('Geofence ativo e GPS validado'),
-          ),
-        ),
         const Card(
           child: ListTile(
             leading: Icon(Icons.wifi_off),
@@ -246,4 +238,3 @@ class NotificationsPage extends StatelessWidget {
     );
   }
 }
-

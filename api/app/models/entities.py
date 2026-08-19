@@ -72,9 +72,6 @@ class Worksite(Base, TimestampMixin):
     code: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
     address: Mapped[str] = mapped_column(String(255), nullable=False)
     manager_name: Mapped[str | None] = mapped_column(String(160))
-    latitude: Mapped[float | None] = mapped_column(Float)
-    longitude: Mapped[float | None] = mapped_column(Float)
-    geofence_radius_meters: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     employees: Mapped[list["EmployeeWorksite"]] = relationship(back_populates="worksite")

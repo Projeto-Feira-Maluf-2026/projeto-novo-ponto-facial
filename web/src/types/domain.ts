@@ -36,9 +36,6 @@ export interface Worksite {
   code: string;
   address: string;
   manager_name?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  geofence_radius_meters: number;
   active: boolean;
   created_at: string;
   updated_at: string;

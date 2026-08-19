@@ -27,13 +27,10 @@ def test_attendance_confidence_uses_only_measured_server_signals() -> None:
 
 
 @pytest.mark.asyncio
-async def test_punch_does_not_invent_low_liveness_when_pad_is_unavailable() -> None:
+async def test_punch_ignores_location_and_does_not_require_geofence() -> None:
     worksite = SimpleNamespace(
         id="worksite-1",
         active=True,
-        latitude=None,
-        longitude=None,
-        geofence_radius_meters=120,
     )
     employee = SimpleNamespace(
         id="employee-1",
@@ -79,7 +76,12 @@ async def test_punch_does_not_invent_low_liveness_when_pad_is_unavailable() -> N
             "motion_score": 0.0,
             "spoof_hints": ["phone_screen"],
         },
+        # Compatibilidade: terminais antigos ainda podem enviar GPS. O campo
+        # extra precisa ser ignorado e jamais interferir na decisão do ponto.
+        location={"latitude": -23.5505, "longitude": -46.6333},
     )
+
+    assert "location" not in payload.model_dump()
 
     decision = await service.register_punch(payload)
 
@@ -89,6 +91,8 @@ async def test_punch_does_not_invent_low_liveness_when_pad_is_unavailable() -> N
     assert decision.reasons == []
     assert session.add.call_count == 1
     assert isinstance(session.add.call_args.args[0], AttendanceRecord)
+    assert session.add.call_args.args[0].latitude is None
+    assert session.add.call_args.args[0].longitude is None
 
 
 @pytest.mark.asyncio
@@ -96,9 +100,6 @@ async def test_punch_preserves_and_validates_three_temporal_frames() -> None:
     worksite = SimpleNamespace(
         id="worksite-1",
         active=True,
-        latitude=None,
-        longitude=None,
-        geofence_radius_meters=120,
     )
     employee = SimpleNamespace(
         id="employee-1",

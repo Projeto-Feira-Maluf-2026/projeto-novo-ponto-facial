@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.models.enums import AttendanceStatus, PunchType
-from app.schemas.common import GeoPoint, ORMModel
+from app.schemas.common import ORMModel
 
 
 class FaceEvidence(BaseModel):
@@ -38,7 +38,6 @@ class PunchCreate(BaseModel):
     worksite_id: str
     device_id: str | None = None
     punch_type: PunchType | None = None
-    location: GeoPoint | None = None
     face: FaceEvidence
     offline_batch_id: str | None = None
     occurred_at: datetime | None = None

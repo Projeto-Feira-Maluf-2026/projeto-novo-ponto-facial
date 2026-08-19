@@ -117,7 +117,7 @@ def create_application() -> FastAPI:
     service = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.APP_VERSION,
-        description="Controle corporativo de ponto com reconhecimento facial e geofencing.",
+        description="Controle corporativo de ponto com reconhecimento facial.",
         docs_url=None if settings.ENVIRONMENT == "production" else "/api/docs",
         redoc_url=None if settings.ENVIRONMENT == "production" else "/api/redoc",
         openapi_url=None if settings.ENVIRONMENT == "production" else "/api/openapi.json",
