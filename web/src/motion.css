@@ -624,12 +624,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 
 /* Camera and terminal */
 .face-outline {
-  transition:
-    left 90ms linear,
-    top 90ms linear,
-    width 90ms linear,
-    height 90ms linear,
-    color 180ms ease;
+  transition: color 180ms ease;
 }
 
 .face-track-label {
@@ -723,48 +718,6 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 .terminal-camera-frame[data-mode="accepted"] {
   animation: motion-camera-accepted 780ms var(--motion-ease-out) both;
 }
-
-.terminal-success-burst {
-  position: absolute;
-  z-index: 12;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.terminal-success-burst > span {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 120px;
-  height: 120px;
-  border: 3px solid #8ed19c;
-  border-radius: 50%;
-  animation: motion-biometric-ring 1.05s var(--motion-ease-out) both;
-}
-
-.terminal-success-burst i {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #b5dfbd;
-  box-shadow: 0 0 14px rgb(181 223 189 / 0.75);
-  animation: motion-biometric-particle 920ms var(--motion-ease-out) both;
-}
-
-.terminal-success-burst i:nth-of-type(1) { --burst-x: 180px; --burst-y: -110px; }
-.terminal-success-burst i:nth-of-type(2) { --burst-x: -190px; --burst-y: -95px; }
-.terminal-success-burst i:nth-of-type(3) { --burst-x: 205px; --burst-y: 35px; }
-.terminal-success-burst i:nth-of-type(4) { --burst-x: -205px; --burst-y: 42px; }
-.terminal-success-burst i:nth-of-type(5) { --burst-x: 130px; --burst-y: 135px; }
-.terminal-success-burst i:nth-of-type(6) { --burst-x: -145px; --burst-y: 145px; }
-.terminal-success-burst i:nth-of-type(7) { --burst-x: 20px; --burst-y: -165px; }
-.terminal-success-burst i:nth-of-type(8) { --burst-x: -35px; --burst-y: 175px; }
-.terminal-success-burst i:nth-of-type(9) { --burst-x: 240px; --burst-y: -25px; }
-.terminal-success-burst i:nth-of-type(10) { --burst-x: -245px; --burst-y: 5px; }
 
 .terminal-event:first-child {
   animation: motion-event-arrive 520ms var(--motion-ease-out) both;
@@ -1039,18 +992,6 @@ html[data-theme-transition="true"]::view-transition-new(root) {
   45% { box-shadow: inset 0 0 0 4px rgb(142 209 156 / 0.72), 0 0 48px rgb(142 209 156 / 0.26); }
 }
 
-@keyframes motion-biometric-ring {
-  0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.28); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(6.5); }
-}
-
-@keyframes motion-biometric-particle {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
-  20% { opacity: 1; }
-  82% { opacity: 0.9; transform: translate(calc(-50% + var(--burst-x)), calc(-50% + var(--burst-y))) scale(1); }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--burst-x)), calc(-50% + var(--burst-y))) scale(0.2); }
-}
-
 @keyframes motion-event-arrive {
   from { opacity: 0; transform: translateX(18px); background: var(--color-success-soft); }
   to { opacity: 1; transform: none; background: transparent; }
@@ -1094,7 +1035,6 @@ html[data-theme-transition="true"]::view-transition-new(root) {
   .terminal-flow-icon,
   .terminal-result,
   .terminal-result-icon,
-  .terminal-success-burst *,
   .terminal-event,
   .employee-profile-avatar,
   .employee-detail-list > div,

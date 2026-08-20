@@ -62,6 +62,7 @@ type RecentRecord = {
 const RECOGNITION_INTERVAL_MS = 280;
 const RESULT_HOLD_MS = 6_000;
 const EMPLOYEE_COOLDOWN_MS = 45_000;
+const MAX_FACES_PER_SCAN = 5;
 
 const punchLabels: Record<PunchType, string> = {
   ENTRY: 'Entrada',
@@ -84,7 +85,7 @@ function formatDate(value: Date) {
 
 function qualityLabel(analysis: FaceAnalyzeResponse | null) {
   if (!analysis || analysis.face_count === 0) return 'Aguardando rosto';
-  if (analysis.face_count > 1) return 'Mais de uma pessoa';
+  if (analysis.face_count > 1) return `${analysis.face_count} rostos detectados`;
   if (!analysis.accepted) return 'Ajuste necessário';
   if (analysis.quality_score >= 0.78) return 'Imagem boa';
   return 'Imagem adequada';
@@ -96,7 +97,7 @@ function guidanceForResult(result: FaceIdentifyResponse) {
     return 'Aproxime-se e posicione o rosto dentro do enquadramento.';
   }
   if (result.face_count > 1 || reasons.has('MULTIPLE_FACES')) {
-    return 'Mantenha apenas uma pessoa em frente à câmera.';
+    return 'Mantenham os rostos visíveis enquanto a câmera separa cada leitura.';
   }
   if (reasons.has('IMAGE_TOO_BLURRY')) {
     return 'Fique parado por um instante para melhorar a nitidez.';
@@ -125,7 +126,7 @@ function attendanceReasonMessage(reasons: string[]) {
     return 'Não encontramos o rosto no quadro. A câmera tentará novamente.';
   }
   if (reasonSet.has('MULTIPLE_FACES')) {
-    return 'Mantenha apenas uma pessoa em frente à câmera.';
+    return 'Os rostos foram localizados e serão processados separadamente na próxima leitura.';
   }
   if (reasonSet.has('FACE_TOO_SMALL')) {
     return 'Aproxime-se um pouco mais para concluir o registro.';
@@ -170,6 +171,7 @@ export function FacialTerminalPage() {
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [worksiteId, setWorksiteId] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [localFaceCount, setLocalFaceCount] = useState(0);
   const [autoEnabled, setAutoEnabled] = useState(true);
   const [mode, setMode] = useState<TerminalMode>('starting');
   const [analysis, setAnalysis] = useState<FaceAnalyzeResponse | null>(null);
@@ -213,18 +215,22 @@ export function FacialTerminalPage() {
   const handleLocalFacePresence = useCallback((present: boolean) => {
     localFacePresentRef.current = present;
   }, []);
+  const handleLocalFaceCount = useCallback((count: number) => {
+    localFacePresentRef.current = count > 0;
+    setLocalFaceCount(count);
+  }, []);
 
   const submitAutomaticPunch = useCallback(async (
     employeeId: string,
     recognizedName?: string | null,
     evidenceImage?: string | null,
   ) => {
-    if (!worksiteId || punchInFlightRef.current) return;
+    if (!worksiteId || punchInFlightRef.current) return false;
     const image = evidenceImage || cameraRef.current?.capture({ faceCrop: true });
     if (!image) {
       setMode('attention');
       setGuidance('Não foi possível preservar a foto reconhecida. A câmera tentará novamente.');
-      return;
+      return false;
     }
 
     punchInFlightRef.current = true;
@@ -266,6 +272,7 @@ export function FacialTerminalPage() {
           },
           ...current,
         ].slice(0, 5));
+        return true;
       } else if (result.status === 'MANUAL_REVIEW') {
         cooldownsRef.current.set(resolvedEmployeeId, Date.now() + EMPLOYEE_COOLDOWN_MS);
         resultHoldUntilRef.current = Date.now() + RESULT_HOLD_MS;
@@ -282,15 +289,18 @@ export function FacialTerminalPage() {
           },
           ...current,
         ].slice(0, 5));
+        return true;
       } else {
         resultHoldUntilRef.current = Date.now() + 2_500;
         setMode('attention');
         setGuidance(attendanceReasonMessage(result.reasons));
+        return false;
       }
     } catch {
       resultHoldUntilRef.current = Date.now() + 4_000;
       setMode('attention');
       setGuidance('O serviço de ponto não respondeu. A câmera continuará tentando.');
+      return false;
     } finally {
       punchInFlightRef.current = false;
     }
@@ -337,9 +347,18 @@ export function FacialTerminalPage() {
         return;
       }
 
-      const preferFaceCrop = localFacePresentRef.current;
-      const image = cameraRef.current?.capture({ faceCrop: preferFaceCrop });
-      if (!image) {
+      const croppedFaceImages = localFacePresentRef.current
+        ? cameraRef.current?.captureFaces({ limit: MAX_FACES_PER_SCAN }) || []
+        : [];
+      const fallbackImage = croppedFaceImages.length === 0
+        ? cameraRef.current?.capture({ faceCrop: false })
+        : null;
+      const images = croppedFaceImages.length > 0
+        ? croppedFaceImages
+        : fallbackImage
+          ? [fallbackImage]
+          : [];
+      if (!images.length) {
         setMode('starting');
         setGuidance('Aguardando imagem da câmera...');
         schedule();
@@ -348,52 +367,73 @@ export function FacialTerminalPage() {
 
       requestInFlightRef.current = true;
       setMode('scanning');
-      setGuidance('Posicione o rosto no enquadramento.');
+      setGuidance(images.length > 1
+        ? `Reconhecendo ${images.length} pessoas ao mesmo tempo...`
+        : 'Reconhecendo o rosto...');
 
       try {
-        let result = await apiClient.identifyFace(image, worksiteId, controller.signal);
-        let recognizedImage = image;
-        const retryReasons = new Set(
-          result.reasons.map((reason) => reason.toUpperCase()),
-        );
-        if (
-          !preferFaceCrop
-          &&
-          !result.matched
-          && (
-            retryReasons.has('NO_FACE')
-            || retryReasons.has('FACE_TOO_SMALL')
-            || retryReasons.has('LOW_DETECTION_CONFIDENCE')
-          )
-        ) {
-          const focusedImage = cameraRef.current?.capture({
-            faceCrop: true,
-            sourceFaceBox: result.face_box
-              ? {
-                  x: result.face_box.x,
-                  y: result.face_box.y,
-                  width: result.face_box.width,
-                  height: result.face_box.height,
-                  sourceWidth: result.face_box.source_width,
-                  sourceHeight: result.face_box.source_height,
-                }
-              : null,
-          });
-          if (focusedImage && focusedImage !== image) {
-            result = await apiClient.identifyFace(
-              focusedImage,
-              worksiteId,
-              controller.signal,
-            );
-            recognizedImage = focusedImage;
+        const identifyCapture = async (initialImage: string) => {
+          let result = await apiClient.identifyFace(initialImage, worksiteId, controller.signal);
+          let recognizedImage = initialImage;
+          const retryReasons = new Set(result.reasons.map((reason) => reason.toUpperCase()));
+          if (
+            images.length === 1
+            && croppedFaceImages.length === 0
+            && !result.matched
+            && (
+              retryReasons.has('NO_FACE')
+              || retryReasons.has('FACE_TOO_SMALL')
+              || retryReasons.has('LOW_DETECTION_CONFIDENCE')
+            )
+          ) {
+            const focusedImage = cameraRef.current?.capture({
+              faceCrop: true,
+              sourceFaceBox: result.face_box
+                ? {
+                    x: result.face_box.x,
+                    y: result.face_box.y,
+                    width: result.face_box.width,
+                    height: result.face_box.height,
+                    sourceWidth: result.face_box.source_width,
+                    sourceHeight: result.face_box.source_height,
+                  }
+                : null,
+            });
+            if (focusedImage && focusedImage !== initialImage) {
+              result = await apiClient.identifyFace(focusedImage, worksiteId, controller.signal);
+              recognizedImage = focusedImage;
+            }
           }
-        }
+          return { result, image: recognizedImage };
+        };
+
+        const settledCaptures = await Promise.allSettled(images.map(identifyCapture));
         if (cancelled) return;
+
+        const identifiedCaptures = settledCaptures.flatMap((capture) => (
+          capture.status === 'fulfilled' ? [capture.value] : []
+        ));
+        if (!identifiedCaptures.length) {
+          throw new Error('Nenhum rosto pôde ser analisado.');
+        }
+
+        const primaryCapture = identifiedCaptures.find(({ result }) => result.matched)
+          || identifiedCaptures.find(({ result }) => result.accepted)
+          || identifiedCaptures[0];
+        const result = primaryCapture.result;
 
         setAnalysis(result);
         setDecision(null);
 
-        if (!result.matched || !result.employee_id) {
+        const matchesByEmployee = new Map<string, typeof primaryCapture>();
+        identifiedCaptures.forEach((capture) => {
+          if (capture.result.matched && capture.result.employee_id) {
+            matchesByEmployee.set(capture.result.employee_id, capture);
+          }
+        });
+        const matches = [...matchesByEmployee.values()];
+
+        if (!matches.length) {
           setRecognition({
             employeeId: null,
             employeeName: null,
@@ -403,27 +443,57 @@ export function FacialTerminalPage() {
           setMode(result.reasons.some((reason) => reason.toUpperCase() === 'NO_COMPATIBLE_TEMPLATES')
             ? 'attention'
             : 'scanning');
-          setGuidance(guidanceForResult(result));
+          setGuidance(images.length > 1
+            ? 'Os rostos foram detectados, mas as identidades ainda não foram confirmadas.'
+            : guidanceForResult(result));
           return;
         }
 
+        const firstMatch = matches[0].result;
         setRecognition({
-          employeeId: result.employee_id,
-          employeeName: result.employee_name,
+          employeeId: firstMatch.employee_id,
+          employeeName: firstMatch.employee_name,
           tone: 'tracking',
-          faceBox: result.face_box,
+          faceBox: firstMatch.face_box,
         });
 
-        const cooldownUntil = cooldownsRef.current.get(result.employee_id) || 0;
-        if (cooldownUntil > Date.now()) {
+        const pendingMatches = matches.filter(({ result: match }) => (
+          (cooldownsRef.current.get(match.employee_id || '') || 0) <= Date.now()
+        ));
+        if (!pendingMatches.length) {
           setMode('ready');
-          setGuidance(`Ponto de ${result.employee_name || 'funcionário'} já registrado. Próxima pessoa pode se aproximar.`);
+          setGuidance(matches.length > 1
+            ? 'Os pontos destas pessoas já foram registrados. Outras pessoas podem se aproximar.'
+            : `Ponto de ${firstMatch.employee_name || 'funcionário'} já registrado. Próxima pessoa pode se aproximar.`);
           return;
         }
 
-        setMode('confirming');
-        setGuidance('Identidade localizada. Registrando o ponto...');
-        await submitAutomaticPunch(result.employee_id, result.employee_name, recognizedImage);
+        let completed = 0;
+        for (const [index, capture] of pendingMatches.entries()) {
+          const match = capture.result;
+          if (!match.employee_id) continue;
+          setRecognition({
+            employeeId: match.employee_id,
+            employeeName: match.employee_name,
+            tone: 'tracking',
+            faceBox: match.face_box,
+          });
+          setMode('confirming');
+          setGuidance(pendingMatches.length > 1
+            ? `Registrando pessoa ${index + 1} de ${pendingMatches.length}...`
+            : 'Identidade localizada. Registrando o ponto...');
+          if (await submitAutomaticPunch(match.employee_id, match.employee_name, capture.image)) {
+            completed += 1;
+          }
+        }
+
+        if (pendingMatches.length > 1 && completed > 0) {
+          resultHoldUntilRef.current = Date.now() + RESULT_HOLD_MS;
+          setMode('accepted');
+          setGuidance(completed === pendingMatches.length
+            ? `${completed} pontos registrados nesta leitura.`
+            : `${completed} ponto${completed > 1 ? 's' : ''} registrado${completed > 1 ? 's' : ''}; os demais rostos serão tentados novamente.`);
+        }
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {
           setMode('attention');
@@ -541,7 +611,7 @@ export function FacialTerminalPage() {
           : 2;
   const flowSteps = [
     { label: 'Câmera', detail: cameraReady ? 'Disponível' : 'Iniciando', icon: Camera },
-    { label: 'Reconhecimento', detail: analysis?.face_count === 1 ? 'Rosto localizado' : 'Aguardando rosto', icon: Focus },
+    { label: 'Reconhecimento', detail: localFaceCount > 1 ? `${localFaceCount} rostos localizados` : analysis?.face_count === 1 ? 'Rosto localizado' : 'Aguardando rosto', icon: Focus },
     { label: 'Identificado', detail: recognition.employeeName || 'Aguardando identidade', icon: UserRoundCheck },
     { label: 'Registrado', detail: mode === 'accepted' ? 'Ponto confirmado' : 'Aguardando confirmação', icon: CheckCircle2 },
   ];
@@ -627,13 +697,8 @@ export function FacialTerminalPage() {
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
             onFacePresenceChange={handleLocalFacePresence}
+            onFaceCountChange={handleLocalFaceCount}
           />
-          {mode === 'accepted' && (
-            <div className="terminal-success-burst" aria-hidden="true">
-              <span />
-              {Array.from({ length: 10 }).map((_, index) => <i key={index} />)}
-            </div>
-          )}
         </div>
 
         <div className="terminal-status-strip">
@@ -666,11 +731,11 @@ export function FacialTerminalPage() {
             </div>
             <div className="terminal-signal">
               <span>Enquadramento</span>
-              <strong>{analysis?.face_count === 1 ? 'Rosto detectado' : 'Aguardando'}</strong>
+              <strong>{localFaceCount > 1 ? `${localFaceCount} rostos detectados` : analysis?.face_count === 1 ? 'Rosto detectado' : 'Aguardando'}</strong>
             </div>
             <div className="terminal-signal">
               <span>Imagem</span>
-              <strong>{qualityLabel(analysis)}</strong>
+              <strong>{localFaceCount > 1 ? `${localFaceCount} leituras separadas` : qualityLabel(analysis)}</strong>
             </div>
             <div className="terminal-signal">
               <span>Identificação</span>

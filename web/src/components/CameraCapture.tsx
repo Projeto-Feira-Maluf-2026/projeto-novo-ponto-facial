@@ -3,7 +3,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import type { FaceLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision';
 
-type FaceBox = {
+export type FaceBox = {
   x: number;
   y: number;
   width: number;
@@ -30,6 +30,7 @@ export interface CameraCaptureHandle {
     faceCrop?: boolean;
     sourceFaceBox?: FaceSourceBox | null;
   }) => string | null;
+  captureFaces: (options?: { limit?: number }) => string[];
   restart: () => Promise<void>;
 }
 
@@ -52,6 +53,8 @@ export interface FaceSourceBox {
 
 const LANDMARK_WASM_PATH = '/mediapipe/wasm';
 const FACE_LANDMARKER_MODEL_PATH = '/mediapipe/face_landmarker.task';
+const MAX_TRACKED_FACES = 5;
+const LANDMARK_FRAME_INTERVAL_MS = 32;
 
 const TONE_RGB: Record<FaceOverlayTone, string> = {
   tracking: '203, 213, 225',
@@ -61,6 +64,29 @@ const TONE_RGB: Record<FaceOverlayTone, string> = {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+export function faceBoxesFromLandmarks(
+  detectedLandmarks: NormalizedLandmark[][],
+  limit = MAX_TRACKED_FACES,
+): FaceBox[] {
+  return detectedLandmarks
+    .filter((landmarks) => landmarks.length > 0)
+    .slice(0, Math.max(0, limit))
+    .map((landmarks) => {
+      const landmarkXs = landmarks.map((landmark) => landmark.x);
+      const landmarkYs = landmarks.map((landmark) => landmark.y);
+      const normalizedLeft = clamp(Math.min(...landmarkXs), 0, 1);
+      const normalizedTop = clamp(Math.min(...landmarkYs), 0, 1);
+      const normalizedRight = clamp(Math.max(...landmarkXs), 0, 1);
+      const normalizedBottom = clamp(Math.max(...landmarkYs), 0, 1);
+      return {
+        x: normalizedLeft,
+        y: normalizedTop,
+        width: normalizedRight - normalizedLeft,
+        height: normalizedBottom - normalizedTop,
+      };
+    });
+}
 
 export function cameraAccessErrorMessage(error: unknown) {
   const errorName = error && typeof error === 'object' && 'name' in error
@@ -92,6 +118,7 @@ interface CameraCaptureProps {
   detectedFaceBox?: FaceSourceBox | null;
   onReadyChange?: (ready: boolean) => void;
   onFacePresenceChange?: (present: boolean) => void;
+  onFaceCountChange?: (count: number) => void;
 }
 
 export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>(
@@ -101,6 +128,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     detectedFaceBox,
     onReadyChange,
     onFacePresenceChange,
+    onFaceCountChange,
   }, ref) => {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -108,6 +136,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const streamRef = useRef<MediaStream | null>(null);
     const faceOverlayRef = useRef<FaceOverlayState | undefined>(faceOverlay);
     const normalizedFaceBoxRef = useRef<FaceBox | null>(null);
+    const normalizedFaceBoxesRef = useRef<FaceBox[]>([]);
+    const nativeNormalizedFaceBoxesRef = useRef<FaceBox[]>([]);
     const startRequestIdRef = useRef(0);
     const selectedDeviceIdRef = useRef('');
     const [ready, setReady] = useState(false);
@@ -115,9 +145,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const [error, setError] = useState('');
     const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState('');
-    const [faceBox, setFaceBox] = useState<FaceBox | null>(null);
+    const [faceBoxes, setFaceBoxes] = useState<FaceBox[]>([]);
     const [landmarkState, setLandmarkState] = useState<'loading' | 'ready' | 'error' | 'unsupported'>('loading');
     const [landmarkFacePresent, setLandmarkFacePresent] = useState(false);
+    const [landmarkFaceCount, setLandmarkFaceCount] = useState(0);
 
     useEffect(() => {
       faceOverlayRef.current = faceOverlay;
@@ -133,10 +164,14 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       }
       setReady(false);
       setStarting(false);
-      setFaceBox(null);
+      setFaceBoxes([]);
       normalizedFaceBoxRef.current = null;
+      normalizedFaceBoxesRef.current = [];
+      nativeNormalizedFaceBoxesRef.current = [];
+      setLandmarkFaceCount(0);
+      onFaceCountChange?.(0);
       onReadyChange?.(false);
-    }, [onReadyChange]);
+    }, [onFaceCountChange, onReadyChange]);
 
     const refreshDevices = useCallback(async () => {
       if (!navigator.mediaDevices?.enumerateDevices) return [];
@@ -286,14 +321,22 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let videoFrameCallback = 0;
       let landmarker: FaceLandmarker | null = null;
       let lastFacePresent = false;
+      let lastFaceCount = 0;
       let lastVideoTime = -1;
       let lastLandmarkAt = 0;
 
-      const setFacePresent = (present: boolean) => {
-        if (lastFacePresent === present) return;
-        lastFacePresent = present;
-        setLandmarkFacePresent(present);
-        onFacePresenceChange?.(present);
+      const setDetectedFaceCount = (count: number) => {
+        const present = count > 0;
+        if (lastFacePresent !== present) {
+          lastFacePresent = present;
+          setLandmarkFacePresent(present);
+          onFacePresenceChange?.(present);
+        }
+        if (lastFaceCount !== count) {
+          lastFaceCount = count;
+          setLandmarkFaceCount(count);
+          onFaceCountChange?.(count);
+        }
       };
 
       const resizeCanvas = (canvas: HTMLCanvasElement) => {
@@ -340,6 +383,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         context: CanvasRenderingContext2D,
         landmarks: NormalizedLandmark[],
         color: string,
+        faceIndex: number,
+        faceCount: number,
       ) => {
         const points = landmarks.map(projectLandmark).filter(Boolean) as Array<{ x: number; y: number; z: number }>;
         if (!points.length) return;
@@ -357,8 +402,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         const labelY = guideTop > 42 ? guideTop - 36 : guideTop + 10;
         const labelX = clamp(guideLeft, 10, Math.max(10, canvasRect.width - 242));
         const overlay = faceOverlayRef.current;
-        const label = overlay?.label || 'Rosto detectado';
-        const detail = overlay?.detail ? ` ${overlay.detail}` : '';
+        const label = faceCount > 1 ? `Rosto ${faceIndex + 1}` : overlay?.label || 'Rosto detectado';
+        const detail = faceCount === 1 && overlay?.detail ? ` ${overlay.detail}` : '';
         const text = `${label}${detail}`;
 
         context.font = '650 12px Inter, ui-sans-serif, system-ui, sans-serif';
@@ -398,7 +443,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         context.restore();
       };
 
-      const drawFace = (result: FaceLandmarkerResult) => {
+      const drawFaces = (result: FaceLandmarkerResult) => {
         const canvas = landmarkCanvasRef.current;
         if (!canvas) return;
 
@@ -406,33 +451,31 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (!context) return;
 
         context.clearRect(0, 0, width, height);
-        const landmarks = result.faceLandmarks?.[0];
-        if (!landmarks?.length) {
+        const detectedLandmarks = (result.faceLandmarks || [])
+          .filter((landmarks) => landmarks.length > 0)
+          .slice(0, MAX_TRACKED_FACES);
+        if (!detectedLandmarks.length) {
           normalizedFaceBoxRef.current = null;
-          setFacePresent(false);
+          normalizedFaceBoxesRef.current = [];
+          setDetectedFaceCount(0);
           return;
         }
 
-        const landmarkXs = landmarks.map((landmark) => landmark.x);
-        const landmarkYs = landmarks.map((landmark) => landmark.y);
-        const normalizedLeft = clamp(Math.min(...landmarkXs), 0, 1);
-        const normalizedTop = clamp(Math.min(...landmarkYs), 0, 1);
-        const normalizedRight = clamp(Math.max(...landmarkXs), 0, 1);
-        const normalizedBottom = clamp(Math.max(...landmarkYs), 0, 1);
-        normalizedFaceBoxRef.current = {
-          x: normalizedLeft,
-          y: normalizedTop,
-          width: normalizedRight - normalizedLeft,
-          height: normalizedBottom - normalizedTop,
-        };
-        setFacePresent(true);
+        const normalizedBoxes = faceBoxesFromLandmarks(detectedLandmarks);
+        normalizedFaceBoxesRef.current = normalizedBoxes;
+        normalizedFaceBoxRef.current = normalizedBoxes.reduce((largest, box) => (
+          box.width * box.height > largest.width * largest.height ? box : largest
+        ));
+        setDetectedFaceCount(detectedLandmarks.length);
         const tone = faceOverlayRef.current?.tone || 'tracking';
-        const color = TONE_RGB[tone];
-        drawLabel(context, landmarks, color);
+        const color = TONE_RGB[detectedLandmarks.length > 1 ? 'tracking' : tone];
+        detectedLandmarks.forEach((landmarks, index) => {
+          drawLabel(context, landmarks, color, index, detectedLandmarks.length);
+        });
       };
 
       const processFrame = (now: DOMHighResTimeStamp) => {
-        if (cancelled || document.hidden || now - lastLandmarkAt < 90) return;
+        if (cancelled || document.hidden || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS) return;
 
         const video = videoRef.current;
         if (landmarker && video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -440,7 +483,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           lastVideoTime = video.currentTime;
           lastLandmarkAt = now;
           try {
-            drawFace(landmarker.detectForVideo(video, now));
+            drawFaces(landmarker.detectForVideo(video, now));
           } catch {
             setLandmarkState('error');
           }
@@ -473,7 +516,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
 
           const landmarkerOptions = {
             runningMode: 'VIDEO' as const,
-            numFaces: 1,
+            numFaces: MAX_TRACKED_FACES,
             minFaceDetectionConfidence: 0.36,
             minFacePresenceConfidence: 0.36,
             minTrackingConfidence: 0.36,
@@ -525,47 +568,61 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         }
         landmarker?.close();
         normalizedFaceBoxRef.current = null;
+        normalizedFaceBoxesRef.current = [];
         setLandmarkFacePresent(false);
+        setLandmarkFaceCount(0);
+        onFaceCountChange?.(0);
         onFacePresenceChange?.(false);
       };
-    }, [onFacePresenceChange, ready]);
+    }, [onFaceCountChange, onFacePresenceChange, ready]);
 
     useEffect(() => {
-      if (!ready) {
-        setFaceBox(null);
+      if (!ready || landmarkState === 'ready') {
+        setFaceBoxes([]);
+        nativeNormalizedFaceBoxesRef.current = [];
         return undefined;
       }
 
       const FaceDetectorApi = (window as Window & { FaceDetector?: FaceDetectorConstructor }).FaceDetector;
       if (!FaceDetectorApi) {
-        setFaceBox(null);
+        setFaceBoxes([]);
+        nativeNormalizedFaceBoxesRef.current = [];
         return undefined;
       }
 
-      const detector = new FaceDetectorApi({ fastMode: true, maxDetectedFaces: 1 });
+      const detector = new FaceDetectorApi({ fastMode: true, maxDetectedFaces: MAX_TRACKED_FACES });
       let cancelled = false;
       let timer = 0;
 
       const detect = async () => {
         const video = videoRef.current;
         if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-          timer = window.setTimeout(detect, 240);
+          timer = window.setTimeout(detect, 80);
           return;
         }
 
         try {
           const faces = await detector.detect(video);
           if (!cancelled) {
-            setFaceBox(faces[0] ? projectFaceBoxToVideo(faces[0].boundingBox) : null);
+            nativeNormalizedFaceBoxesRef.current = faces.map(({ boundingBox }) => ({
+              x: boundingBox.x / video.videoWidth,
+              y: boundingBox.y / video.videoHeight,
+              width: boundingBox.width / video.videoWidth,
+              height: boundingBox.height / video.videoHeight,
+            }));
+            setFaceBoxes(faces
+              .map(({ boundingBox }) => projectFaceBoxToVideo(boundingBox))
+              .filter(Boolean) as FaceBox[]);
           }
         } catch {
           if (!cancelled) {
-            setFaceBox(null);
+            setFaceBoxes([]);
+            nativeNormalizedFaceBoxesRef.current = [];
           }
         }
 
         if (!cancelled) {
-          timer = window.setTimeout(detect, 240);
+          timer = window.setTimeout(detect, 80);
         }
       };
 
@@ -575,89 +632,104 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         cancelled = true;
         window.clearTimeout(timer);
       };
-    }, [projectFaceBoxToVideo, ready]);
+    }, [landmarkState, projectFaceBoxToVideo, ready]);
+
+    useEffect(() => {
+      if (landmarkState === 'ready') return;
+      const count = faceBoxes.length;
+      onFaceCountChange?.(count);
+      onFacePresenceChange?.(count > 0);
+    }, [faceBoxes.length, landmarkState, onFaceCountChange, onFacePresenceChange]);
 
     useImperativeHandle(
       ref,
-      () => ({
-        capture: (options) => {
+      () => {
+        const captureNormalizedFace = (normalizedFace: FaceBox, compact = false) => {
           const video = videoRef.current;
           const canvas = canvasRef.current;
           if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
             return null;
           }
-          const sourceFaceBox = options?.sourceFaceBox;
-          const serverNormalizedFace = sourceFaceBox
-            && sourceFaceBox.sourceWidth > 0
-            && sourceFaceBox.sourceHeight > 0
-            ? {
-                x: sourceFaceBox.x / sourceFaceBox.sourceWidth,
-                y: sourceFaceBox.y / sourceFaceBox.sourceHeight,
-                width: sourceFaceBox.width / sourceFaceBox.sourceWidth,
-                height: sourceFaceBox.height / sourceFaceBox.sourceHeight,
-              }
-            : null;
-          const normalizedFace = options?.faceCrop
-            ? serverNormalizedFace || normalizedFaceBoxRef.current
-            : null;
-          if (normalizedFace && normalizedFace.width > 0 && normalizedFace.height > 0) {
-            const faceCenterX = (normalizedFace.x + normalizedFace.width / 2) * video.videoWidth;
-            const faceCenterY = (
-              normalizedFace.y
-              + normalizedFace.height * 0.46
-            ) * video.videoHeight;
-            const requestedSide = Math.max(
-              normalizedFace.width * video.videoWidth * 2.25,
-              normalizedFace.height * video.videoHeight * 2.05,
-              220,
-            );
-            const cropSide = Math.min(
-              requestedSide,
-              video.videoWidth,
-              video.videoHeight,
-            );
-            const sourceX = clamp(
-              faceCenterX - cropSide / 2,
-              0,
-              video.videoWidth - cropSide,
-            );
-            const sourceY = clamp(
-              faceCenterY - cropSide / 2,
-              0,
-              video.videoHeight - cropSide,
-            );
-            const targetSize = cropSide < 540 ? 720 : Math.min(960, Math.round(cropSide));
-            canvas.width = targetSize;
-            canvas.height = targetSize;
-            const context = canvas.getContext('2d');
-            if (!context) return null;
-            context.imageSmoothingEnabled = true;
-            context.imageSmoothingQuality = 'high';
-            context.drawImage(
-              video,
-              sourceX,
-              sourceY,
-              cropSide,
-              cropSide,
-              0,
-              0,
-              targetSize,
-              targetSize,
-            );
-            return canvas.toDataURL('image/jpeg', 0.90);
-          }
-          const captureScale = Math.min(1, 1920 / video.videoWidth, 1080 / video.videoHeight);
-          canvas.width = Math.round(video.videoWidth * captureScale);
-          canvas.height = Math.round(video.videoHeight * captureScale);
+          if (normalizedFace.width <= 0 || normalizedFace.height <= 0) return null;
+          const faceCenterX = (normalizedFace.x + normalizedFace.width / 2) * video.videoWidth;
+          const faceCenterY = (
+            normalizedFace.y
+            + normalizedFace.height * 0.46
+          ) * video.videoHeight;
+          const requestedSide = Math.max(
+            normalizedFace.width * video.videoWidth * (compact ? 1.72 : 2.25),
+            normalizedFace.height * video.videoHeight * (compact ? 1.68 : 2.05),
+            220,
+          );
+          const cropSide = Math.min(requestedSide, video.videoWidth, video.videoHeight);
+          const sourceX = clamp(faceCenterX - cropSide / 2, 0, video.videoWidth - cropSide);
+          const sourceY = clamp(faceCenterY - cropSide / 2, 0, video.videoHeight - cropSide);
+          const targetSize = cropSide < 540 ? 720 : Math.min(960, Math.round(cropSide));
+          canvas.width = targetSize;
+          canvas.height = targetSize;
           const context = canvas.getContext('2d');
-          if (!context) {
-            return null;
-          }
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          return canvas.toDataURL('image/jpeg', 0.92);
-        },
-        restart: start,
-      }),
+          if (!context) return null;
+          context.imageSmoothingEnabled = true;
+          context.imageSmoothingQuality = 'high';
+          context.drawImage(
+            video,
+            sourceX,
+            sourceY,
+            cropSide,
+            cropSide,
+            0,
+            0,
+            targetSize,
+            targetSize,
+          );
+          return canvas.toDataURL('image/jpeg', 0.90);
+        };
+
+        return {
+          capture: (options) => {
+            const video = videoRef.current;
+            const canvas = canvasRef.current;
+            if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+              return null;
+            }
+            const sourceFaceBox = options?.sourceFaceBox;
+            const serverNormalizedFace = sourceFaceBox
+              && sourceFaceBox.sourceWidth > 0
+              && sourceFaceBox.sourceHeight > 0
+              ? {
+                  x: sourceFaceBox.x / sourceFaceBox.sourceWidth,
+                  y: sourceFaceBox.y / sourceFaceBox.sourceHeight,
+                  width: sourceFaceBox.width / sourceFaceBox.sourceWidth,
+                  height: sourceFaceBox.height / sourceFaceBox.sourceHeight,
+                }
+              : null;
+            const normalizedFace = options?.faceCrop
+              ? serverNormalizedFace || normalizedFaceBoxRef.current
+              : null;
+            if (normalizedFace) return captureNormalizedFace(normalizedFace);
+            const captureScale = Math.min(1, 1920 / video.videoWidth, 1080 / video.videoHeight);
+            canvas.width = Math.round(video.videoWidth * captureScale);
+            canvas.height = Math.round(video.videoHeight * captureScale);
+            const context = canvas.getContext('2d');
+            if (!context) {
+              return null;
+            }
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.92);
+          },
+          captureFaces: (options) => {
+            const limit = clamp(options?.limit || MAX_TRACKED_FACES, 1, MAX_TRACKED_FACES);
+            const boxes = normalizedFaceBoxesRef.current.length
+              ? normalizedFaceBoxesRef.current
+              : nativeNormalizedFaceBoxesRef.current;
+            return boxes
+              .slice(0, limit)
+              .map((box) => captureNormalizedFace(box, boxes.length > 1))
+              .filter(Boolean) as string[];
+          },
+          restart: start,
+        };
+      },
       [start],
     );
 
@@ -675,30 +747,32 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       );
     }, [detectedFaceBox, projectFaceBoxToVideo]);
 
-    const displayFaceBox = landmarkFacePresent ? null : faceBox || projectedApiFaceBox;
-    const faceOutline = displayFaceBox
-      ? {
-          width: displayFaceBox.width * 1.34,
-          height: displayFaceBox.height * 1.72,
-          left: displayFaceBox.x - displayFaceBox.width * 0.17,
-          top: displayFaceBox.y - displayFaceBox.height * 0.34,
-        }
-      : null;
+    const displayFaceBoxes = landmarkFacePresent
+      ? []
+      : faceBoxes.length
+        ? faceBoxes
+        : projectedApiFaceBox
+          ? [projectedApiFaceBox]
+          : [];
+    const faceOutlines = displayFaceBoxes.map((displayFaceBox) => ({
+      width: displayFaceBox.width * 1.34,
+      height: displayFaceBox.height * 1.72,
+      left: displayFaceBox.x - displayFaceBox.width * 0.17,
+      top: displayFaceBox.y - displayFaceBox.height * 0.34,
+    }));
     const overlayLabel = faceOverlay?.label || 'Rosto detectado';
     const overlayTone = faceOverlay?.tone || 'tracking';
-    const cameraStatusLabel = ready
-      ? landmarkFacePresent
-        ? faceOverlay?.tone === 'success'
-          ? 'Rosto identificado'
-          : 'Rosto enquadrado'
-        : displayFaceBox
-        ? overlayTone === 'success'
-          ? 'Rosto identificado'
-          : 'Rosto detectado'
-        : landmarkState === 'loading'
-          ? 'Preparando leitura'
-        : 'Câmera ativa'
-      : starting ? 'Iniciando câmera' : 'Câmera indisponível';
+    const visibleFaceCount = landmarkFacePresent ? landmarkFaceCount : displayFaceBoxes.length;
+    let cameraStatusLabel = starting ? 'Iniciando câmera' : 'Câmera indisponível';
+    if (ready) {
+      if (visibleFaceCount > 1) {
+        cameraStatusLabel = `${visibleFaceCount} rostos enquadrados`;
+      } else if (visibleFaceCount === 1) {
+        cameraStatusLabel = overlayTone === 'success' ? 'Rosto identificado' : 'Rosto enquadrado';
+      } else {
+        cameraStatusLabel = landmarkState === 'loading' ? 'Preparando leitura' : 'Câmera ativa';
+      }
+    }
 
     const selectCamera = (deviceId: string) => {
       selectedDeviceIdRef.current = deviceId;
@@ -712,8 +786,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         <canvas ref={canvasRef} className="hidden" />
         <canvas ref={landmarkCanvasRef} className="face-landmark-canvas" />
 
-        {faceOutline && (
+        {faceOutlines.map((faceOutline, index) => (
           <div
+            key={`face-${index}`}
             className="face-outline face-track-overlay"
             data-tone={overlayTone}
             style={{
@@ -724,8 +799,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             }}
           >
             <div className={`face-track-label ${faceOutline.top < 34 ? 'face-track-label-inside' : ''}`}>
-              {overlayLabel}
-              {faceOverlay?.detail && <span>{faceOverlay.detail}</span>}
+              {faceOutlines.length > 1 ? `Rosto ${index + 1}` : overlayLabel}
+              {faceOutlines.length === 1 && faceOverlay?.detail && <span>{faceOverlay.detail}</span>}
             </div>
             <svg viewBox="0 0 220 280" className="face-outline-vector">
               <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
@@ -735,7 +810,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
               </g>
             </svg>
           </div>
-        )}
+        ))}
 
         <div className="camera-chip absolute left-3 top-3">
           <Camera size={15} />
