@@ -491,7 +491,7 @@ export function FacialTerminalPage() {
     if (mode === 'attention') {
       return {
         icon: XCircle,
-        title: 'Atenção necessária',
+        title: 'Registro não concluído',
         detail: guidance,
         tone: 'danger',
       };

@@ -57,8 +57,8 @@ export function resolveApiBaseUrl(configured: string | undefined, fallback: stri
 const apiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_URL, DEFAULT_API_URL);
 const faceApiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_FACE_API_URL, apiBaseUrl);
 
-function createApi(baseURL: string): AxiosInstance {
-  const client = axios.create({ baseURL });
+function createApi(baseURL: string, timeout: number): AxiosInstance {
+  const client = axios.create({ baseURL, timeout });
 
   client.interceptors.request.use(async (config) => {
     const { data } = await supabase.auth.getSession();
@@ -88,8 +88,8 @@ function createApi(baseURL: string): AxiosInstance {
   return client;
 }
 
-const api = createApi(apiBaseUrl);
-const faceApi = createApi(faceApiBaseUrl);
+const api = createApi(apiBaseUrl, 20_000);
+const faceApi = createApi(faceApiBaseUrl, 45_000);
 
 const enableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
 

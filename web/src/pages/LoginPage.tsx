@@ -84,13 +84,11 @@ export function LoginPage() {
             <div className="login-brand-mark">CE</div>
             <div>
               <strong>Curitiba Empreiteira</strong>
-              <span>Presença inteligente</span>
             </div>
           </div>
 
           <div className="login-context-content">
-            <h2>A operação começa com quem faz acontecer.</h2>
-            <p>Gestão de funcionários, obras e registros de ponto.</p>
+            <h2>Controle de ponto facial</h2>
           </div>
         </aside>
 
@@ -102,9 +100,7 @@ export function LoginPage() {
 
           <form onSubmit={onSubmit} className="login-form" noValidate>
             <div className="login-form-heading">
-              <span className="login-form-kicker">Portal administrativo</span>
-              <h1>Acesse sua central</h1>
-              <p>Use sua conta corporativa para continuar.</p>
+              <h1>Entrar</h1>
             </div>
 
             <div className={`login-input ${error ? 'is-invalid' : ''}`}>
@@ -157,7 +153,7 @@ export function LoginPage() {
             {error && <div id="login-error" className="login-error" role="alert">{error}</div>}
 
             <button type="submit" className="login-submit" disabled={loading || !email.trim() || !password}>
-              <span>{loading ? 'Validando acesso...' : 'Entrar no sistema'}</span>
+              <span>{loading ? 'Entrando...' : 'Entrar'}</span>
               {loading ? <LoaderCircle className="login-spinner" size={18} /> : <ArrowRight size={18} />}
             </button>
 

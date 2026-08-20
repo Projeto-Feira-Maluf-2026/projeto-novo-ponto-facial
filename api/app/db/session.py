@@ -27,9 +27,16 @@ def normalize_database_url(value: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
+def is_transaction_pooler_url(value: str) -> bool:
+    """Detect Supabase/Supavisor transaction-pooler endpoints."""
+    hostname = (urlsplit(value).hostname or "").lower()
+    return hostname.endswith(".pooler.supabase.com") or hostname == "pooler.supabase.com"
+
+
 database_url = normalize_database_url(settings.DATABASE_URL)
 engine_options = {"pool_pre_ping": True, "pool_recycle": 300}
-if os.getenv("VERCEL"):
+
+if os.getenv("VERCEL") or is_transaction_pooler_url(database_url):
     engine_options["poolclass"] = NullPool
     engine_options["connect_args"] = {
         "statement_cache_size": 0,

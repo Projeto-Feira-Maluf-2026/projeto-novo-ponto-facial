@@ -708,19 +708,12 @@ body::before {
 }
 
 .login-context-content h2 {
-  max-width: 700px;
+  max-width: 560px;
   color: #f6f8f6;
-  font-size: clamp(3.4rem, 6vw, 7rem);
+  font-size: clamp(3rem, 5vw, 5.8rem);
   font-weight: 560;
-  letter-spacing: -0.082em;
-  line-height: 0.86;
-}
-
-.login-context-content > p {
-  max-width: 510px;
-  margin-top: 24px;
-  color: #8c9990;
-  font-size: 1rem;
+  letter-spacing: -0.075em;
+  line-height: 0.92;
 }
 
 .login-access {
@@ -750,14 +743,10 @@ body::before {
 
 .login-form-heading h1 {
   color: #0d1410;
-  font-size: clamp(2.7rem, 5vw, 4.2rem);
+  font-size: clamp(2.5rem, 5vw, 3.8rem);
   font-weight: 570;
   letter-spacing: -0.075em;
   line-height: 0.94;
-}
-
-.login-form-heading p {
-  color: #68736b;
 }
 
 .login-input {
