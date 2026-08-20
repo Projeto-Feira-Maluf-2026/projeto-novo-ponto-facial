@@ -207,7 +207,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             <span className="brand-mark" aria-hidden="true">CE</span>
             <span>
               <strong>Curitiba Empreiteira</strong>
-              <small>Presença inteligente</small>
             </span>
           </NavLink>
           <button
