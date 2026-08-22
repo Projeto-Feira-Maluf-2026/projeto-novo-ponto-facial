@@ -153,14 +153,15 @@ const fallbackDevices: Page<Device> = {
 };
 
 async function fallback<T>(request: Promise<{ data: T }>, value: T): Promise<T> {
+  if (enableMocks) {
+    void request.catch(() => undefined);
+    return value;
+  }
   try {
     const response = await request;
     return response.data;
   } catch {
-    if (!enableMocks) {
-      throw new Error('API indisponivel');
-    }
-    return value;
+    throw new Error('API indisponivel');
   }
 }
 

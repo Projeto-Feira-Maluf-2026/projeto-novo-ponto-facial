@@ -273,9 +273,9 @@ export function WorksitesPage() {
         emptyTitle="Nenhuma obra cadastrada"
         emptyDescription="Cadastre a primeira obra para configurar seus terminais."
         columns={[
-          { key: 'code', header: 'Código' },
-          { key: 'name', header: 'Obra' },
-          { key: 'address', header: 'Endereço' },
+          { key: 'code', header: 'Código', mobileHidden: true },
+          { key: 'name', header: 'Obra', mobilePrimary: true },
+          { key: 'address', header: 'Endereço', mobileHidden: true },
           { key: 'manager_name', header: 'Responsável' },
           {
             key: 'active',

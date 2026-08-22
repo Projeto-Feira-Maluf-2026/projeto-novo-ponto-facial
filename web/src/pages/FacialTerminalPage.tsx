@@ -4,11 +4,11 @@ import {
   CheckCircle2,
   Clock3,
   Focus,
-  MapPin,
   Maximize2,
   Minimize2,
   Pause,
   Play,
+  ScanFace,
   ShieldAlert,
   UserRoundCheck,
   WifiOff,
@@ -94,7 +94,7 @@ function qualityLabel(analysis: FaceAnalyzeResponse | null) {
 function guidanceForResult(result: FaceIdentifyResponse) {
   const reasons = new Set(result.reasons.map((reason) => reason.toUpperCase()));
   if (result.face_count === 0 || reasons.has('NO_FACE')) {
-    return 'Aproxime-se e posicione o rosto dentro do enquadramento.';
+    return 'Mostre o rosto à câmera. A leitura será feita automaticamente.';
   }
   if (result.face_count > 1 || reasons.has('MULTIPLE_FACES')) {
     return 'Mantenham os rostos visíveis enquanto a câmera separa cada leitura.';
@@ -109,7 +109,7 @@ function guidanceForResult(result: FaceIdentifyResponse) {
     return 'Evite luz direta no rosto ou atrás da câmera.';
   }
   if (reasons.has('FACE_TOO_SMALL')) {
-    return 'Aproxime-se um pouco mais da câmera.';
+    return 'Mantenha o rosto visível enquanto a câmera tenta uma nova leitura.';
   }
   if (reasons.has('NO_COMPATIBLE_TEMPLATES')) {
     return 'Os cadastros faciais desta equipe precisam ser atualizados.';
@@ -129,7 +129,7 @@ function attendanceReasonMessage(reasons: string[]) {
     return 'Os rostos foram localizados e serão processados separadamente na próxima leitura.';
   }
   if (reasonSet.has('FACE_TOO_SMALL')) {
-    return 'Aproxime-se um pouco mais para concluir o registro.';
+    return 'Mantenha o rosto visível enquanto a câmera tenta concluir o registro.';
   }
   if (reasonSet.has('IMAGE_TOO_BLURRY')) {
     return 'Fique parado por um instante para a câmera obter uma imagem mais nítida.';
@@ -463,8 +463,8 @@ export function FacialTerminalPage() {
         if (!pendingMatches.length) {
           setMode('ready');
           setGuidance(matches.length > 1
-            ? 'Os pontos destas pessoas já foram registrados. Outras pessoas podem se aproximar.'
-            : `Ponto de ${firstMatch.employee_name || 'funcionário'} já registrado. Próxima pessoa pode se aproximar.`);
+            ? 'Os pontos destas pessoas já foram registrados. A câmera está pronta para uma nova leitura.'
+            : `Ponto de ${firstMatch.employee_name || 'funcionário'} já registrado. A câmera está pronta para outra pessoa.`);
           return;
         }
 
@@ -592,7 +592,7 @@ export function FacialTerminalPage() {
     }
     return {
       icon: Focus,
-      title: 'Aguardando aproximação',
+      title: 'Aguardando rosto',
       detail: guidance,
       tone: 'neutral',
     };
@@ -804,9 +804,9 @@ export function FacialTerminalPage() {
         )}
 
         <section className="terminal-panel flex items-start gap-3">
-          <MapPin size={18} className="mt-0.5 shrink-0 text-steel" />
+          <ScanFace size={18} className="mt-0.5 shrink-0 text-steel" />
           <div>
-            <strong className="block text-xs">Operação sem toque</strong>
+            <strong className="block text-xs">Leitura sem toque</strong>
             <p className="mt-1 text-xs leading-5 text-steel">
               A pessoa só precisa olhar para a câmera. O movimento do ponto é definido automaticamente pelo histórico.
             </p>

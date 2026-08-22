@@ -440,6 +440,13 @@ body::before {
   overflow: hidden;
 }
 
+.data-table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: color-mix(in srgb, var(--ui-accent) 45%, var(--ui-line)) transparent;
+  scrollbar-width: thin;
+}
+
 .data-table thead {
   background: color-mix(in srgb, var(--ui-surface-soft) 82%, transparent);
 }
@@ -851,6 +858,16 @@ body::before {
   height: 1px;
   background: linear-gradient(90deg, transparent, #8de0a8, transparent);
   box-shadow: 0 0 18px rgb(141 224 168 / 0.55);
+  opacity: 0;
+  animation: none;
+  transition: opacity 180ms ease;
+}
+
+.terminal-camera-frame[data-mode="scanning"]::after,
+.terminal-camera-frame[data-mode="confirming"]::after,
+.terminal-camera-frame[data-mode="submitting"]::after {
+  opacity: 1;
+  animation: scan-line 2.8s linear infinite;
 }
 
 .terminal-panel {
@@ -1023,6 +1040,16 @@ body::before {
   }
 }
 
+@media (min-width: 1280px) and (max-width: 1399px) {
+  .topbar-profile {
+    padding-right: 5px;
+  }
+
+  .topbar-profile > span:last-child {
+    display: none;
+  }
+}
+
 @media (max-width: 1199px) {
   .topbar-page-context {
     display: block;
@@ -1082,6 +1109,132 @@ body::before {
   .terminal-camera-card,
   .enrollment-dialog {
     border-radius: 18px;
+  }
+}
+
+@media (max-width: 639px) {
+  .device-statline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .device-statline > div {
+    min-height: 68px;
+    border-right: 1px solid var(--ui-line);
+    border-bottom: 1px solid var(--ui-line);
+    padding: 12px 14px;
+  }
+
+  .device-statline > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .device-statline > div:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .data-table-scroll {
+    overflow: visible;
+  }
+
+  .data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .data-table tbody {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .data-table tbody tr {
+    display: grid;
+    overflow: hidden;
+    border: 1px solid var(--ui-line);
+    border-radius: 13px;
+    background: var(--ui-surface);
+  }
+
+  .data-table tbody tr:not(:has(.data-table-empty)):hover {
+    box-shadow: none;
+    transform: none;
+  }
+
+  .data-table td {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 45px;
+    height: auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--ui-line);
+    padding: 9px 11px;
+    white-space: normal;
+  }
+
+  .data-table td::before {
+    flex: 0 0 auto;
+    color: var(--ui-subtle);
+    content: attr(data-label);
+    font-size: 0.64rem;
+    font-weight: 760;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .data-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .data-table td.data-table-column-mobile-hidden {
+    display: none;
+  }
+
+  .data-table td.data-table-column-mobile-primary {
+    min-height: 60px;
+    justify-content: flex-start;
+    background: var(--ui-surface-soft);
+  }
+
+  .data-table td.data-table-column-mobile-primary::before,
+  .data-table td[data-label=""]::before {
+    display: none;
+  }
+
+  .data-table td[data-label=""] {
+    justify-content: flex-end;
+  }
+
+  .data-table td[data-label=""] .icon-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .data-table-empty-cell {
+    display: block;
+    padding: 0;
+  }
+
+  .data-table-empty-cell::before {
+    display: none;
+  }
+}
+
+@media (hover: none) {
+  .metric-tile:hover,
+  .camera-card:hover,
+  .worksite-selector-item:hover,
+  .worksite-ranking-row:hover,
+  .terminal-event:hover,
+  .employee-identity:hover {
+    transform: none;
   }
 }
 

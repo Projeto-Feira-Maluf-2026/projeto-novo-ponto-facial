@@ -553,10 +553,11 @@ export function EmployeesPage() {
         emptyTitle={query || status !== 'ALL' ? 'Nenhum funcionário neste filtro' : 'Nenhum funcionário cadastrado'}
         emptyDescription={query || status !== 'ALL' ? 'Altere a busca ou o status para ampliar os resultados.' : 'Adicione o primeiro funcionário para iniciar a operação.'}
         columns={[
-          { key: 'registration', header: 'Matrícula' },
+          { key: 'registration', header: 'Matrícula', mobileHidden: true },
           {
             key: 'name',
             header: 'Funcionário',
+            mobilePrimary: true,
             render: (row) => (
               <button type="button" className="employee-identity" onClick={() => setDetailEmployee(row)}>
                 <span className="employee-avatar">
@@ -568,7 +569,7 @@ export function EmployeesPage() {
               </button>
             ),
           },
-          { key: 'email', header: 'Email' },
+          { key: 'email', header: 'Email', mobileHidden: true },
           {
             key: 'status',
             header: 'Status',
@@ -582,6 +583,7 @@ export function EmployeesPage() {
           {
             key: 'face',
             header: 'Face',
+            mobileHidden: true,
             render: (row) => (
               <span className="inline-flex items-center gap-2 text-sm font-semibold">
                 {row.consent_biometric_at && !row.biometric_reenrollment_required ? <CheckCircle2 size={16} className="text-limeSafe" /> : <Camera size={16} className="text-steel" />}

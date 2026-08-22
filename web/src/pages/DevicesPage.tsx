@@ -11,7 +11,7 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { CameraCapture } from '../components/CameraCapture';
 import { apiClient } from '../services/api';
@@ -109,14 +109,6 @@ export function DevicesPage() {
   const selectedCamera = selected?.metadata_json?.camera;
   const activeCount = devices.filter((item) => item.status === 'ACTIVE').length;
   const offlineCount = devices.filter((item) => item.status !== 'ACTIVE').length;
-
-  const step = useMemo(() => {
-    if (!form.camera.camera_type) return 1;
-    if (form.camera.camera_type !== 'WEBCAM' && !form.camera.rtsp_url && !form.camera.ip_address) return 2;
-    if (!testResult?.ok) return 3;
-    if (!form.worksite_id) return 4;
-    return 5;
-  }, [form, testResult]);
 
   const setField = (field: keyof CameraForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -243,7 +235,7 @@ export function DevicesPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold">Configurar câmera</h3>
-              <p className="text-sm text-steel dark:text-slate-400">Etapa {step} de 5</p>
+              <p className="text-sm text-steel dark:text-slate-400">Selecione, teste e salve uma fonte.</p>
             </div>
             {testResult?.ok && <CheckCircle2 className="text-limeSafe" size={24} />}
           </div>
@@ -385,7 +377,7 @@ export function DevicesPage() {
             <p className="text-sm text-steel dark:text-slate-400">{selected ? selected.name : 'Selecione uma câmera salva'}</p>
           </div>
           <span className={`status-pill ${selected ? statusPill(selected.status) : 'status-pill-neutral'}`}>
-            <span className={`status-dot ${selected?.status === 'ACTIVE' ? 'status-dot-pulse' : ''}`} />
+            <span className="status-dot" />
             {selected?.status === 'ACTIVE' ? 'Online' : selected ? 'Verificar' : 'Aguardando'}
           </span>
         </div>

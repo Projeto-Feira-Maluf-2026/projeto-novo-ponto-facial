@@ -13,6 +13,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const AUTH_REQUEST_TIMEOUT_MS = 10_000;
+const mocksEnabled = import.meta.env.VITE_ENABLE_MOCKS === 'true';
+const mockUser = {
+  id: 'local-preview-user',
+  email: 'operador@preview.local',
+  user_metadata: { name: 'Operador de teste' },
+} as unknown as User;
+const mockSession = {
+  access_token: 'local-preview-token',
+  refresh_token: 'local-preview-refresh-token',
+  expires_in: 3_600,
+  token_type: 'bearer',
+  user: mockUser,
+} as Session;
 
 function withTimeout<T>(operation: PromiseLike<T>, timeoutMs = AUTH_REQUEST_TIMEOUT_MS): Promise<T> {
   let timeoutId: number | undefined;
@@ -29,10 +42,11 @@ function withTimeout<T>(operation: PromiseLike<T>, timeoutMs = AUTH_REQUEST_TIME
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(mocksEnabled ? mockSession : null);
+  const [loading, setLoading] = useState(!mocksEnabled);
 
   useEffect(() => {
+    if (mocksEnabled) return undefined;
     let active = true;
 
     const initialize = async () => {
@@ -84,6 +98,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     user: session?.user ?? null,
     signIn: async (email: string, password: string) => {
+      if (mocksEnabled) {
+        setSession(mockSession);
+        setLoading(false);
+        return;
+      }
       const { data, error } = await withTimeout(
         supabase.auth.signInWithPassword({ email, password }),
       );
