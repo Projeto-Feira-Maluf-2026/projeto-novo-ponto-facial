@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=PROJECT_ROOT / ".env",
+        env_file=(PROJECT_ROOT / ".env", PROJECT_ROOT / ".env.email.local"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:8080"
     CORS_ORIGIN_REGEX: str | None = None
     BLOB_READ_WRITE_TOKEN: str | None = None
+    EMAIL_NOTIFICATIONS_ENABLED: bool = False
+    EMAIL_FROM_ADDRESS: str | None = None
+    EMAIL_FROM_NAME: str = "Curitiba Empreiteira"
+    BREVO_SMTP_HOST: str = "smtp-relay.brevo.com"
+    BREVO_SMTP_PORT: int = 587
+    BREVO_SMTP_LOGIN: str | None = None
+    BREVO_SMTP_KEY: str | None = None
+    EMAIL_TIMEOUT_SECONDS: float = 10.0
     FACE_PROVIDER: str = "insightface"
     FACE_MODEL_NAME: str = "buffalo_l"
     FACE_MODEL_ROOT: str = "~/.insightface"
@@ -123,6 +131,10 @@ class Settings(BaseSettings):
             return Path("/tmp/.insightface")
         return Path(self.FACE_MODEL_ROOT).expanduser().resolve()
 
+    @cached_property
+    def email_smtp_login(self) -> str | None:
+        return self.BREVO_SMTP_LOGIN or self.EMAIL_FROM_ADDRESS
+
     @model_validator(mode="after")
     def validate_environment_safety(self) -> "Settings":
         environment = self.ENVIRONMENT.strip().lower()
@@ -149,6 +161,18 @@ class Settings(BaseSettings):
             raise ValueError("Staging e production exigem FACE_PROVIDER=insightface")
         if not self.face_execution_providers:
             raise ValueError("FACE_EXECUTION_PROVIDERS deve conter ao menos um provider")
+        if self.EMAIL_NOTIFICATIONS_ENABLED and not (
+            self.EMAIL_FROM_ADDRESS
+            and self.email_smtp_login
+            and self.BREVO_SMTP_KEY
+        ):
+            raise ValueError(
+                "Notificacoes por email exigem EMAIL_FROM_ADDRESS e BREVO_SMTP_KEY"
+            )
+        if not 1 <= self.BREVO_SMTP_PORT <= 65535:
+            raise ValueError("BREVO_SMTP_PORT invalida")
+        if not 1.0 <= self.EMAIL_TIMEOUT_SECONDS <= 30.0:
+            raise ValueError("EMAIL_TIMEOUT_SECONDS deve estar entre 1 e 30")
         detection_sizes = self.face_detection_sizes
         if (
             not detection_sizes

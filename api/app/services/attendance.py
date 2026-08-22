@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 from statistics import median
 
@@ -16,6 +17,7 @@ from app.models.entities import (
 from app.models.enums import AlertSeverity, AttendanceStatus, FraudType, PunchType
 from app.schemas.attendance import AttendanceDecision, AttendanceRead, PunchCreate
 
+logger = logging.getLogger(__name__)
 
 PUNCH_SEQUENCE = [PunchType.ENTRY, PunchType.LUNCH_OUT, PunchType.LUNCH_IN, PunchType.EXIT]
 
@@ -41,9 +43,11 @@ class AttendanceService:
         self,
         session: AsyncSession,
         face_embeddings=None,
+        email_notifier=None,
     ) -> None:
         self.session = session
         self.face_embeddings = face_embeddings
+        self.email_notifier = email_notifier
 
     def _face_embeddings(self):
         if self.face_embeddings is None:
@@ -51,6 +55,13 @@ class AttendanceService:
 
             self.face_embeddings = FaceEmbeddingService()
         return self.face_embeddings
+
+    def _email_notifier(self):
+        if self.email_notifier is None:
+            from app.services.email_notifications import AttendanceEmailNotifier
+
+            self.email_notifier = AttendanceEmailNotifier()
+        return self.email_notifier
 
     async def register_punch(self, payload: PunchCreate) -> AttendanceDecision:
         from app.services.ai.facial_service import face_match_margin
@@ -241,6 +252,22 @@ class AttendanceService:
         self.session.add(record)
         await self.session.commit()
         await self.session.refresh(record)
+        if status == AttendanceStatus.ACCEPTED and getattr(employee, "email", None):
+            try:
+                await self._email_notifier().send_confirmation(
+                    recipient=employee.email,
+                    employee_name=employee.name,
+                    worksite_name=worksite.name,
+                    punch_type=punch_type,
+                    occurred_at=record.occurred_at,
+                    record_id=record.id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Falha inesperada na notificacao record_id=%s error_type=%s",
+                    record.id,
+                    type(exc).__name__,
+                )
         return AttendanceDecision(
             accepted=status == AttendanceStatus.ACCEPTED,
             status=status,
