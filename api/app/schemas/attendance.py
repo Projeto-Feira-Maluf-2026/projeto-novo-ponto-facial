@@ -43,6 +43,17 @@ class PunchCreate(BaseModel):
     occurred_at: datetime | None = None
 
 
+class PunchBatchCreate(BaseModel):
+    punches: list[PunchCreate] = Field(min_length=1, max_length=5)
+
+
+class AttendanceCorrection(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+    occurred_at: datetime | None = None
+    punch_type: PunchType | None = None
+    status: AttendanceStatus | None = None
+
+
 class AttendanceRead(ORMModel):
     id: str
     employee_id: str
@@ -81,3 +92,10 @@ class AttendanceDecision(BaseModel):
     temporal_evidence_count: int = 0
     temporal_similarity_median: float | None = None
     record: AttendanceRead | None = None
+
+
+class AttendanceBatchDecision(BaseModel):
+    decisions: list[AttendanceDecision]
+    processed: int
+    accepted: int
+    manual_review: int

@@ -22,14 +22,24 @@ def test_authenticated_user_receives_full_access() -> None:
     assert "audit:read" in user.scopes
 
 
-def test_user_without_role_metadata_receives_full_access() -> None:
+def test_user_without_role_metadata_receives_minimum_access() -> None:
     payload = user_payload(
         app_metadata={},
-        user_metadata={"name": "Usuario", "role": "SUPER_ADMIN"},
+        user_metadata={"name": "Usuario"},
     )
 
     user = AuthService._to_read_model(payload)
 
-    assert user.role == UserRole.SUPER_ADMIN
-    assert "audit:read" in user.scopes
-    assert "employees:write" in user.scopes
+    assert user.role == UserRole.FUNCIONARIO
+    assert "attendance:write" in user.scopes
+    assert "audit:read" not in user.scopes
+    assert "employees:write" not in user.scopes
+
+
+def test_invalid_role_metadata_does_not_grant_admin_access() -> None:
+    user = AuthService._to_read_model(
+        user_payload(app_metadata={"role": "OWNER"})
+    )
+
+    assert user.role == UserRole.FUNCIONARIO
+    assert "audit:read" not in user.scopes

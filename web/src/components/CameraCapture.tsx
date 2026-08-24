@@ -88,6 +88,60 @@ export function faceBoxesFromLandmarks(
     });
 }
 
+export type FaceCropRegion = {
+  sourceX: number;
+  sourceY: number;
+  side: number;
+};
+
+export function calculateFaceCropRegion(
+  face: FaceBox,
+  frameWidth: number,
+  frameHeight: number,
+  nearbyFaces: FaceBox[] = [],
+  compact = false,
+): FaceCropRegion | null {
+  if (
+    frameWidth <= 0
+    || frameHeight <= 0
+    || face.width <= 0
+    || face.height <= 0
+  ) return null;
+
+  const faceWidth = face.width * frameWidth;
+  const faceHeight = face.height * frameHeight;
+  const centerX = (face.x + face.width / 2) * frameWidth;
+  const centerY = (face.y + face.height * 0.46) * frameHeight;
+  const baseSide = Math.max(
+    faceWidth * (compact ? 1.52 : 2.25),
+    faceHeight * (compact ? 1.48 : 2.05),
+    compact ? 96 : 220,
+  );
+
+  const nearestCenterDistance = nearbyFaces.reduce((nearest, candidate) => {
+    const candidateCenterX = (candidate.x + candidate.width / 2) * frameWidth;
+    const candidateCenterY = (candidate.y + candidate.height * 0.46) * frameHeight;
+    const distance = Math.hypot(candidateCenterX - centerX, candidateCenterY - centerY);
+    return distance > 0 ? Math.min(nearest, distance) : nearest;
+  }, Number.POSITIVE_INFINITY);
+  const minimumFaceSide = Math.max(faceWidth * 1.18, faceHeight * 1.15, 88);
+  const separatedSide = Number.isFinite(nearestCenterDistance)
+    ? Math.max(minimumFaceSide, nearestCenterDistance * 0.72)
+    : baseSide;
+  const cropSide = Math.min(
+    baseSide,
+    separatedSide,
+    frameWidth,
+    frameHeight,
+  );
+
+  return {
+    sourceX: clamp(centerX - cropSide / 2, 0, frameWidth - cropSide),
+    sourceY: clamp(centerY - cropSide / 2, 0, frameHeight - cropSide),
+    side: cropSide,
+  };
+}
+
 export function cameraAccessErrorMessage(error: unknown) {
   const errorName = error && typeof error === 'object' && 'name' in error
     ? String(error.name)
@@ -644,27 +698,25 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     useImperativeHandle(
       ref,
       () => {
-        const captureNormalizedFace = (normalizedFace: FaceBox, compact = false) => {
+        const captureNormalizedFace = (
+          normalizedFace: FaceBox,
+          compact = false,
+          nearbyFaces: FaceBox[] = [],
+        ) => {
           const video = videoRef.current;
           const canvas = canvasRef.current;
           if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
             return null;
           }
-          if (normalizedFace.width <= 0 || normalizedFace.height <= 0) return null;
-          const faceCenterX = (normalizedFace.x + normalizedFace.width / 2) * video.videoWidth;
-          const faceCenterY = (
-            normalizedFace.y
-            + normalizedFace.height * 0.46
-          ) * video.videoHeight;
-          const requestedSide = Math.max(
-            normalizedFace.width * video.videoWidth * (compact ? 1.72 : 2.25),
-            normalizedFace.height * video.videoHeight * (compact ? 1.68 : 2.05),
-            220,
+          const crop = calculateFaceCropRegion(
+            normalizedFace,
+            video.videoWidth,
+            video.videoHeight,
+            nearbyFaces,
+            compact,
           );
-          const cropSide = Math.min(requestedSide, video.videoWidth, video.videoHeight);
-          const sourceX = clamp(faceCenterX - cropSide / 2, 0, video.videoWidth - cropSide);
-          const sourceY = clamp(faceCenterY - cropSide / 2, 0, video.videoHeight - cropSide);
-          const targetSize = cropSide < 540 ? 720 : Math.min(960, Math.round(cropSide));
+          if (!crop) return null;
+          const targetSize = crop.side < 540 ? 720 : Math.min(960, Math.round(crop.side));
           canvas.width = targetSize;
           canvas.height = targetSize;
           const context = canvas.getContext('2d');
@@ -673,10 +725,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           context.imageSmoothingQuality = 'high';
           context.drawImage(
             video,
-            sourceX,
-            sourceY,
-            cropSide,
-            cropSide,
+            crop.sourceX,
+            crop.sourceY,
+            crop.side,
+            crop.side,
             0,
             0,
             targetSize,
@@ -722,9 +774,14 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             const boxes = normalizedFaceBoxesRef.current.length
               ? normalizedFaceBoxesRef.current
               : nativeNormalizedFaceBoxesRef.current;
-            return boxes
+            const orderedBoxes = [...boxes].sort((left, right) => left.x - right.x);
+            return orderedBoxes
               .slice(0, limit)
-              .map((box) => captureNormalizedFace(box, boxes.length > 1))
+              .map((box) => captureNormalizedFace(
+                box,
+                orderedBoxes.length > 1,
+                orderedBoxes.filter((candidate) => candidate !== box),
+              ))
               .filter(Boolean) as string[];
           },
           restart: start,

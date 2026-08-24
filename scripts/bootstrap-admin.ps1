@@ -36,7 +36,26 @@ $Users = Invoke-RestMethod `
 
 $Existing = @($Users.users) | Where-Object { $_.email -eq $Values["INITIAL_ADMIN_EMAIL"] } | Select-Object -First 1
 if ($Existing) {
-  Write-Host "Administrador ja existe no Supabase Auth." -ForegroundColor DarkYellow
+  $ExistingMetadata = @{}
+  if ($Existing.app_metadata) {
+    $Existing.app_metadata.PSObject.Properties | ForEach-Object {
+      $ExistingMetadata[$_.Name] = $_.Value
+    }
+  }
+  $ExistingMetadata["role"] = "SUPER_ADMIN"
+  $UpdateBody = @{
+    app_metadata = $ExistingMetadata
+  } | ConvertTo-Json -Depth 4
+
+  Invoke-RestMethod `
+    -Uri "$Base/auth/v1/admin/users/$($Existing.id)" `
+    -Method Put `
+    -Headers $Headers `
+    -UserAgent $UserAgent `
+    -ContentType "application/json" `
+    -Body $UpdateBody | Out-Null
+
+  Write-Host "Administrador existente atualizado com acesso SUPER_ADMIN." -ForegroundColor Green
   exit 0
 }
 

@@ -59,6 +59,13 @@ type RecentRecord = {
   occurredAt: Date;
 };
 
+type PunchCandidate = {
+  employeeId: string;
+  recognizedName?: string | null;
+  image: string;
+  faceBox?: FaceIdentifyResponse['face_box'];
+};
+
 const RECOGNITION_INTERVAL_MS = 280;
 const RESULT_HOLD_MS = 6_000;
 const EMPLOYEE_COOLDOWN_MS = 45_000;
@@ -220,87 +227,98 @@ export function FacialTerminalPage() {
     setLocalFaceCount(count);
   }, []);
 
-  const submitAutomaticPunch = useCallback(async (
-    employeeId: string,
-    recognizedName?: string | null,
-    evidenceImage?: string | null,
-  ) => {
-    if (!worksiteId || punchInFlightRef.current) return false;
-    const image = evidenceImage || cameraRef.current?.capture({ faceCrop: true });
-    if (!image) {
+  const submitAutomaticPunches = useCallback(async (candidates: PunchCandidate[]) => {
+    if (!worksiteId || punchInFlightRef.current || !candidates.length) return 0;
+    const validCandidates = candidates.filter((candidate) => Boolean(candidate.image));
+    if (!validCandidates.length) {
       setMode('attention');
-      setGuidance('Não foi possível preservar a foto reconhecida. A câmera tentará novamente.');
-      return false;
+      setGuidance('Não foi possível preservar as fotos reconhecidas. A câmera tentará novamente.');
+      return 0;
     }
 
     punchInFlightRef.current = true;
     setMode('submitting');
-    setGuidance('Identidade confirmada. Registrando o ponto...');
+    setGuidance(validCandidates.length > 1
+      ? `Identidades confirmadas. Registrando ${validCandidates.length} pontos...`
+      : 'Identidade confirmada. Registrando o ponto...');
 
     try {
-      const result = await apiClient.punch({
-        employee_id: employeeId,
+      const scanId = crypto.randomUUID();
+      const occurredAt = new Date().toISOString();
+      const batch = await apiClient.punchBatch(validCandidates.map((candidate, index) => ({
+        employee_id: candidate.employeeId,
         worksite_id: worksiteId,
         punch_type: null,
-        face: { image_base64: image },
-        offline_batch_id: `terminal-${crypto.randomUUID()}`,
-      });
-      setDecision(result);
-      const employee = employees.find((item) => item.id === result.employee_id);
-      const employeeName = result.employee_name || employee?.name || recognizedName || 'Funcionário';
-      const resolvedEmployeeId = result.employee_id || employeeId;
+        face: { image_base64: candidate.image },
+        offline_batch_id: `terminal-${scanId}-${index + 1}`,
+        occurred_at: occurredAt,
+      })));
+      const completedRecords: RecentRecord[] = [];
+      let successfulRecognition: LiveRecognition | null = null;
 
-      if (result.accepted) {
+      batch.decisions.forEach((result, index) => {
+        const candidate = validCandidates[index];
+        if (!candidate) return;
+        const employee = employees.find((item) => item.id === result.employee_id);
+        const employeeName = result.employee_name
+          || employee?.name
+          || candidate.recognizedName
+          || 'Funcionário';
+        const resolvedEmployeeId = result.employee_id || candidate.employeeId;
+        if (result.status !== 'ACCEPTED' && result.status !== 'MANUAL_REVIEW') return;
+
         cooldownsRef.current.set(resolvedEmployeeId, Date.now() + EMPLOYEE_COOLDOWN_MS);
-        resultHoldUntilRef.current = Date.now() + RESULT_HOLD_MS;
-        setMode('accepted');
-        setGuidance(`${punchLabels[result.punch_type || 'ENTRY']} registrada com sucesso.`);
-        setRecognition((current) => ({
-          ...current,
+        completedRecords.push({
+          id: result.record?.id || crypto.randomUUID(),
+          employee: employeeName,
+          registration: result.employee_registration || employee?.registration,
+          punchType: result.punch_type,
+          status: result.status,
+          occurredAt: result.record?.occurred_at
+            ? new Date(result.record.occurred_at)
+            : new Date(),
+        });
+        successfulRecognition ||= {
           employeeId: resolvedEmployeeId,
           employeeName,
-          tone: 'success',
-        }));
-        setRecentRecords((current) => [
-          {
-            id: result.record?.id || crypto.randomUUID(),
-            employee: employeeName,
-            registration: result.employee_registration || employee?.registration,
-            punchType: result.punch_type,
-            status: 'ACCEPTED' as const,
-            occurredAt: new Date(),
-          },
-          ...current,
-        ].slice(0, 5));
-        return true;
-      } else if (result.status === 'MANUAL_REVIEW') {
-        cooldownsRef.current.set(resolvedEmployeeId, Date.now() + EMPLOYEE_COOLDOWN_MS);
-        resultHoldUntilRef.current = Date.now() + RESULT_HOLD_MS;
-        setMode('review');
-        setGuidance('O registro foi recebido e será conferido pela equipe responsável.');
-        setRecentRecords((current) => [
-          {
-            id: result.record?.id || crypto.randomUUID(),
-            employee: employeeName,
-            registration: result.employee_registration || employee?.registration,
-            punchType: result.punch_type,
-            status: 'MANUAL_REVIEW' as const,
-            occurredAt: new Date(),
-          },
-          ...current,
-        ].slice(0, 5));
-        return true;
-      } else {
-        resultHoldUntilRef.current = Date.now() + 2_500;
-        setMode('attention');
-        setGuidance(attendanceReasonMessage(result.reasons));
-        return false;
+          tone: result.accepted ? 'success' : 'warning',
+          faceBox: candidate.faceBox,
+        };
+      });
+
+      const completed = completedRecords.length;
+      setDecision(batch.decisions.find((result) => !result.accepted) || batch.decisions[0] || null);
+      if (completedRecords.length) {
+        setRecentRecords((current) => [...completedRecords, ...current].slice(0, 5));
       }
+      if (successfulRecognition) setRecognition(successfulRecognition);
+
+      if (completed > 0) {
+        resultHoldUntilRef.current = Date.now() + RESULT_HOLD_MS;
+        const allCompleted = completed === validCandidates.length;
+        setMode(batch.manual_review > 0 ? 'review' : allCompleted ? 'accepted' : 'attention');
+        if (validCandidates.length > 1) {
+          setGuidance(allCompleted
+            ? `${completed} pontos registrados nesta leitura.`
+            : `${completed} de ${validCandidates.length} pontos foram registrados; os demais rostos serão tentados novamente.`);
+        } else {
+          const result = batch.decisions[0];
+          setGuidance(result?.status === 'MANUAL_REVIEW'
+            ? 'O registro foi recebido e será conferido pela equipe responsável.'
+            : `${punchLabels[result?.punch_type || 'ENTRY']} registrada com sucesso.`);
+        }
+        return completed;
+      }
+
+      resultHoldUntilRef.current = Date.now() + 2_500;
+      setMode('attention');
+      setGuidance(attendanceReasonMessage(batch.decisions[0]?.reasons || []));
+      return 0;
     } catch {
       resultHoldUntilRef.current = Date.now() + 4_000;
       setMode('attention');
       setGuidance('O serviço de ponto não respondeu. A câmera continuará tentando.');
-      return false;
+      return 0;
     } finally {
       punchInFlightRef.current = false;
     }
@@ -468,32 +486,21 @@ export function FacialTerminalPage() {
           return;
         }
 
-        let completed = 0;
-        for (const [index, capture] of pendingMatches.entries()) {
+        setMode('confirming');
+        setGuidance(pendingMatches.length > 1
+          ? `Registrando ${pendingMatches.length} pessoas na mesma leitura...`
+          : 'Identidade localizada. Registrando o ponto...');
+        await submitAutomaticPunches(pendingMatches.flatMap((capture) => {
           const match = capture.result;
-          if (!match.employee_id) continue;
-          setRecognition({
-            employeeId: match.employee_id,
-            employeeName: match.employee_name,
-            tone: 'tracking',
-            faceBox: match.face_box,
-          });
-          setMode('confirming');
-          setGuidance(pendingMatches.length > 1
-            ? `Registrando pessoa ${index + 1} de ${pendingMatches.length}...`
-            : 'Identidade localizada. Registrando o ponto...');
-          if (await submitAutomaticPunch(match.employee_id, match.employee_name, capture.image)) {
-            completed += 1;
-          }
-        }
-
-        if (pendingMatches.length > 1 && completed > 0) {
-          resultHoldUntilRef.current = Date.now() + RESULT_HOLD_MS;
-          setMode('accepted');
-          setGuidance(completed === pendingMatches.length
-            ? `${completed} pontos registrados nesta leitura.`
-            : `${completed} ponto${completed > 1 ? 's' : ''} registrado${completed > 1 ? 's' : ''}; os demais rostos serão tentados novamente.`);
-        }
+          return match.employee_id
+            ? [{
+                employeeId: match.employee_id,
+                recognizedName: match.employee_name,
+                image: capture.image,
+                faceBox: match.face_box,
+              }]
+            : [];
+        }));
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {
           setMode('attention');
@@ -513,7 +520,7 @@ export function FacialTerminalPage() {
       controller.abort();
       requestInFlightRef.current = false;
     };
-  }, [autoEnabled, cameraReady, submitAutomaticPunch, worksiteId]);
+  }, [autoEnabled, cameraReady, submitAutomaticPunches, worksiteId]);
 
   const faceOverlay = useMemo<FaceOverlayState>(() => ({
     label: mode === 'confirming'

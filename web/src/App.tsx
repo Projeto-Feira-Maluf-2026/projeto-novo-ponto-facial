@@ -3,7 +3,9 @@ import { flushSync } from 'react-dom';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { useAuth } from './auth/AuthContext';
+import { userHasRole, type AppRole } from './auth/permissions';
 import { Layout } from './components/Layout';
+const AuditPage = lazy(() => import('./pages/AuditPage').then((module) => ({ default: module.AuditPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const DevicesPage = lazy(() => import('./pages/DevicesPage').then((module) => ({ default: module.DevicesPage })));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((module) => ({ default: module.EmployeesPage })));
@@ -11,6 +13,11 @@ const FacialTerminalPage = lazy(() => import('./pages/FacialTerminalPage').then(
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then((module) => ({ default: module.ReportsPage })));
 const WorksitesPage = lazy(() => import('./pages/WorksitesPage').then((module) => ({ default: module.WorksitesPage })));
+
+function RoleRoute({ roles, children }: { roles: AppRole[]; children: React.ReactNode }) {
+  const { user } = useAuth();
+  return userHasRole(user, roles) ? children : <Navigate to="/terminal-facial" replace />;
+}
 
 function RouteLoading() {
   return (
@@ -23,7 +30,9 @@ function RouteLoading() {
 }
 
 export default function App() {
-  const { loading, session, signOut } = useAuth();
+  const { loading, session, signOut, user } = useAuth();
+  const privilegedRoles: AppRole[] = ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'];
+  const initialPath = userHasRole(user, privilegedRoles) ? '/' : '/terminal-facial';
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
 
   useEffect(() => {
@@ -93,7 +102,7 @@ export default function App() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <Routes>
-      <Route path="/login" element={session ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/login" element={session ? <Navigate to={initialPath} replace /> : <LoginPage />} />
       <Route
         path="/*"
         element={
@@ -103,13 +112,14 @@ export default function App() {
             onToggleTheme={toggleTheme}
           >
             <Routes>
-              <Route index element={<DashboardPage />} />
-              <Route path="funcionarios" element={<EmployeesPage />} />
-              <Route path="obras" element={<WorksitesPage />} />
-              <Route path="dispositivos" element={<DevicesPage />} />
+              <Route index element={<RoleRoute roles={privilegedRoles}><DashboardPage /></RoleRoute>} />
+              <Route path="funcionarios" element={<RoleRoute roles={privilegedRoles}><EmployeesPage /></RoleRoute>} />
+              <Route path="obras" element={<RoleRoute roles={privilegedRoles}><WorksitesPage /></RoleRoute>} />
+              <Route path="dispositivos" element={<RoleRoute roles={['SUPER_ADMIN', 'GESTOR_OBRA']}><DevicesPage /></RoleRoute>} />
               <Route path="terminal-facial" element={<FacialTerminalPage />} />
-              <Route path="relatorios" element={<ReportsPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="relatorios" element={<RoleRoute roles={['SUPER_ADMIN', 'RH', 'GESTOR_OBRA']}><ReportsPage /></RoleRoute>} />
+              <Route path="auditoria" element={<RoleRoute roles={['SUPER_ADMIN', 'RH']}><AuditPage /></RoleRoute>} />
+              <Route path="*" element={<Navigate to={initialPath} replace />} />
             </Routes>
           </Layout> : <Navigate to="/login" replace />
         }

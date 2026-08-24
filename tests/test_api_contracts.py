@@ -1,7 +1,9 @@
 import httpx
 import pytest
 from pydantic import ValidationError
+from unittest.mock import AsyncMock
 
+from app.api.health import health_snapshot
 from app.application import create_application
 from app.core.config import settings
 from app.schemas.ai import FaceIdentifyRequest, FaceVerifyRequest
@@ -152,3 +154,23 @@ async def test_fake_provider_never_makes_readiness_healthy(monkeypatch) -> None:
         assert ready.json()["face_provider"]["healthy"] is False
     finally:
         get_face_provider.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_lightweight_gateway_is_ready_when_database_is_healthy(monkeypatch) -> None:
+    monkeypatch.setattr("app.api.health.is_lightweight_serverless", lambda: True)
+    monkeypatch.setattr(
+        "app.api.health._database_health",
+        AsyncMock(return_value={"healthy": True}),
+    )
+    monkeypatch.setattr(
+        "app.api.health._redis_health",
+        AsyncMock(return_value={"healthy": False, "required": False}),
+    )
+
+    snapshot = await health_snapshot()
+
+    assert snapshot["ready"] is True
+    assert snapshot["status"] == "ready"
+    assert snapshot["face_provider"]["delegated"] is True
+    assert snapshot["face_provider"]["healthy"] is False

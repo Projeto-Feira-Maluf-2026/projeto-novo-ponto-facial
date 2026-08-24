@@ -34,13 +34,16 @@ class AuthService:
             raise PermissionError("Usuario sem e-mail")
 
         metadata = payload.get("user_metadata") or {}
+        app_metadata = payload.get("app_metadata") or {}
         created_at = datetime.fromisoformat(payload["created_at"].replace("Z", "+00:00"))
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
 
-        # Supabase e a unica fonte de identidade. Todo usuario autenticado recebe
-        # acesso integral, sem depender de metadados manuais de perfil.
-        role = UserRole.SUPER_ADMIN
+        raw_role = str(app_metadata.get("role") or metadata.get("role") or "FUNCIONARIO")
+        try:
+            role = UserRole(raw_role.upper())
+        except ValueError:
+            role = UserRole.FUNCIONARIO
         return UserRead(
             id=payload["id"],
             name=metadata.get("name") or email.split("@", 1)[0],

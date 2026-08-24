@@ -4,6 +4,8 @@ import { supabase } from './supabase';
 
 import type {
   AttendanceDecision,
+  AttendanceBatchDecision,
+  AuditLog,
   CameraConfig,
   CameraTestResponse,
   DashboardMetrics,
@@ -218,6 +220,7 @@ export interface PunchPayload {
     images_base64?: string[];
   };
   offline_batch_id?: string | null;
+  occurred_at?: string | null;
 }
 
 export const apiClient = {
@@ -324,6 +327,16 @@ export const apiClient = {
   },
   punch: async (payload: PunchPayload) => {
     const response = await faceApi.post<AttendanceDecision>('/attendance/punch', payload);
+    return response.data;
+  },
+  punchBatch: async (punches: PunchPayload[]) => {
+    const response = await faceApi.post<AttendanceBatchDecision>('/attendance/punch/batch', {
+      punches,
+    });
+    return response.data;
+  },
+  auditLogs: async () => {
+    const response = await api.get<Page<AuditLog>>('/audit?size=100');
     return response.data;
   },
   exportReport: async (payload: ReportExportPayload) => {

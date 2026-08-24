@@ -47,11 +47,13 @@ async def _redis_health() -> dict[str, Any]:
 
 async def health_snapshot() -> dict[str, Any]:
     database, redis_health = await asyncio.gather(_database_health(), _redis_health())
-    if is_lightweight_serverless():
+    lightweight_serverless = is_lightweight_serverless()
+    if lightweight_serverless:
         face_ready = False
         face_provider = {
             "healthy": False,
             "state": "RUNTIME_NOT_INSTALLED",
+            "delegated": True,
             "provider": settings.FACE_PROVIDER,
             "real_model": False,
             "model_name": None,
@@ -76,6 +78,7 @@ async def health_snapshot() -> dict[str, Any]:
         face_provider = {
             "healthy": face_ready,
             "state": provider.state.value,
+            "delegated": False,
             "provider": provider.provider_name,
             "real_model": provider.is_real_model,
             "model_name": provider.model_name,
@@ -101,8 +104,8 @@ async def health_snapshot() -> dict[str, Any]:
     }
     ready = (
         bool(database["healthy"])
-        and face_ready
-        and thresholds_ready
+        and (face_ready or lightweight_serverless)
+        and (thresholds_ready or lightweight_serverless)
         and (bool(redis_health["healthy"]) or not settings.REDIS_REQUIRED)
     )
     return {

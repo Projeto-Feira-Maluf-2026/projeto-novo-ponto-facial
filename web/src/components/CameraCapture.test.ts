@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { cameraAccessErrorMessage, faceBoxesFromLandmarks } from './CameraCapture';
+import {
+  calculateFaceCropRegion,
+  cameraAccessErrorMessage,
+  faceBoxesFromLandmarks,
+} from './CameraCapture';
 
 describe('cameraAccessErrorMessage', () => {
   it('orienta a liberar a permissão quando o navegador bloqueia a câmera', () => {
@@ -40,5 +44,38 @@ describe('faceBoxesFromLandmarks', () => {
     ]);
 
     expect(faceBoxesFromLandmarks(faces)).toHaveLength(5);
+  });
+});
+
+describe('calculateFaceCropRegion', () => {
+  it('separa rostos próximos para um recorte não incluir o centro do outro', () => {
+    const leftFace = { x: 0.28, y: 0.25, width: 0.16, height: 0.3 };
+    const rightFace = { x: 0.48, y: 0.24, width: 0.16, height: 0.3 };
+    const crop = calculateFaceCropRegion(leftFace, 1280, 720, [rightFace], true);
+
+    expect(crop).not.toBeNull();
+    const otherCenterX = (rightFace.x + rightFace.width / 2) * 1280;
+    const otherCenterY = (rightFace.y + rightFace.height * 0.46) * 720;
+    const containsOtherCenter = otherCenterX >= crop!.sourceX
+      && otherCenterX <= crop!.sourceX + crop!.side
+      && otherCenterY >= crop!.sourceY
+      && otherCenterY <= crop!.sourceY + crop!.side;
+
+    expect(containsOtherCenter).toBe(false);
+    expect(crop!.side).toBeGreaterThan(100);
+  });
+
+  it('mantém o recorte dentro dos limites do vídeo', () => {
+    const crop = calculateFaceCropRegion(
+      { x: 0.01, y: 0.02, width: 0.2, height: 0.35 },
+      640,
+      480,
+    );
+
+    expect(crop).not.toBeNull();
+    expect(crop!.sourceX).toBe(0);
+    expect(crop!.sourceY).toBe(0);
+    expect(crop!.sourceX + crop!.side).toBeLessThanOrEqual(640);
+    expect(crop!.sourceY + crop!.side).toBeLessThanOrEqual(480);
   });
 });

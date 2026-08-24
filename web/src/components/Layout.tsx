@@ -9,6 +9,7 @@ import {
   Menu,
   MoreHorizontal,
   Moon,
+  ScrollText,
   Sun,
   Users,
   X,
@@ -19,22 +20,23 @@ import { NavLink, useLocation } from 'react-router-dom';
 
 import { createPageMotion, moveIndicator } from '../animations/motion';
 import { useAuth } from '../auth/AuthContext';
+import { ALL_ROLES, roleForUser, type AppRole } from '../auth/permissions';
 
 interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  roles: AppRole[];
 }
 const navItems: NavItem[] = [
-  { to: '/', label: 'Visão geral', icon: BarChart3 },
-  { to: '/terminal-facial', label: 'Ponto automático', icon: Camera },
-  { to: '/funcionarios', label: 'Funcionários', icon: Users },
-  { to: '/obras', label: 'Obras', icon: Building2 },
-  { to: '/dispositivos', label: 'Câmeras', icon: HardDrive },
-  { to: '/relatorios', label: 'Relatórios', icon: ClipboardList },
+  { to: '/', label: 'Visão geral', icon: BarChart3, roles: ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'] },
+  { to: '/terminal-facial', label: 'Ponto automático', icon: Camera, roles: ALL_ROLES },
+  { to: '/funcionarios', label: 'Funcionários', icon: Users, roles: ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'] },
+  { to: '/obras', label: 'Obras', icon: Building2, roles: ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'] },
+  { to: '/dispositivos', label: 'Câmeras', icon: HardDrive, roles: ['SUPER_ADMIN', 'GESTOR_OBRA'] },
+  { to: '/relatorios', label: 'Relatórios', icon: ClipboardList, roles: ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA'] },
+  { to: '/auditoria', label: 'Auditoria', icon: ScrollText, roles: ['SUPER_ADMIN', 'RH'] },
 ];
-
-const mobileNavItems = navItems.slice(0, 4);
 
 const pageCopy: Record<string, { title: string; description: string; eyebrow: string }> = {
   '/': {
@@ -67,6 +69,11 @@ const pageCopy: Record<string, { title: string; description: string; eyebrow: st
     description: 'Consolide registros para conferência e fechamento.',
     eyebrow: 'Inteligência de dados',
   },
+  '/auditoria': {
+    title: 'Auditoria',
+    description: 'Histórico das operações sensíveis realizadas no sistema.',
+    eyebrow: 'Segurança e rastreabilidade',
+  },
 };
 
 interface LayoutProps {
@@ -84,6 +91,12 @@ function isActivePath(pathname: string, target: string) {
 export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps) {
   const location = useLocation();
   const { user } = useAuth();
+  const userRole = roleForUser(user);
+  const visibleNavItems = useMemo(
+    () => navItems.filter((item) => item.roles.includes(userRole)),
+    [userRole],
+  );
+  const mobileNavItems = visibleNavItems.slice(0, 4);
   const current = pageCopy[location.pathname] ?? pageCopy['/'];
   const isTerminal = location.pathname === '/terminal-facial';
   const [online, setOnline] = useState(navigator.onLine);
@@ -195,7 +208,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
     };
   }, [location.pathname, mobileMenuOpen]);
 
-  const moreActive = navItems.slice(4).some((item) => isActivePath(location.pathname, item.to));
+  const moreActive = visibleNavItems.slice(4).some((item) => isActivePath(location.pathname, item.to));
 
   return (
     <div className="app-shell">
@@ -223,7 +236,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         <div className="sidebar-section-label">Operação</div>
         <nav ref={sidebarNavRef} className="sidebar-nav" aria-label="Navegação principal">
           <span ref={sidebarIndicatorRef} className="sidebar-active-indicator" aria-hidden="true" />
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const active = isActivePath(location.pathname, item.to);
             return (
@@ -289,7 +302,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             <strong className="topbar-title">{current.title}</strong>
           </div>
           <nav className="desktop-primary-nav" aria-label="Navegação principal">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const active = isActivePath(location.pathname, item.to);
               return (

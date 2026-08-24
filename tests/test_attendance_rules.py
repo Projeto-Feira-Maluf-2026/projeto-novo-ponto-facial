@@ -1,12 +1,18 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.models.entities import AttendanceRecord
-from app.models.enums import EmployeeStatus, PunchType
-from app.schemas.attendance import PunchCreate
+from app.models.enums import AttendanceStatus, EmployeeStatus, PunchType
+from app.schemas.attendance import (
+    AttendanceCorrection,
+    AttendanceDecision,
+    PunchBatchCreate,
+    PunchCreate,
+)
+from app.api.v1.routes.attendance import punch_batch
 from app.services.attendance import (
     AttendanceService,
     attendance_confidence,
@@ -144,3 +150,89 @@ async def test_punch_preserves_and_validates_three_temporal_frames() -> None:
     assert decision.temporal_evidence_count == 3
     assert decision.temporal_similarity_median == pytest.approx(1.0)
     assert face_service.from_image_base64.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.MonkeyPatch) -> None:
+    decisions = [
+        AttendanceDecision(
+            accepted=True,
+            status=AttendanceStatus.ACCEPTED,
+            employee_id=f"employee-{index}",
+            punch_type=PunchType.ENTRY,
+            confidence_score=0.9,
+            similarity_score=0.88,
+            liveness_score=None,
+            quality_score=0.8,
+            reasons=[],
+        )
+        for index in (1, 2)
+    ]
+    service = SimpleNamespace(register_punch=AsyncMock(side_effect=decisions))
+    monkeypatch.setattr(
+        "app.api.v1.routes.attendance.AttendanceService",
+        lambda _session, **_kwargs: service,
+    )
+    monkeypatch.setattr(
+        "app.api.v1.routes.attendance.is_lightweight_serverless",
+        lambda: False,
+    )
+    payload = PunchBatchCreate(
+        punches=[
+            PunchCreate(
+                employee_id=f"employee-{index}",
+                worksite_id="worksite-1",
+                face={"image_base64": f"face-{index}"},
+            )
+            for index in (1, 2)
+        ]
+    )
+
+    result = await punch_batch(payload, SimpleNamespace(id="user-1"), SimpleNamespace())
+
+    assert result.processed == 2
+    assert result.accepted == 2
+    assert result.manual_review == 0
+    assert [decision.employee_id for decision in result.decisions] == [
+        "employee-1",
+        "employee-2",
+    ]
+    assert service.register_punch.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_manual_correction_preserves_before_and_after_in_audit() -> None:
+    record = SimpleNamespace(
+        id="record-1",
+        occurred_at=datetime(2026, 8, 23, 10, 0),
+        punch_type=PunchType.ENTRY,
+        status=AttendanceStatus.ACCEPTED,
+        notes=None,
+    )
+    session = SimpleNamespace(
+        get=AsyncMock(return_value=record),
+        add=MagicMock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+    )
+    service = AttendanceService(session, actor_user_id="rh-user")
+    local_timezone = timezone(timedelta(hours=-3))
+
+    corrected = await service.correct(
+        record.id,
+        AttendanceCorrection(
+            reason="Funcionário esqueceu de registrar a saída",
+            occurred_at=datetime(2026, 8, 23, 18, 30, tzinfo=local_timezone),
+            punch_type=PunchType.EXIT,
+        ),
+    )
+
+    assert corrected.occurred_at == datetime(2026, 8, 23, 21, 30)
+    assert corrected.punch_type == PunchType.EXIT
+    assert corrected.notes == "Funcionário esqueceu de registrar a saída"
+    audit_log = session.add.call_args.args[0]
+    assert audit_log.action == "attendance.correct"
+    assert audit_log.actor_user_id == "rh-user"
+    assert audit_log.metadata_json["before"]["punch_type"] == "ENTRY"
+    assert audit_log.metadata_json["after"]["punch_type"] == "EXIT"
+    session.commit.assert_awaited_once()

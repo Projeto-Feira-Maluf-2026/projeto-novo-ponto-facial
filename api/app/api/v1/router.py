@@ -1,6 +1,16 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import alerts, attendance, auth, dashboard, devices, employees, reports, worksites
+from app.api.v1.routes import (
+    alerts,
+    attendance,
+    audit,
+    auth,
+    dashboard,
+    devices,
+    employees,
+    reports,
+    worksites,
+)
 from app.core.runtime import is_lightweight_serverless
 
 if is_lightweight_serverless():
@@ -17,4 +27,5 @@ api_router.include_router(devices.router, prefix="/devices", tags=["devices"])
 api_router.include_router(attendance.router, prefix="/attendance", tags=["attendance"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
+api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])

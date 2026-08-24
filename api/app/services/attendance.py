@@ -2,6 +2,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from statistics import median
+from uuid import uuid4
 
 from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,13 @@ from app.models.entities import (
     Worksite,
 )
 from app.models.enums import AlertSeverity, AttendanceStatus, FraudType, PunchType
-from app.schemas.attendance import AttendanceDecision, AttendanceRead, PunchCreate
+from app.schemas.attendance import (
+    AttendanceCorrection,
+    AttendanceDecision,
+    AttendanceRead,
+    PunchCreate,
+)
+from app.services.audit import audit
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +45,24 @@ def attendance_confidence(match_confidence: float, quality_score: float) -> floa
     return round((match * 0.75) + (quality * 0.25), 4)
 
 
+def naive_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(UTC).replace(tzinfo=None)
+
+
 class AttendanceService:
     def __init__(
         self,
         session: AsyncSession,
         face_embeddings=None,
         email_notifier=None,
+        actor_user_id: str | None = None,
     ) -> None:
         self.session = session
         self.face_embeddings = face_embeddings
         self.email_notifier = email_notifier
+        self.actor_user_id = actor_user_id
 
     def _face_embeddings(self):
         if self.face_embeddings is None:
@@ -227,12 +242,13 @@ class AttendanceService:
         confidence = attendance_confidence(match_confidence, quality_score)
         status = AttendanceStatus.ACCEPTED if confidence >= settings.SUSPICIOUS_SCORE_THRESHOLD else AttendanceStatus.MANUAL_REVIEW
         record = AttendanceRecord(
+            id=str(uuid4()),
             employee_id=employee.id,
             worksite_id=worksite.id,
             device_id=payload.device_id,
             punch_type=punch_type,
             status=status,
-            occurred_at=(payload.occurred_at or datetime.now(UTC)).replace(tzinfo=None),
+            occurred_at=naive_utc(payload.occurred_at or datetime.now(UTC)),
             latitude=None,
             longitude=None,
             similarity_score=similarity,
@@ -250,6 +266,21 @@ class AttendanceService:
             },
         )
         self.session.add(record)
+        if self.actor_user_id:
+            await audit(
+                self.session,
+                "attendance.punch",
+                actor_user_id=self.actor_user_id,
+                entity="attendance_record",
+                entity_id=record.id,
+                metadata={
+                    "employee_id": employee.id,
+                    "worksite_id": worksite.id,
+                    "punch_type": punch_type.value,
+                    "status": status.value,
+                    "offline_batch_id": payload.offline_batch_id,
+                },
+            )
         await self.session.commit()
         await self.session.refresh(record)
         if status == AttendanceStatus.ACCEPTED and getattr(employee, "email", None):
@@ -292,6 +323,48 @@ class AttendanceService:
             ),
             record=AttendanceRead.model_validate(record),
         )
+
+    async def correct(
+        self,
+        record_id: str,
+        payload: AttendanceCorrection,
+    ) -> AttendanceRecord:
+        record = await self.session.get(AttendanceRecord, record_id)
+        if not record:
+            raise LookupError("Registro de ponto nao encontrado")
+        if payload.status in {AttendanceStatus.REJECTED, AttendanceStatus.OFFLINE_PENDING}:
+            raise ValueError("Correcao permite apenas ACCEPTED ou MANUAL_REVIEW")
+
+        before = {
+            "occurred_at": record.occurred_at.isoformat(),
+            "punch_type": record.punch_type.value,
+            "status": record.status.value,
+            "notes": record.notes,
+        }
+        if payload.occurred_at is not None:
+            record.occurred_at = naive_utc(payload.occurred_at)
+        if payload.punch_type is not None:
+            record.punch_type = payload.punch_type
+        if payload.status is not None:
+            record.status = payload.status
+        record.notes = payload.reason
+        after = {
+            "occurred_at": record.occurred_at.isoformat(),
+            "punch_type": record.punch_type.value,
+            "status": record.status.value,
+            "notes": record.notes,
+        }
+        await audit(
+            self.session,
+            "attendance.correct",
+            actor_user_id=self.actor_user_id,
+            entity="attendance_record",
+            entity_id=record.id,
+            metadata={"before": before, "after": after, "reason": payload.reason},
+        )
+        await self.session.commit()
+        await self.session.refresh(record)
+        return record
 
     async def history(
         self,

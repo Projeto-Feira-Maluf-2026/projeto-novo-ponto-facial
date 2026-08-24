@@ -17,6 +17,7 @@ const mocksEnabled = import.meta.env.VITE_ENABLE_MOCKS === 'true';
 const mockUser = {
   id: 'local-preview-user',
   email: 'operador@preview.local',
+  app_metadata: { role: 'SUPER_ADMIN' },
   user_metadata: { name: 'Operador de teste' },
 } as unknown as User;
 const mockSession = {

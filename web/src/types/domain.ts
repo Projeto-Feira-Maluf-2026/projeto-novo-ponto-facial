@@ -64,6 +64,19 @@ export interface AttendanceRecord {
   confidence_score?: number | null;
   similarity_score?: number | null;
   liveness_score?: number | null;
+  notes?: string | null;
+}
+
+export interface AuditLog {
+  id: string;
+  actor_user_id?: string | null;
+  action: string;
+  entity?: string | null;
+  entity_id?: string | null;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  metadata_json?: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface FaceBox {
@@ -203,6 +216,13 @@ export interface AttendanceDecision {
   temporal_evidence_count: number;
   temporal_similarity_median?: number | null;
   record?: AttendanceRecord | null;
+}
+
+export interface AttendanceBatchDecision {
+  decisions: AttendanceDecision[];
+  processed: number;
+  accepted: number;
+  manual_review: number;
 }
 
 export type EnrollmentPose = 'FRONTAL' | 'TURN_LEFT' | 'TURN_RIGHT' | 'LOOK_UP' | 'FRONTAL_FINAL';
