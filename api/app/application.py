@@ -37,6 +37,10 @@ async def lifespan(app: FastAPI):
 
 
 async def request_context(request: Request, call_next):
+    # Se for uma requisição de preflight do CORS (OPTIONS), ignora as travas de cabeçalho abaixo
+    if request.method == "OPTIONS":
+        return await call_next(request)
+        
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
     request.state.request_id = request_id
     response = await call_next(request)
@@ -123,19 +127,35 @@ def create_application() -> FastAPI:
         openapi_url=None if settings.ENVIRONMENT == "production" else "/api/openapi.json",
         lifespan=lifespan,
     )
-    service.middleware("http")(request_context)
-    service.add_exception_handler(AppError, app_error_handler)
-    service.add_exception_handler(RequestValidationError, validation_error_handler)
-    service.add_exception_handler(HTTPException, http_error_handler)
-    service.add_exception_handler(Exception, unexpected_error_handler)
+    
+    # 1. Configura as origens permitidas explicitamente incluindo o frontend de produção e local
+    allowed_origins = list(settings.cors_origins) if settings.cors_origins else []
+    production_origins = [
+        "https://vercel.app",
+        "http://localhost:5174",
+        "http://localhost:3000"
+    ]
+    for origin in production_origins:
+        if origin not in allowed_origins:
+            allowed_origins.append(origin)
+
+    # 2. Adiciona o CORSMiddleware primeiro para garantir respostas limpas no preflight OPTIONS
     service.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=allowed_origins,
         allow_origin_regex=settings.CORS_ORIGIN_REGEX,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # 3. Middlewares HTTP normais e tratadores de erro entram na sequência
+    service.middleware("http")(request_context)
+    service.add_exception_handler(AppError, app_error_handler)
+    service.add_exception_handler(RequestValidationError, validation_error_handler)
+    service.add_exception_handler(HTTPException, http_error_handler)
+    service.add_exception_handler(Exception, unexpected_error_handler)
+    
     service.include_router(health_router)
     service.include_router(health_router, prefix="/api")
     service.include_router(api_router, prefix=settings.API_V1_PREFIX)
