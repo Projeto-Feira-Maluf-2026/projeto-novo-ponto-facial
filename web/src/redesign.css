@@ -109,6 +109,7 @@ body::before {
 
 /* Floating application frame */
 .app-topbar {
+  isolation: isolate;
   top: 10px;
   width: calc(100% - 20px);
   min-height: 70px;
@@ -170,9 +171,9 @@ body::before {
   margin: 0;
   border: 1px solid transparent;
   border-radius: 11px;
-  padding-inline: 12px;
+  padding-inline: 13px;
   color: #8f9a92;
-  font-size: 0.73rem;
+  font-size: 0.75rem;
   font-weight: 620;
 }
 
@@ -236,17 +237,20 @@ body::before {
 
 .page-heading {
   position: relative;
-  margin-bottom: clamp(26px, 4vw, 46px);
+  margin-bottom: clamp(26px, 3.5vw, 40px);
 }
 
 .page-heading::after {
   position: absolute;
   right: 0;
-  bottom: 0;
-  width: min(24vw, 220px);
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--ui-line-strong));
+  bottom: 2px;
+  width: min(25vw, 250px);
+  height: 9px;
+  background:
+    linear-gradient(90deg, transparent, var(--ui-line-strong)) center / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, transparent 0 31px, var(--ui-line-strong) 31px 32px) center / 100% 7px no-repeat;
   content: "";
+  opacity: 0.75;
 }
 
 .page-heading-kicker,
@@ -262,17 +266,17 @@ body::before {
 
 .page-heading h1 {
   margin-top: 8px;
-  font-size: clamp(2.6rem, 5vw, 4.7rem);
+  font-size: clamp(2.6rem, 4.5vw, 4.25rem);
   font-weight: 560;
   letter-spacing: -0.072em;
-  line-height: 0.94;
+  line-height: 0.96;
 }
 
 .page-heading p {
   max-width: 590px;
   margin-top: 13px;
   color: var(--ui-muted);
-  font-size: 0.94rem;
+  font-size: 0.96rem;
   line-height: 1.55;
 }
 
@@ -414,7 +418,8 @@ body::before {
 }
 
 .toolbar-panel {
-  padding: 12px;
+  gap: 16px;
+  padding: 15px 16px;
 }
 
 .feedback-banner,
@@ -454,7 +459,7 @@ body::before {
 .data-table th {
   height: 46px;
   color: var(--ui-subtle);
-  font-size: 0.66rem;
+  font-size: 0.68rem;
   font-weight: 760;
   letter-spacing: 0.1em;
 }
@@ -462,6 +467,8 @@ body::before {
 .data-table td {
   height: 66px;
   border-color: var(--ui-line);
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .data-table tbody tr {
@@ -605,6 +612,7 @@ body::before {
 
 .metric-tile > div > strong {
   font-size: clamp(2.3rem, 4vw, 3.4rem);
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.075em;
 }
 
@@ -629,6 +637,13 @@ body::before {
 .timeline-bar {
   border-radius: inherit;
   background: linear-gradient(to top, var(--ui-accent-strong), var(--ui-accent-bright));
+}
+
+.timeline-value,
+.worksite-ranking-row,
+.dashboard-hero-status dd,
+.presence-ring strong {
+  font-variant-numeric: tabular-nums;
 }
 
 .worksite-progress,
@@ -946,10 +961,10 @@ body::before {
 
 /* Mobile navigation becomes a compact floating dock. */
 .mobile-nav {
-  right: 10px;
+  right: auto;
   bottom: 10px;
-  left: 10px;
-  width: auto;
+  left: 50%;
+  width: min(calc(100% - 20px), 620px);
   min-height: 68px;
   border: 1px solid var(--ui-line);
   border-radius: 18px;
@@ -957,6 +972,7 @@ body::before {
   padding: 5px;
   box-shadow: 0 18px 54px rgb(11 26 16 / 0.18);
   backdrop-filter: blur(20px) saturate(140%);
+  transform: translateX(-50%);
 }
 
 .mobile-nav a,
@@ -1017,26 +1033,48 @@ body::before {
   }
 
   .metric-mosaic {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .metric-tile-wide {
-    grid-column: span 2;
+    grid-column: 1 / -1;
+    grid-template-columns: 44px minmax(0, 1fr) minmax(230px, 0.8fr);
+    align-items: center;
+  }
+
+  .metric-tile-wide .metric-attention {
+    grid-column: auto;
+    border-top: 0;
+    border-left: 1px solid var(--ui-line);
+    padding-top: 0;
+    padding-left: 20px;
   }
 }
 
 @media (min-width: 1280px) {
+  .metric-mosaic {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .metric-tile-wide {
     grid-column: auto;
     grid-template-columns: 44px minmax(0, 1fr);
   }
 
-  .metric-attention {
+  .metric-tile-wide .metric-attention {
     grid-column: 1 / -1;
     border-top: 1px solid var(--ui-line);
     border-left: 0;
     padding-top: 12px;
     padding-left: 0;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .app-topbar {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 8px 12px;
   }
 }
 
