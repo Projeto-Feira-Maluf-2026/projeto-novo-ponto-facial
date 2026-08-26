@@ -1,96 +1,110 @@
-# Curitiba Empreiteira - Controle de Ponto Facial
+# Curitiba Empreiteira — Ponto Facial
 
-Sistema corporativo de controle de ponto por reconhecimento facial para obras e
-canteiros. A aplicacao usa FastAPI, React/TypeScript, Supabase Auth, Supabase
-PostgreSQL, Redis e InsightFace/ArcFace.
+Sistema web de controle de presença para obras, com reconhecimento facial, registro automático de ponto, relatórios, auditoria e confirmação por e-mail.
 
-## Arquitetura atual
+Produção:
 
-- Supabase Auth gerencia usuarios, senhas, sessoes e renovacao de tokens.
-- Supabase PostgreSQL armazena os dados operacionais.
-- O frontend usa somente a chave `publishable`.
-- O backend valida cada access token diretamente no Supabase e concede acesso integral
-  a todo usuario autenticado.
-- A chave `secret` e usada somente pelo script administrativo local e nao faz parte do
-  runtime implantado.
-- O Data API permanece bloqueado por RLS; dados biometricos passam pela API FastAPI.
+- Aplicação: <https://curitiba-gestao.vercel.app>
+- API facial: <https://curitiba-gestao-face.vercel.app>
+- Saúde da API facial: <https://curitiba-gestao-face.vercel.app/health/ready>
 
-O projeto nao possui banco local, usuario/senha proprio nem tabela de refresh tokens.
+## Funcionalidades
 
-## Configuracao
+- Login e sessões pelo Supabase Auth.
+- Perfis `SUPER_ADMIN`, `RH`, `GESTOR_OBRA`, `SUPERVISOR` e `FUNCIONARIO`.
+- Cadastro de funcionários, obras, câmeras e biometria facial.
+- InsightFace/ArcFace executado em container separado.
+- Detecção e registro de até cinco rostos na mesma leitura.
+- Registro de entrada, saída para almoço, retorno e saída.
+- Uma segunda batida após as 16h é interpretada como saída, evitando “saída para almoço” à noite.
+- Confirmação individual por e-mail usando SMTP da Brevo.
+- Exportação de relatórios em PDF, XLSX e CSV.
+- Auditoria de batidas e correções, atualizada automaticamente na interface.
+- Funcionamento sem geolocalização obrigatória.
 
-Copie `.env.example` para `.env` e preencha:
+## Arquitetura
 
-- `DATABASE_URL`: connection string PostgreSQL exibida em **Connect** no Supabase.
-- `SUPABASE_URL`: URL do projeto.
-- `SUPABASE_PUBLISHABLE_KEY`: chave permitida no navegador.
-- `SUPABASE_SECRET_KEY`: somente para `npm run bootstrap-admin`, nunca para a Vercel.
-- `PASSWORD_PEPPER` e `FIELD_ENCRYPTION_KEY`: segredos obrigatorios e exclusivos da API.
-- `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`: equivalentes do frontend.
-- `VITE_API_URL`: mantenha `/api/v1` para a API comum hospedada junto ao frontend.
-- `VITE_FACE_API_URL`: URL HTTPS publica, terminada em `/api/v1`, do container que
-  executa InsightFace. Nao use `localhost` em deploy.
-- `INITIAL_ADMIN_*`: credenciais usadas uma unica vez pelo bootstrap administrativo.
+| Parte | Tecnologia | Hospedagem |
+|---|---|---|
+| Frontend | React, TypeScript e Vite | Vercel `curitiba-gestao` |
+| API principal | FastAPI serverless | Vercel `curitiba-gestao` |
+| IA facial | FastAPI, InsightFace e ONNX Runtime | Vercel Container `curitiba-gestao-face` |
+| Autenticação | Supabase Auth | Supabase |
+| Banco | PostgreSQL | Supabase |
+| E-mail | SMTP | Brevo |
 
-Nunca crie uma variavel `VITE_*` com a chave `secret` e mantenha o cadastro publico
-desativado em **Authentication > General Configuration > Allow new users to sign up**.
+O frontend usa apenas a chave pública do Supabase. A chave secreta é utilizada somente em rotinas administrativas locais e nunca deve ser criada com prefixo `VITE_`.
 
-## Preparar o Supabase
+## Horários
 
-1. Aplique [a migration inicial](supabase/migrations/20260807000000_initial.sql) pelo
-   SQL Editor ou Supabase CLI.
-2. Crie o administrador inicial:
+Todos os instantes são armazenados em UTC. A API envia datas UTC com o sufixo `Z`, enquanto telas, e-mails, dashboard e relatórios exibem `America/Sao_Paulo`. Essa regra evita diferenças de três horas entre Vercel, Supabase e navegador.
 
-```powershell
-npm run bootstrap-admin
-```
+## Configuração local
 
-3. Inicie o projeto:
-
-```powershell
-npm start
-```
-
-Abra:
-
-- Web: `http://localhost:5174/login`
-- API: `http://localhost:8000`
-- Swagger: `http://localhost:8000/api/docs`
-
-## Comandos
+1. Copie `.env.example` para `.env`.
+2. Preencha as variáveis reais sem enviar o arquivo ao Git.
+3. Aplique a migration em `supabase/migrations/20260807000000_initial.sql`.
+4. Instale as dependências e crie/atualize o administrador.
 
 ```powershell
 npm run setup
 npm run bootstrap-admin
-npm run seed
-npm run dev
+npm start
+```
+
+Endereços locais:
+
+- Web: <http://localhost:5174/login>
+- API: <http://localhost:8000>
+- Swagger: <http://localhost:8000/api/docs>
+
+### Variáveis principais
+
+- `DATABASE_URL`: conexão PostgreSQL do Supabase.
+- `SUPABASE_URL`: URL do projeto Supabase.
+- `SUPABASE_PUBLISHABLE_KEY`: chave pública usada pelo frontend.
+- `SUPABASE_SECRET_KEY`: chave administrativa, somente para scripts locais.
+- `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`: configuração pública do navegador.
+- `VITE_API_URL`: normalmente `/api/v1`.
+- `VITE_FACE_API_URL`: URL HTTPS do container facial terminada em `/api/v1`.
+- `BREVO_SMTP_HOST`, `BREVO_SMTP_PORT`, `BREVO_SMTP_LOGIN` e `BREVO_SMTP_KEY`: envio de e-mail.
+- `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` e `EMAIL_NOTIFICATIONS_ENABLED`: remetente e ativação das notificações.
+
+Nunca envie `.env`, chaves SMTP, senhas ou tokens para o repositório.
+
+## Comandos úteis
+
+```powershell
+npm run setup
+npm run start
 npm run stop
+npm run bootstrap-admin
+npm run seed
 npm run web:build
+npm run docker:up
+npm run docker:down
 ```
 
 ## Docker
 
-O Compose inicia API, frontend e Redis. O PostgreSQL e sempre o Supabase configurado
-em `.env`.
+O Docker Compose inicia frontend, API e Redis. O banco continua sendo o PostgreSQL do Supabase configurado no `.env`.
 
-```bash
+```powershell
 docker compose up --build
 ```
 
-Em producao, a Vercel hospeda o frontend, a API comum e o runtime facial em projetos
-separados. A matricula e a batida facial apontam para o Vercel Container criado por
-`api/Dockerfile.vercel` no projeto `curitiba-gestao-face`. Veja `docs/vercel.md` para
-publicacao, variaveis e testes de saude desse backend.
+O container de produção usa `api/Dockerfile.vercel`. Instruções completas estão em [docs/vercel.md](docs/vercel.md).
 
-## Validacao
+## Testes
 
-```bash
+```powershell
 cd api
-pytest
-ruff check app ../tests
+.\.venv\Scripts\python.exe -m pytest ..\tests -q
+.\.venv\Scripts\python.exe -m ruff check app ..\tests
 
-cd ../web
+cd ..\web
+npm test -- --run
 npm run build
 ```
 
-Documentacao complementar esta em `docs/`.
+Mais detalhes estão em `docs/`, especialmente `architecture.md`, `face-pipeline.md`, `terminal-automatico.md`, `security-lgpd.md` e `testing.md`.

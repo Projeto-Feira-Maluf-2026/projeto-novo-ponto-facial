@@ -31,6 +31,7 @@ import type {
   PunchType,
   Worksite,
 } from '../types/domain';
+import { parseApiDate } from '../utils/dateTime';
 
 type TerminalMode =
   | 'starting'
@@ -275,7 +276,7 @@ export function FacialTerminalPage() {
           punchType: result.punch_type,
           status: result.status,
           occurredAt: result.record?.occurred_at
-            ? new Date(result.record.occurred_at)
+            ? parseApiDate(result.record.occurred_at)
             : new Date(),
         });
         successfulRecognition ||= {

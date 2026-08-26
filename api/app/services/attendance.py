@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time
 from statistics import median
 from uuid import uuid4
 
@@ -8,6 +8,7 @@ from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.time import as_local, as_utc_naive, local_day_utc_bounds
 from app.models.entities import (
     AttendanceRecord,
     Employee,
@@ -29,9 +30,23 @@ logger = logging.getLogger(__name__)
 PUNCH_SEQUENCE = [PunchType.ENTRY, PunchType.LUNCH_OUT, PunchType.LUNCH_IN, PunchType.EXIT]
 
 
-def next_punch_type(previous: PunchType | None) -> PunchType:
+EVENING_EXIT_START = time(16, 0)
+
+
+def next_punch_type(
+    previous: PunchType | None,
+    occurred_at: datetime | None = None,
+) -> PunchType:
     if previous is None:
         return PunchType.ENTRY
+    # Sem uma escala individual cadastrada, uma segunda batida no fim do dia
+    # deve ser saida, nunca uma improvavel saida para almoco as 22h.
+    if (
+        previous == PunchType.ENTRY
+        and occurred_at is not None
+        and as_local(occurred_at).time() >= EVENING_EXIT_START
+    ):
+        return PunchType.EXIT
     try:
         return PUNCH_SEQUENCE[(PUNCH_SEQUENCE.index(previous) + 1) % len(PUNCH_SEQUENCE)]
     except ValueError:
@@ -43,12 +58,6 @@ def attendance_confidence(match_confidence: float, quality_score: float) -> floa
     match = max(0.0, min(1.0, float(match_confidence)))
     quality = max(0.0, min(1.0, float(quality_score)))
     return round((match * 0.75) + (quality * 0.25), 4)
-
-
-def naive_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value
-    return value.astimezone(UTC).replace(tzinfo=None)
 
 
 class AttendanceService:
@@ -238,7 +247,11 @@ class AttendanceService:
                 ),
             )
 
-        punch_type = payload.punch_type or await self._infer_next_punch(employee.id)
+        occurred_at = as_utc_naive(payload.occurred_at or datetime.now(UTC))
+        punch_type = payload.punch_type or await self._infer_next_punch(
+            employee.id,
+            occurred_at,
+        )
         confidence = attendance_confidence(match_confidence, quality_score)
         status = AttendanceStatus.ACCEPTED if confidence >= settings.SUSPICIOUS_SCORE_THRESHOLD else AttendanceStatus.MANUAL_REVIEW
         record = AttendanceRecord(
@@ -248,7 +261,7 @@ class AttendanceService:
             device_id=payload.device_id,
             punch_type=punch_type,
             status=status,
-            occurred_at=naive_utc(payload.occurred_at or datetime.now(UTC)),
+            occurred_at=occurred_at,
             latitude=None,
             longitude=None,
             similarity_score=similarity,
@@ -342,7 +355,7 @@ class AttendanceService:
             "notes": record.notes,
         }
         if payload.occurred_at is not None:
-            record.occurred_at = naive_utc(payload.occurred_at)
+            record.occurred_at = as_utc_naive(payload.occurred_at)
         if payload.punch_type is not None:
             record.punch_type = payload.punch_type
         if payload.status is not None:
@@ -380,23 +393,33 @@ class AttendanceService:
         if worksite_id:
             conditions.append(AttendanceRecord.worksite_id == worksite_id)
         if starts_at:
-            conditions.append(AttendanceRecord.occurred_at >= starts_at.replace(tzinfo=None))
+            conditions.append(AttendanceRecord.occurred_at >= as_utc_naive(starts_at))
         if ends_at:
-            conditions.append(AttendanceRecord.occurred_at <= ends_at.replace(tzinfo=None))
+            conditions.append(AttendanceRecord.occurred_at <= as_utc_naive(ends_at))
         if conditions:
             statement = statement.where(and_(*conditions))
         result = await self.session.scalars(statement.order_by(desc(AttendanceRecord.occurred_at)).limit(500))
         return list(result)
 
-    async def _infer_next_punch(self, employee_id: str) -> PunchType:
-        since = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=18)
+    async def _infer_next_punch(
+        self,
+        employee_id: str,
+        occurred_at: datetime,
+    ) -> PunchType:
+        local_day = as_local(occurred_at).date()
+        day_start, day_end = local_day_utc_bounds(local_day)
         previous = await self.session.scalar(
             select(AttendanceRecord)
-            .where(AttendanceRecord.employee_id == employee_id, AttendanceRecord.occurred_at >= since)
+            .where(
+                AttendanceRecord.employee_id == employee_id,
+                AttendanceRecord.occurred_at >= day_start,
+                AttendanceRecord.occurred_at < day_end,
+                AttendanceRecord.occurred_at <= occurred_at,
+            )
             .order_by(desc(AttendanceRecord.occurred_at))
             .limit(1)
         )
-        return next_punch_type(previous.punch_type if previous else None)
+        return next_punch_type(previous.punch_type if previous else None, occurred_at)
 
     async def _match_employee(
         self,

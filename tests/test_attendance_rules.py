@@ -28,6 +28,14 @@ def test_punch_sequence() -> None:
     assert next_punch_type(PunchType.EXIT) == PunchType.ENTRY
 
 
+def test_evening_second_punch_becomes_exit_instead_of_lunch() -> None:
+    evening_in_sao_paulo = datetime(2026, 8, 26, 1, 14, tzinfo=UTC)
+    noon_in_sao_paulo = datetime(2026, 8, 25, 15, 0, tzinfo=UTC)
+
+    assert next_punch_type(PunchType.ENTRY, evening_in_sao_paulo) == PunchType.EXIT
+    assert next_punch_type(PunchType.ENTRY, noon_in_sao_paulo) == PunchType.LUNCH_OUT
+
+
 def test_attendance_confidence_uses_only_measured_server_signals() -> None:
     assert attendance_confidence(0.80, 0.60) == 0.75
 

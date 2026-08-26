@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.entities import AuditLog
@@ -23,6 +25,6 @@ async def audit(
             ip_address=ip_address,
             user_agent=user_agent,
             metadata_json=metadata,
+            created_at=datetime.now(UTC).replace(tzinfo=None),
         )
     )
-

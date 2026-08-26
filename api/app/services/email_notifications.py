@@ -4,18 +4,17 @@ import asyncio
 import logging
 import smtplib
 import ssl
-from datetime import UTC, datetime
+from datetime import datetime
 from email.message import EmailMessage
 from email.utils import formataddr
 from html import escape
-from zoneinfo import ZoneInfo
 
 from app.core.config import settings
+from app.core.time import as_local
 from app.models.enums import PunchType
 
 logger = logging.getLogger(__name__)
 
-SAO_PAULO = ZoneInfo("America/Sao_Paulo")
 PUNCH_LABELS = {
     PunchType.ENTRY: "Entrada",
     PunchType.LUNCH_OUT: "Saída para almoço",
@@ -128,8 +127,7 @@ class AttendanceEmailNotifier:
 
     @staticmethod
     def _to_local_time(value: datetime) -> datetime:
-        aware = value.replace(tzinfo=UTC) if value.tzinfo is None else value
-        return aware.astimezone(SAO_PAULO)
+        return as_local(value)
 
     @staticmethod
     def _send_sync(message: EmailMessage) -> None:

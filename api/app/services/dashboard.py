@@ -1,8 +1,9 @@
-from datetime import date, datetime, time
+from datetime import datetime
 
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.time import SAO_PAULO, as_local, local_day_utc_bounds
 from app.models.entities import AttendanceRecord, CaptureDevice, Employee, SuspiciousAttempt, Worksite
 from app.models.enums import AttendanceStatus, EmployeeStatus
 from app.schemas.dashboard import DashboardMetrics
@@ -13,26 +14,32 @@ class DashboardService:
         self.session = session
 
     async def metrics(self) -> DashboardMetrics:
-        start = datetime.combine(date.today(), time.min)
-        end = datetime.combine(date.today(), time.max)
+        start, end = local_day_utc_bounds(datetime.now(SAO_PAULO).date())
         total_employees = await self.session.scalar(
             select(func.count()).select_from(Employee).where(Employee.status == EmployeeStatus.ACTIVE)
         )
         present = await self.session.scalar(
             select(func.count(distinct(AttendanceRecord.employee_id))).where(
-                AttendanceRecord.occurred_at.between(start, end),
+                AttendanceRecord.occurred_at >= start,
+                AttendanceRecord.occurred_at < end,
                 AttendanceRecord.status == AttendanceStatus.ACCEPTED,
             )
         )
         records_today = await self.session.scalar(
-            select(func.count()).select_from(AttendanceRecord).where(AttendanceRecord.occurred_at.between(start, end))
+            select(func.count()).select_from(AttendanceRecord).where(
+                AttendanceRecord.occurred_at >= start,
+                AttendanceRecord.occurred_at < end,
+            )
         )
         worksites = await self.session.scalar(select(func.count()).select_from(Worksite).where(Worksite.active.is_(True)))
         connected_devices = await self.session.scalar(
             select(func.count()).select_from(CaptureDevice).where(CaptureDevice.last_seen_at >= start)
         )
         fraud_alerts = await self.session.scalar(
-            select(func.count()).select_from(SuspiciousAttempt).where(SuspiciousAttempt.created_at.between(start, end))
+            select(func.count()).select_from(SuspiciousAttempt).where(
+                SuspiciousAttempt.created_at >= start,
+                SuspiciousAttempt.created_at < end,
+            )
         )
 
         by_worksite_rows = await self.session.execute(
@@ -46,13 +53,16 @@ class DashboardService:
         hour_bucket = func.date_trunc("hour", AttendanceRecord.occurred_at)
         timeline_rows = await self.session.execute(
             select(hour_bucket, func.count(AttendanceRecord.id))
-            .where(AttendanceRecord.occurred_at.between(start, end))
+            .where(
+                AttendanceRecord.occurred_at >= start,
+                AttendanceRecord.occurred_at < end,
+            )
             .group_by(hour_bucket)
             .order_by(hour_bucket)
         )
         timeline = [
             {
-                "hour": hour.strftime("%H:%M") if isinstance(hour, datetime) else str(hour),
+                "hour": as_local(hour).strftime("%H:%M") if isinstance(hour, datetime) else str(hour),
                 "records": count,
             }
             for hour, count in timeline_rows.all()

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DataTable } from '../components/DataTable';
 import { apiClient } from '../services/api';
 import type { AuditLog } from '../types/domain';
+import { parseApiDate } from '../utils/dateTime';
 
 const actionLabels: Record<string, string> = {
   'attendance.punch': 'Ponto registrado',
@@ -14,7 +15,7 @@ function formatAuditDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
     timeStyle: 'medium',
-  }).format(new Date(value));
+  }).format(parseApiDate(value));
 }
 
 export function AuditPage() {
@@ -22,12 +23,12 @@ export function AuditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const loadLogs = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const page = await apiClient.auditLogs();
       setLogs(page.items);
+      setError('');
     } catch {
       setError('Não foi possível carregar o histórico de auditoria.');
     } finally {
@@ -36,7 +37,18 @@ export function AuditPage() {
   }, []);
 
   useEffect(() => {
-    void loadLogs();
+    void loadLogs(true);
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadLogs();
+    };
+    const timer = window.setInterval(refresh, 4_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [loadLogs]);
 
   return (
@@ -46,7 +58,7 @@ export function AuditPage() {
           <strong>Operações recentes</strong>
           <p className="text-sm text-muted">Registros e correções ficam associados ao usuário responsável.</p>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={() => void loadLogs()} disabled={loading}>
+        <button type="button" className="btn btn-secondary" onClick={() => void loadLogs(true)} disabled={loading}>
           <RefreshCcw size={17} className={loading ? 'animate-spin' : ''} />
           Atualizar
         </button>

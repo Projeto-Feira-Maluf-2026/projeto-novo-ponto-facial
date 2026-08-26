@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
+from app.core.time import utc_isoformat
 from app.models.enums import AttendanceStatus, PunchType
 from app.schemas.common import ORMModel
 
@@ -70,6 +71,10 @@ class AttendanceRead(ORMModel):
     confidence_score: float | None
     offline_batch_id: str | None
     notes: str | None
+
+    @field_serializer("occurred_at", when_used="json")
+    def serialize_occurred_at(self, value: datetime) -> str:
+        return utc_isoformat(value)
 
 
 class AttendanceDecision(BaseModel):

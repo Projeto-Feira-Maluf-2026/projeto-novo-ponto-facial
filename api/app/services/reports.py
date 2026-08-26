@@ -7,6 +7,7 @@ from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.time import as_local, as_utc_naive
 from app.models.entities import AttendanceRecord, Employee, Worksite
 from app.schemas.reports import ReportFormat, ReportRequest
 
@@ -30,8 +31,8 @@ class ReportService:
             .join(Employee, AttendanceRecord.employee_id == Employee.id)
             .join(Worksite, AttendanceRecord.worksite_id == Worksite.id)
             .where(
-                AttendanceRecord.occurred_at >= payload.starts_at.replace(tzinfo=None),
-                AttendanceRecord.occurred_at <= payload.ends_at.replace(tzinfo=None),
+                AttendanceRecord.occurred_at >= as_utc_naive(payload.starts_at),
+                AttendanceRecord.occurred_at <= as_utc_naive(payload.ends_at),
             )
             .order_by(AttendanceRecord.occurred_at)
         )
@@ -42,7 +43,7 @@ class ReportService:
         result = await self.session.execute(statement)
         return [
             {
-                "data_hora": record.occurred_at.isoformat(sep=" ", timespec="minutes"),
+                "data_hora": as_local(record.occurred_at).strftime("%d/%m/%Y %H:%M"),
                 "funcionario": employee_name,
                 "matricula": registration,
                 "obra": worksite_name,

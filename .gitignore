@@ -1,24 +1,65 @@
+# Segredos e configuracoes locais
+.env*
+!.env.example
+*.local
+
+# Node / Vite
 node_modules/
+dist/
+web/dist/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python
+.venv/
+venv/
+api/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Vercel e artefatos de deploy
 .vercel/
 .vercel_python_packages/
-.ruff_cache/
-*.egg-info/
-.env
-backend/.env
+
+# Flutter / Dart
+.dart_tool/
+mobile/build/
+mobile/.flutter-plugins*
+
+# Dados e artefatos gerados localmente
+logs/
+*.log
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.db.bak
+coverage/
+tmp/
+temp/
 uploads/photos/*
 !uploads/photos/.gitkeep
 backend/uploads/photos/*
 !backend/uploads/photos/.gitkeep
-dist/
-frontend/dist/
-web/dist/
-**/__pycache__/
-*.pyc
-*.log
-*.db
-*.db.bak
 models/**/*.onnx
 models/**/*.zip
 
-.env.local
-.env.*.local
+# Editores e sistema operacional
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Desktop.ini
