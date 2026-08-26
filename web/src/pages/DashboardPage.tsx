@@ -125,9 +125,8 @@ function DashboardContent({
     <div className="app-view-transition operations-board premium-dashboard">
       <section className="dashboard-hero" aria-labelledby="operations-heading">
         <div className="dashboard-hero-copy">
-          <span className="dashboard-shift-label">Resumo do turno</span>
-          <h2 id="operations-heading">Operação de hoje</h2>
-          <p>Presença, marcações e disponibilidade atualizadas a cada vinte segundos.</p>
+          <h2 id="operations-heading">Hoje, em campo.</h2>
+          <p>Uma leitura objetiva de pessoas, obras e pontos registrados nos últimos vinte segundos.</p>
           <div className="dashboard-hero-actions">
             <Link to="/terminal-facial" viewTransition className="btn btn-on-dark">
               Abrir ponto automático <ArrowUpRight size={17} />
@@ -136,14 +135,8 @@ function DashboardContent({
         </div>
 
         <div className="dashboard-presence-orbit" aria-label={`${presenceRate}% de presença hoje`}>
-          <div className="presence-meter">
-            <div className="presence-meter-heading">
-              <span>Presença confirmada</span>
-              <strong>{presenceRate}<small>%</small></strong>
-            </div>
-            <div className="presence-meter-track" aria-hidden="true">
-              <span style={{ width: `${presenceRate}%` }} />
-            </div>
+          <div className="presence-ring" style={{ '--presence': `${presenceRate * 3.6}deg` } as React.CSSProperties}>
+            <div><strong>{presenceRate}<small>%</small></strong><span>presença</span></div>
           </div>
           <p><strong>{metrics.present_employees}</strong> de {metrics.total_employees} funcionários já registraram presença.</p>
         </div>
