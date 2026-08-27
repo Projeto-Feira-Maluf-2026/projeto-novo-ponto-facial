@@ -116,3 +116,16 @@ def test_browser_models_are_loaded_at_runtime_instead_of_deployed() -> None:
 
     assert "cdn.jsdelivr.net/npm/@mediapipe/tasks-vision" in camera_source
     assert not (PROJECT_ROOT / "web" / "public" / "mediapipe").exists()
+
+
+def test_mediapipe_loader_is_allowed_by_content_security_policy() -> None:
+    config = json.loads((PROJECT_ROOT / "vercel.json").read_text(encoding="utf-8"))
+    csp = next(
+        header["value"]
+        for header in config["headers"][0]["headers"]
+        if header["key"] == "Content-Security-Policy"
+    )
+    script_src = csp.split("script-src ", 1)[1].split(";", 1)[0]
+
+    assert "https://cdn.jsdelivr.net" in script_src
+    assert "https://jsdelivr.net" not in script_src
