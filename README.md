@@ -21,6 +21,7 @@ Produção:
 - Exportação de relatórios em PDF, XLSX e CSV.
 - Auditoria de batidas e correções, atualizada automaticamente na interface.
 - Funcionamento sem geolocalização obrigatória.
+- Fotos de perfil normalizadas em WebP e substituídas sem acumular versões no Blob.
 
 ## Arquitetura
 
@@ -32,6 +33,12 @@ Produção:
 | Autenticação | Supabase Auth | Supabase |
 | Banco | PostgreSQL | Supabase |
 | E-mail | SMTP | Brevo |
+
+Os binários do MediaPipe usados apenas no navegador são carregados de versões oficiais
+e imutáveis do jsDelivr/Google. Eles continuam cacheados no computador, mas deixam de
+adicionar cerca de 37,5 MB a cada deploy da aplicação. Para hospedar esses binários no
+próprio domínio, configure `VITE_MEDIAPIPE_WASM_URL` e
+`VITE_FACE_LANDMARKER_MODEL_URL`.
 
 O frontend usa apenas a chave pública do Supabase. A chave secreta é utilizada somente em rotinas administrativas locais e nunca deve ser criada com prefixo `VITE_`.
 
@@ -67,10 +74,27 @@ Endereços locais:
 - `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`: configuração pública do navegador.
 - `VITE_API_URL`: normalmente `/api/v1`.
 - `VITE_FACE_API_URL`: URL HTTPS do container facial terminada em `/api/v1`.
+- `VITE_MEDIAPIPE_WASM_URL` e `VITE_FACE_LANDMARKER_MODEL_URL`: opcionais; vazias usam os binários oficiais cacheados.
 - `BREVO_SMTP_HOST`, `BREVO_SMTP_PORT`, `BREVO_SMTP_LOGIN` e `BREVO_SMTP_KEY`: envio de e-mail.
 - `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` e `EMAIL_NOTIFICATIONS_ENABLED`: remetente e ativação das notificações.
 
 Nunca envie `.env`, chaves SMTP, senhas ou tokens para o repositório.
+
+## Armazenamento de fotos
+
+Cada funcionário usa um único caminho de foto no Vercel Blob. Uma nova foto substitui
+a anterior depois de ser redimensionada para no máximo 960 px e convertida para WebP.
+Versões antigas com sufixo aleatório são removidas após o banco confirmar a nova URL.
+
+Para auditar a loja e remover somente fotos que não são referenciadas pelo banco:
+
+```powershell
+api\.venv\Scripts\python.exe scripts\cleanup_employee_photos.py
+api\.venv\Scripts\python.exe scripts\cleanup_employee_photos.py --apply
+```
+
+O primeiro comando é apenas uma simulação. A limpeza é cancelada automaticamente se a
+loja tiver fotos e o banco conectado não referenciar nenhuma delas.
 
 ## Comandos úteis
 

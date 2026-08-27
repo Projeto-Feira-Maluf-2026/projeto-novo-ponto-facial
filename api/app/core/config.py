@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_REQUIRED: bool = False
     HEALTHCHECK_TIMEOUT_SECONDS: float = 1.5
+    AUTH_TIMEOUT_SECONDS: float = 4.5
     FACE_EAGER_INITIALIZE: bool = True
 
     PASSWORD_PEPPER: str = Field(min_length=32)
@@ -173,6 +174,8 @@ class Settings(BaseSettings):
             raise ValueError("BREVO_SMTP_PORT invalida")
         if not 1.0 <= self.EMAIL_TIMEOUT_SECONDS <= 30.0:
             raise ValueError("EMAIL_TIMEOUT_SECONDS deve estar entre 1 e 30")
+        if not 1.0 <= self.AUTH_TIMEOUT_SECONDS <= 15.0:
+            raise ValueError("AUTH_TIMEOUT_SECONDS deve estar entre 1 e 15")
         detection_sizes = self.face_detection_sizes
         if (
             not detection_sizes

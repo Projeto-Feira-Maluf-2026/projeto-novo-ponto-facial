@@ -17,6 +17,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import type { CameraCaptureHandle } from '../components/CameraCapture';
 import { DataTable } from '../components/DataTable';
 import { FaceEnrollmentDialog } from '../components/FaceEnrollmentDialog';
+import { EmployeePhoto } from '../components/EmployeePhoto';
 import { playModalExit } from '../animations/motion';
 import { useModalMotion } from '../animations/useMotion';
 import { apiClient } from '../services/api';
@@ -562,7 +563,11 @@ export function EmployeesPage() {
               <button type="button" className="employee-identity" onClick={() => setDetailEmployee(row)}>
                 <span className="employee-avatar">
                   {row.photo_url
-                    ? <img src={row.photo_url} alt="" />
+                    ? <EmployeePhoto
+                        employeeId={row.id}
+                        photoUrl={row.photo_url}
+                        fallback={row.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+                      />
                     : row.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
                 </span>
                 <span><strong>{row.name}</strong><small>{row.registration}</small></span>
@@ -627,7 +632,11 @@ export function EmployeesPage() {
             <div className="employee-profile-hero">
               <span className="employee-profile-avatar">
                 {detailEmployee.photo_url
-                  ? <img src={detailEmployee.photo_url} alt="" />
+                  ? <EmployeePhoto
+                      employeeId={detailEmployee.id}
+                      photoUrl={detailEmployee.photo_url}
+                      fallback={detailEmployee.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+                    />
                   : detailEmployee.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
               </span>
               <div>

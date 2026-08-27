@@ -51,8 +51,11 @@ export interface FaceSourceBox {
   sourceHeight: number;
 }
 
-const LANDMARK_WASM_PATH = '/mediapipe/wasm';
-const FACE_LANDMARKER_MODEL_PATH = '/mediapipe/face_landmarker.task';
+const MEDIAPIPE_VERSION = '0.10.35';
+const LANDMARK_WASM_PATH = import.meta.env.VITE_MEDIAPIPE_WASM_URL?.trim()
+  || `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
+const FACE_LANDMARKER_MODEL_PATH = import.meta.env.VITE_FACE_LANDMARKER_MODEL_URL?.trim()
+  || 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 const MAX_TRACKED_FACES = 5;
 const LANDMARK_FRAME_INTERVAL_MS = 32;
 

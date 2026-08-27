@@ -99,3 +99,20 @@ def test_native_camera_operations_use_the_container_api() -> None:
     assert "faceApi.post<CameraTestResponse>('/devices/test-camera'" in source
     assert "faceApi.post<CameraTestResponse>(`/devices/${deviceId}/test`)" in source
     assert "faceApi.get<Blob>(`/devices/${deviceId}/snapshot`" in source
+
+
+def test_example_environment_contains_no_filled_secrets() -> None:
+    example = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    assert "sk-proj-" not in example
+    assert "BREVO_SMTP_KEY=xsmtpsib-" not in example
+    assert "INITIAL_ADMIN_PASSWORD=\n" in example.replace("\r\n", "\n")
+
+
+def test_browser_models_are_loaded_at_runtime_instead_of_deployed() -> None:
+    camera_source = (
+        PROJECT_ROOT / "web" / "src" / "components" / "CameraCapture.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "cdn.jsdelivr.net/npm/@mediapipe/tasks-vision" in camera_source
+    assert not (PROJECT_ROOT / "web" / "public" / "mediapipe").exists()

@@ -1,8 +1,0 @@
-Na raiz do projeto, iniciar API e frontend juntos:
-npm start
-
-Para encerrar os dois:
-npm run stop
-
-Depois abra:
-http://localhost:5174/login

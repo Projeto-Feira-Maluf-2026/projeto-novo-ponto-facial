@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 
 import { supabase } from './supabase';
 
@@ -61,6 +61,7 @@ const faceApiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_FACE_API_URL, apiB
 
 function createApi(baseURL: string, timeout: number): AxiosInstance {
   const client = axios.create({ baseURL, timeout });
+  type RetryableRequest = InternalAxiosRequestConfig & { _retriedOnce?: boolean };
 
   client.interceptors.request.use(async (config) => {
     const { data } = await supabase.auth.getSession();
@@ -82,6 +83,16 @@ function createApi(baseURL: string, timeout: number): AxiosInstance {
     async (error) => {
       if (error.response?.status === 401) {
         void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+      }
+      const config = error.config as RetryableRequest | undefined;
+      const method = String(config?.method || 'get').toLowerCase();
+      const status = Number(error.response?.status || 0);
+      const transientFailure = [502, 503, 504].includes(status)
+        || (!error.response && ['ECONNABORTED', 'ERR_NETWORK'].includes(String(error.code)));
+      if (config && method === 'get' && transientFailure && !config._retriedOnce) {
+        config._retriedOnce = true;
+        await new Promise((resolve) => window.setTimeout(resolve, 450));
+        return client.request(config);
       }
       return Promise.reject(error);
     },
@@ -327,6 +338,12 @@ export const apiClient = {
   },
   punch: async (payload: PunchPayload) => {
     const response = await faceApi.post<AttendanceDecision>('/attendance/punch', payload);
+    return response.data;
+  },
+  employeePhoto: async (employeeId: string) => {
+    const response = await api.get<Blob>(`/employees/${employeeId}/photo/content`, {
+      responseType: 'blob',
+    });
     return response.data;
   },
   punchBatch: async (punches: PunchPayload[]) => {

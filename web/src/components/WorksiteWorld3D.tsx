@@ -1,6 +1,35 @@
 import { Box, Maximize2, MousePointer2, RefreshCcw, ZoomIn } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
+import {
+  ACESFilmicToneMapping,
+  Box3,
+  BoxGeometry,
+  Color,
+  CylinderGeometry,
+  DirectionalLight,
+  EdgesGeometry,
+  Fog,
+  GridHelper,
+  Group,
+  HemisphereLight,
+  LineBasicMaterial,
+  LineSegments,
+  Material,
+  MathUtils,
+  Mesh,
+  MeshPhysicalMaterial,
+  MeshStandardMaterial,
+  Object3D,
+  PCFSoftShadowMap,
+  PerspectiveCamera,
+  PlaneGeometry,
+  Raycaster,
+  Scene,
+  SRGBColorSpace,
+  Vector2,
+  Vector3,
+  WebGLRenderer,
+} from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import type { Worksite } from '../types/domain';
@@ -9,8 +38,8 @@ interface WorksiteWorld3DProps {
   worksite: Worksite;
 }
 interface WorldBuild {
-  root: THREE.Group;
-  interactables: THREE.Object3D[];
+  root: Group;
+  interactables: Object3D[];
 }
 
 const palettes = [
@@ -39,13 +68,13 @@ function createRandom(seed: number) {
 }
 
 function addBox(
-  parent: THREE.Object3D,
+  parent: Object3D,
   size: [number, number, number],
   position: [number, number, number],
-  material: THREE.Material,
+  material: Material,
   options: { cast?: boolean; receive?: boolean; name?: string; outline?: boolean } = {},
 ) {
-  const object = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+  const object = new Mesh(new BoxGeometry(...size), material);
   object.position.set(...position);
   object.castShadow = options.cast ?? true;
   object.receiveShadow = options.receive ?? true;
@@ -55,9 +84,9 @@ function addBox(
   }
   parent.add(object);
   if (options.outline) {
-    const edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(object.geometry, 24),
-      new THREE.LineBasicMaterial({ color: 0x4d5755, transparent: true, opacity: 0.22 }),
+    const edges = new LineSegments(
+      new EdgesGeometry(object.geometry, 24),
+      new LineBasicMaterial({ color: 0x4d5755, transparent: true, opacity: 0.22 }),
     );
     edges.position.copy(object.position);
     edges.rotation.copy(object.rotation);
@@ -72,7 +101,7 @@ function createBuilding(
   name: string,
   variant: number,
 ) {
-  const building = new THREE.Group();
+  const building = new Group();
   building.name = name;
   building.userData.assetLabel = name;
 
@@ -83,12 +112,12 @@ function createBuilding(
   const completeFloors = Math.max(3, floors - 1 - Math.floor(random() * 2));
   const builtHeight = completeFloors * floorHeight;
 
-  const concrete = new THREE.MeshStandardMaterial({ color: palette.wall, roughness: 0.84, metalness: 0.03 });
-  const core = new THREE.MeshStandardMaterial({ color: palette.side, roughness: 0.9 });
-  const accent = new THREE.MeshStandardMaterial({ color: palette.accent, roughness: 0.62, metalness: 0.18 });
-  const structure = new THREE.MeshStandardMaterial({ color: 0xaaa9a4, roughness: 0.94 });
-  const mullion = new THREE.MeshStandardMaterial({ color: 0x505a5a, roughness: 0.42, metalness: 0.55 });
-  const glass = new THREE.MeshPhysicalMaterial({
+  const concrete = new MeshStandardMaterial({ color: palette.wall, roughness: 0.84, metalness: 0.03 });
+  const core = new MeshStandardMaterial({ color: palette.side, roughness: 0.9 });
+  const accent = new MeshStandardMaterial({ color: palette.accent, roughness: 0.62, metalness: 0.18 });
+  const structure = new MeshStandardMaterial({ color: 0xaaa9a4, roughness: 0.94 });
+  const mullion = new MeshStandardMaterial({ color: 0x505a5a, roughness: 0.42, metalness: 0.55 });
+  const glass = new MeshPhysicalMaterial({
     color: palette.glass,
     transparent: true,
     opacity: 0.78,
@@ -158,38 +187,38 @@ function buildWorld(worksite: Worksite): WorldBuild {
   const random = createRandom(seed);
   const palette = palettes[seed % palettes.length];
   const variant = seed % 3;
-  const root = new THREE.Group();
+  const root = new Group();
   root.name = `Mundo 3D de ${worksite.name}`;
-  const interactables: THREE.Object3D[] = [];
+  const interactables: Object3D[] = [];
 
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(46, 36),
-    new THREE.MeshStandardMaterial({ color: 0xd1d2cd, roughness: 1 }),
+  const ground = new Mesh(
+    new PlaneGeometry(46, 36),
+    new MeshStandardMaterial({ color: 0xd1d2cd, roughness: 1 }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   root.add(ground);
 
-  const sitePlate = new THREE.Mesh(
-    new THREE.PlaneGeometry(29, 23),
-    new THREE.MeshStandardMaterial({ color: 0xe1dfd8, roughness: 0.98 }),
+  const sitePlate = new Mesh(
+    new PlaneGeometry(29, 23),
+    new MeshStandardMaterial({ color: 0xe1dfd8, roughness: 0.98 }),
   );
   sitePlate.rotation.x = -Math.PI / 2;
   sitePlate.position.y = 0.015;
   sitePlate.receiveShadow = true;
   root.add(sitePlate);
 
-  const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x747977, roughness: 0.94 });
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(46, 5.5), roadMaterial);
+  const roadMaterial = new MeshStandardMaterial({ color: 0x747977, roughness: 0.94 });
+  const road = new Mesh(new PlaneGeometry(46, 5.5), roadMaterial);
   road.rotation.x = -Math.PI / 2;
   road.position.set(0, 0.025, 15.1);
   road.receiveShadow = true;
   root.add(road);
-  const curbMaterial = new THREE.MeshStandardMaterial({ color: 0xb5b6b1, roughness: 0.95 });
+  const curbMaterial = new MeshStandardMaterial({ color: 0xb5b6b1, roughness: 0.95 });
   addBox(root, [46, 0.13, 0.18], [0, 0.065, 12.35], curbMaterial, { cast: false });
   addBox(root, [46, 0.13, 0.18], [0, 0.065, 17.83], curbMaterial, { cast: false });
 
-  const contextMaterial = new THREE.MeshStandardMaterial({
+  const contextMaterial = new MeshStandardMaterial({
     color: 0xc2c6c4,
     transparent: true,
     opacity: 0.44,
@@ -215,45 +244,45 @@ function buildWorld(worksite: Worksite): WorldBuild {
   root.add(building);
   interactables.push(building);
 
-  const office = new THREE.Group();
+  const office = new Group();
   office.userData.assetLabel = 'Escritório da obra';
   office.position.set(-9.2, 0, 5.6);
-  const officeShell = new THREE.MeshStandardMaterial({ color: 0xb6bbb8, roughness: 0.78, metalness: 0.1 });
-  const officeGlass = new THREE.MeshPhysicalMaterial({ color: 0x71898b, roughness: 0.16, metalness: 0.12 });
+  const officeShell = new MeshStandardMaterial({ color: 0xb6bbb8, roughness: 0.78, metalness: 0.1 });
+  const officeGlass = new MeshPhysicalMaterial({ color: 0x71898b, roughness: 0.16, metalness: 0.12 });
   addBox(office, [4.8, 1.82, 2.55], [0, 0.92, 0], officeShell, { name: 'Escritório da obra', outline: true });
   addBox(office, [2.7, 0.7, 0.07], [-0.48, 1.08, 1.31], officeGlass, { cast: false });
-  addBox(office, [0.72, 1.5, 0.08], [1.6, 0.77, 1.31], new THREE.MeshStandardMaterial({ color: palette.accent, roughness: 0.65 }));
-  addBox(office, [5.2, 0.12, 3.05], [0, 1.95, 0.18], new THREE.MeshStandardMaterial({ color: 0x8b908d, roughness: 0.72 }), { outline: true });
+  addBox(office, [0.72, 1.5, 0.08], [1.6, 0.77, 1.31], new MeshStandardMaterial({ color: palette.accent, roughness: 0.65 }));
+  addBox(office, [5.2, 0.12, 3.05], [0, 1.95, 0.18], new MeshStandardMaterial({ color: 0x8b908d, roughness: 0.72 }), { outline: true });
   root.add(office);
   interactables.push(office);
 
-  const materialsArea = new THREE.Group();
+  const materialsArea = new Group();
   materialsArea.userData.assetLabel = 'Área de materiais';
   materialsArea.position.set(9.3, 0, 5.8);
-  const steel = new THREE.MeshStandardMaterial({ color: 0x626967, roughness: 0.48, metalness: 0.62 });
+  const steel = new MeshStandardMaterial({ color: 0x626967, roughness: 0.48, metalness: 0.62 });
   addBox(materialsArea, [4.8, 0.14, 3.15], [0, 2.2, 0], steel, { name: 'Área de materiais', outline: true });
   ([-2.1, 2.1] as const).forEach((x) => {
     ([-1.25, 1.25] as const).forEach((z) => addBox(materialsArea, [0.14, 2.2, 0.14], [x, 1.1, z], steel));
   });
   for (let row = 0; row < 3; row += 1) {
-    addBox(materialsArea, [3.6 - row * 0.35, 0.2, 0.42], [0, 0.18 + row * 0.22, 0.35], new THREE.MeshStandardMaterial({ color: 0xa69c89, roughness: 0.95 }));
+    addBox(materialsArea, [3.6 - row * 0.35, 0.2, 0.42], [0, 0.18 + row * 0.22, 0.35], new MeshStandardMaterial({ color: 0xa69c89, roughness: 0.95 }));
   }
   root.add(materialsArea);
   interactables.push(materialsArea);
 
-  const fenceMaterial = new THREE.MeshStandardMaterial({ color: 0x8c9290, roughness: 0.62, metalness: 0.42 });
+  const fenceMaterial = new MeshStandardMaterial({ color: 0x8c9290, roughness: 0.62, metalness: 0.42 });
   for (let x = -14; x <= 14; x += 2) {
     addBox(root, [0.04, 1.02, 0.04], [x, 0.51, -11.4], fenceMaterial, { cast: false });
   }
   addBox(root, [28.2, 0.03, 0.03], [0, 0.82, -11.4], fenceMaterial, { cast: false });
   addBox(root, [28.2, 0.03, 0.03], [0, 0.25, -11.4], fenceMaterial, { cast: false });
 
-  const crane = new THREE.Group();
+  const crane = new Group();
   crane.position.set(10.2, 0, -6.7);
-  const craneMaterial = new THREE.MeshStandardMaterial({ color: 0x8c7959, roughness: 0.5, metalness: 0.42 });
-  const darkMetal = new THREE.MeshStandardMaterial({ color: 0x4f5755, roughness: 0.42, metalness: 0.68 });
+  const craneMaterial = new MeshStandardMaterial({ color: 0x8c7959, roughness: 0.5, metalness: 0.42 });
+  const darkMetal = new MeshStandardMaterial({ color: 0x4f5755, roughness: 0.42, metalness: 0.68 });
   addBox(crane, [0.34, 8.6, 0.34], [0, 4.3, 0], craneMaterial);
-  const craneHead = new THREE.Group();
+  const craneHead = new Group();
   craneHead.position.y = 8.55;
   addBox(craneHead, [10.6, 0.2, 0.2], [-2.65, 0, 0], craneMaterial);
   addBox(craneHead, [2.2, 0.28, 0.28], [1.35, 0, 0], darkMetal);
@@ -262,14 +291,14 @@ function buildWorld(worksite: Worksite): WorldBuild {
   crane.add(craneHead);
   root.add(crane);
 
-  const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x77736b, roughness: 1 });
-  const landscapeMaterial = new THREE.MeshStandardMaterial({ color: 0x75877a, roughness: 0.96 });
+  const trunkMaterial = new MeshStandardMaterial({ color: 0x77736b, roughness: 1 });
+  const landscapeMaterial = new MeshStandardMaterial({ color: 0x75877a, roughness: 0.96 });
   for (let index = 0; index < 6; index += 1) {
-    const tree = new THREE.Group();
+    const tree = new Group();
     const side = index % 2 === 0 ? -1 : 1;
     tree.position.set(side * (15.2 + random() * 1.2), 0, -7 + index * 3.3);
     addBox(tree, [0.16, 1.25, 0.16], [0, 0.625, 0], trunkMaterial);
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.82, 1.55, 16), landscapeMaterial);
+    const crown = new Mesh(new CylinderGeometry(0.58, 0.82, 1.55, 16), landscapeMaterial);
     crown.position.y = 1.85;
     crown.castShadow = true;
     tree.add(crown);
@@ -293,9 +322,9 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     const canvas = canvasRef.current;
     if (!frame || !canvas) return undefined;
 
-    let renderer: THREE.WebGLRenderer;
+    let renderer: WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
+      renderer = new WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
     } catch {
       setFailed(true);
       return undefined;
@@ -304,25 +333,25 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const compactViewport = window.matchMedia('(max-width: 767px)').matches;
     const ambientMotion = !reduceMotion && !compactViewport;
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xe4e8e6);
-    scene.fog = new THREE.Fog(0xe4e8e6, 34, 76);
-    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 120);
-    const homePosition = new THREE.Vector3(24, 18, 27);
-    const introPosition = new THREE.Vector3(35, 27, 39);
-    const homeTarget = new THREE.Vector3(0, 2.8, 0);
+    const scene = new Scene();
+    scene.background = new Color(0xe4e8e6);
+    scene.fog = new Fog(0xe4e8e6, 34, 76);
+    const camera = new PerspectiveCamera(40, 1, 0.1, 120);
+    const homePosition = new Vector3(24, 18, 27);
+    const introPosition = new Vector3(35, 27, 39);
+    const homeTarget = new Vector3(0, 2.8, 0);
     camera.position.copy(reduceMotion ? homePosition : introPosition);
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.shadowMap.type = PCFSoftShadowMap;
+    renderer.toneMapping = ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.96;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.outputColorSpace = SRGBColorSpace;
 
-    const hemisphere = new THREE.HemisphereLight(0xf4f6f4, 0x7b7b75, 2.15);
+    const hemisphere = new HemisphereLight(0xf4f6f4, 0x7b7b75, 2.15);
     scene.add(hemisphere);
-    const sun = new THREE.DirectionalLight(0xfff3df, 2.75);
+    const sun = new DirectionalLight(0xfff3df, 2.75);
     sun.position.set(-16, 23, 15);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1536, 1536);
@@ -338,7 +367,7 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     world.root.scale.set(reduceMotion ? 1 : 0.9, reduceMotion ? 1 : 0.06, reduceMotion ? 1 : 0.9);
     world.root.rotation.y = reduceMotion ? 0 : -0.12;
     scene.add(world.root);
-    const grid = new THREE.GridHelper(46, 46, 0x7f8b87, 0xaeb6b2);
+    const grid = new GridHelper(46, 46, 0x7f8b87, 0xaeb6b2);
     grid.position.y = 0.035;
     const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
     gridMaterials.forEach((material) => {
@@ -375,15 +404,15 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     resizeObserver.observe(frame);
     resize();
 
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
+    const raycaster = new Raycaster();
+    const pointer = new Vector2();
     type CameraTransition = {
       startedAt: number;
       duration: number;
-      fromPosition: THREE.Vector3;
-      fromTarget: THREE.Vector3;
-      toPosition: THREE.Vector3;
-      toTarget: THREE.Vector3;
+      fromPosition: Vector3;
+      fromTarget: Vector3;
+      toPosition: Vector3;
+      toTarget: Vector3;
     };
     let cameraTransition: CameraTransition | null = null;
     let entranceComplete = reduceMotion;
@@ -395,8 +424,8 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       gridMaterials.forEach((material) => { material.opacity = 0.1; });
     };
     const beginCameraTransition = (
-      toPosition: THREE.Vector3,
-      toTarget: THREE.Vector3,
+      toPosition: Vector3,
+      toTarget: Vector3,
       duration = 780,
     ) => {
       finishWorldEntrance();
@@ -417,7 +446,7 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       raycaster.setFromCamera(pointer, camera);
       return raycaster.intersectObjects(world.interactables, true)[0]?.object ?? null;
     };
-    const assetInfo = (object: THREE.Object3D | null) => {
+    const assetInfo = (object: Object3D | null) => {
       let current = object;
       while (current) {
         if (typeof current.userData.assetLabel === 'string') {
@@ -441,11 +470,11 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       setSelectedAsset(selected?.label ?? null);
       if (!selected || reduceMotion) return;
 
-      const bounds = new THREE.Box3().setFromObject(selected.object);
-      const center = bounds.getCenter(new THREE.Vector3());
-      const size = bounds.getSize(new THREE.Vector3()).length();
+      const bounds = new Box3().setFromObject(selected.object);
+      const center = bounds.getCenter(new Vector3());
+      const size = bounds.getSize(new Vector3()).length();
       const direction = camera.position.clone().sub(controls.target).normalize();
-      const distance = THREE.MathUtils.clamp(size * 1.9, 8, 18);
+      const distance = MathUtils.clamp(size * 1.9, 8, 18);
       beginCameraTransition(
         center.clone().add(direction.multiplyScalar(distance)),
         center,
@@ -472,13 +501,13 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       if (!entranceComplete && !interacting) {
         const entrance = Math.min(1, elapsed / 1_450);
         const eased = 1 - Math.pow(1 - entrance, 4);
-        world.root.position.y = THREE.MathUtils.lerp(-1.4, 0, eased);
+        world.root.position.y = MathUtils.lerp(-1.4, 0, eased);
         world.root.scale.set(
-          THREE.MathUtils.lerp(0.9, 1, eased),
-          THREE.MathUtils.lerp(0.06, 1, eased),
-          THREE.MathUtils.lerp(0.9, 1, eased),
+          MathUtils.lerp(0.9, 1, eased),
+          MathUtils.lerp(0.06, 1, eased),
+          MathUtils.lerp(0.9, 1, eased),
         );
-        world.root.rotation.y = THREE.MathUtils.lerp(-0.12, 0, eased);
+        world.root.rotation.y = MathUtils.lerp(-0.12, 0, eased);
         camera.position.lerpVectors(introPosition, homePosition, eased);
         gridMaterials.forEach((material) => { material.opacity = 0.1 * eased; });
         if (entrance >= 1) entranceComplete = true;
@@ -559,7 +588,7 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       controls.stopListenToKeyEvents();
       controls.dispose();
       scene.traverse((object) => {
-        const mesh = object as THREE.Mesh;
+        const mesh = object as Mesh;
         mesh.geometry?.dispose?.();
         if (mesh.material) {
           const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];

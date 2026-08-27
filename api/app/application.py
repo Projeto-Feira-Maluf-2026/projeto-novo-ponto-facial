@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
 
 
 async def request_context(request: Request, call_next):
-    # Se for uma requisição de preflight do CORS (OPTIONS), ignora as travas de cabeçalho abaixo
+    # O CORSMiddleware monta a resposta de preflight; os demais cabecalhos sao aplicados abaixo.
     if request.method == "OPTIONS":
         return await call_next(request)
         
@@ -45,8 +45,9 @@ async def request_context(request: Request, call_next):
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    response.headers["Pragma"] = "no-cache"
+    if "Cache-Control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -128,18 +129,17 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
     
-    # 1. Configura as origens permitidas explicitamente incluindo o frontend de produção e local
     allowed_origins = list(settings.cors_origins) if settings.cors_origins else []
     production_origins = [
-        "https://vercel.app",
+        settings.FRONTEND_URL.rstrip("/"),
         "http://localhost:5174",
+        "http://127.0.0.1:5174",
         "http://localhost:3000"
     ]
     for origin in production_origins:
         if origin not in allowed_origins:
             allowed_origins.append(origin)
 
-    # 2. Adiciona o CORSMiddleware primeiro para garantir respostas limpas no preflight OPTIONS
     service.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -149,7 +149,6 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # 3. Middlewares HTTP normais e tratadores de erro entram na sequência
     service.middleware("http")(request_context)
     service.add_exception_handler(AppError, app_error_handler)
     service.add_exception_handler(RequestValidationError, validation_error_handler)

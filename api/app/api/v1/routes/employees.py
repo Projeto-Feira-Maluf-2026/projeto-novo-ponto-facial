@@ -1,7 +1,8 @@
+import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scopes
@@ -30,8 +31,15 @@ from app.schemas.enrollment import (
     EnrollmentSessionResponse,
 )
 from app.services.employees import EmployeeService
+from app.services.employee_photos import (
+    EmployeePhotoError,
+    normalize_employee_photo,
+    prune_employee_photo_versions,
+    put_employee_photo,
+)
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _face_enrollment_service(session: AsyncSession):
@@ -221,22 +229,14 @@ async def upload_employee_photo(
     employee = await session.get(Employee, employee_id)
     if not employee:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcionario nao encontrado")
-    extension = Path(file.filename or "photo.jpg").suffix.lower() or ".jpg"
     contents = await file.read()
-    if len(contents) > settings.FACE_MAX_IMAGE_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Imagem muito grande")
-    if settings.BLOB_READ_WRITE_TOKEN:
-        from vercel.blob import AsyncBlobClient
+    try:
+        normalized = normalize_employee_photo(contents)
+    except EmployeePhotoError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-        async with AsyncBlobClient(token=settings.BLOB_READ_WRITE_TOKEN) as client:
-            uploaded = await client.put(
-                f"employees/{employee_id}{extension}",
-                contents,
-                access="private",
-                content_type=file.content_type,
-                add_random_suffix=True,
-            )
-        employee.photo_url = uploaded.url
+    if settings.BLOB_READ_WRITE_TOKEN:
+        employee.photo_url = await put_employee_photo(employee_id, normalized)
     elif os.getenv("VERCEL"):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -245,9 +245,62 @@ async def upload_employee_photo(
     else:
         upload_dir = Path("uploads/employees")
         upload_dir.mkdir(parents=True, exist_ok=True)
-        target = upload_dir / f"{employee_id}{extension}"
-        target.write_bytes(contents)
+        target = upload_dir / f"{employee_id}.webp"
+        target.write_bytes(normalized)
         employee.photo_url = f"/uploads/employees/{target.name}"
     await session.commit()
     await session.refresh(employee)
+
+    if settings.BLOB_READ_WRITE_TOKEN and employee.photo_url:
+        try:
+            removed, reclaimed = await prune_employee_photo_versions(employee_id, employee.photo_url)
+            if removed:
+                logger.info(
+                    "Fotos antigas removidas employee_id=%s count=%s bytes=%s",
+                    employee_id,
+                    removed,
+                    reclaimed,
+                )
+        except Exception:
+            logger.warning(
+                "Nao foi possivel limpar versoes antigas employee_id=%s",
+                employee_id,
+                exc_info=True,
+            )
     return EmployeeRead.model_validate(employee)
+
+
+@router.get("/{employee_id}/photo/content")
+async def employee_photo_content(
+    employee_id: str,
+    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_READ)),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    employee = await session.get(Employee, employee_id)
+    if not employee or not employee.photo_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foto nao encontrada")
+
+    if employee.photo_url.startswith("https://"):
+        if not settings.BLOB_READ_WRITE_TOKEN:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Vercel Blob nao configurado",
+            )
+        from vercel.blob import AsyncBlobClient
+
+        async with AsyncBlobClient(token=settings.BLOB_READ_WRITE_TOKEN) as client:
+            stored = await client.get(employee.photo_url, access="private", use_cache=True)
+        contents = stored.content
+        content_type = stored.content_type or "image/webp"
+    else:
+        local_path = Path("uploads/employees") / Path(employee.photo_url).name
+        if not local_path.is_file():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foto nao encontrada")
+        contents = local_path.read_bytes()
+        content_type = "image/webp"
+
+    return Response(
+        content=contents,
+        media_type=content_type,
+        headers={"Cache-Control": "private, max-age=300"},
+    )

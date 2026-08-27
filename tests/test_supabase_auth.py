@@ -1,3 +1,7 @@
+import httpx
+import pytest
+
+from app.core.errors import AppError
 from app.models.enums import UserRole
 from app.services.auth import AuthService
 
@@ -43,3 +47,43 @@ def test_invalid_role_metadata_does_not_grant_admin_access() -> None:
 
     assert user.role == UserRole.FUNCIONARIO
     assert "audit:read" not in user.scopes
+
+
+@pytest.mark.asyncio
+async def test_auth_provider_timeout_is_retryable_instead_of_internal_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    AuthService._cache.clear()
+
+    async def timeout(*_args, **_kwargs):
+        raise httpx.ReadTimeout("supabase timeout")
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", timeout)
+
+    with pytest.raises(AppError) as captured:
+        await AuthService().authenticate("new-token")
+
+    assert captured.value.code == "AUTH_PROVIDER_UNAVAILABLE"
+    assert captured.value.status_code == 503
+    assert captured.value.details == {"retryable": True}
+
+
+@pytest.mark.asyncio
+async def test_recently_validated_session_avoids_repeated_supabase_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    AuthService._cache.clear()
+    calls = 0
+
+    async def user_response(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=user_payload())
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", user_response)
+
+    first = await AuthService().authenticate("cached-token")
+    second = await AuthService().authenticate("cached-token")
+
+    assert first == second
+    assert calls == 1
