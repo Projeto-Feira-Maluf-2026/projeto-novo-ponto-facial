@@ -4,8 +4,8 @@
   --motion-ease-gentle: cubic-bezier(0.2, 0.72, 0.22, 1);
   --motion-ease-spring: cubic-bezier(0.2, 1.35, 0.35, 1);
   --motion-fast: 180ms;
-  --motion-normal: 340ms;
-  --motion-slow: 680ms;
+  --motion-normal: 240ms;
+  --motion-slow: 520ms;
 }
 
 @property --presence-motion {
@@ -78,7 +78,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 .topbar-menu:active,
 .sidebar-theme:active,
 .segmented-button:active {
-  transform: translateY(1px) scale(0.975);
+  transform: translateY(1px) scale(0.99);
   transition-duration: 80ms;
 }
 
@@ -92,13 +92,13 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 }
 
 .btn:hover:not(:disabled) svg {
-  transform: translateX(2px);
+  transform: none;
 }
 
 .icon-button:hover:not(:disabled) svg,
 .topbar-icon:hover svg,
 .topbar-menu:hover svg {
-  transform: rotate(-5deg) scale(1.08);
+  transform: none;
 }
 
 .input-field,
@@ -114,7 +114,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 .input-field:focus,
 .login-input:focus-within,
 .search-field:focus-within {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 /* Quiet continuity: smooth the everyday state changes that should never feel abrupt. */
@@ -159,12 +159,12 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 
 .sidebar-link:hover svg,
 .desktop-primary-nav a:hover svg {
-  transform: translateX(2px) scale(1.04);
+  transform: none;
 }
 
 .mobile-nav a[data-active="true"] svg,
 .mobile-nav button[data-active="true"] svg {
-  transform: translateY(-2px) scale(1.06);
+  transform: translateY(-1px);
 }
 
 .topbar-profile,
@@ -266,7 +266,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 
 .worksite-ranking-row:hover,
 .terminal-event:hover {
-  transform: translateX(3px);
+  transform: none;
 }
 
 .employee-detail-list > div:hover {
@@ -309,7 +309,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 }
 
 .sidebar-close:hover svg {
-  transform: rotate(90deg) scale(1.04);
+  transform: none;
 }
 
 .camera-restart-button:hover:not(:disabled) svg {
@@ -317,11 +317,11 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 }
 
 .choice-card:hover svg {
-  transform: rotate(-3deg) scale(1.07);
+  transform: scale(1.035);
 }
 
 .terminal-event:hover .terminal-event-icon {
-  transform: rotate(-3deg) scale(1.06);
+  transform: scale(1.035);
 }
 
 .employee-identity:hover strong {
@@ -450,7 +450,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 .login-brand:hover .login-brand-mark,
 .brand-lockup:hover .brand-mark,
 .topbar-brand-desktop:hover .brand-mark {
-  transform: rotate(-4deg) scale(1.06);
+  transform: scale(1.025);
 }
 
 .login-submit[disabled] {
@@ -482,11 +482,11 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 }
 
 .metric-tile:hover {
-  transform: translateY(-5px);
+  transform: translateY(-2px);
 }
 
 .metric-tile:hover .metric-icon {
-  transform: rotate(-5deg) scale(1.08);
+  transform: scale(1.04);
 }
 
 .metric-icon {
@@ -503,7 +503,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 
 .timeline-column:hover .timeline-bar {
   filter: brightness(1.08);
-  transform: scale(1.08, 1.06);
+  transform: scaleY(1.025);
 }
 
 .timeline-value {
@@ -511,13 +511,13 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 }
 
 .timeline-column:hover .timeline-value {
-  transform: translateY(-3px);
+  transform: translateY(-1px);
 }
 
 .dashboard-hero-status > div:hover svg,
 .worksite-statline > div:hover svg,
 .device-statline > div:hover svg {
-  transform: scale(1.12) rotate(-4deg);
+  transform: scale(1.04);
 }
 
 .dashboard-hero-status svg,
@@ -537,7 +537,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 .data-table tbody tr:not(:has(.data-table-empty)):hover {
   position: relative;
   z-index: 1;
-  transform: translateX(3px);
+  transform: none;
   box-shadow: -3px 0 0 var(--color-accent);
 }
 
@@ -547,7 +547,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 }
 
 .employee-identity:hover .employee-avatar {
-  transform: rotate(-3deg) scale(1.07);
+  transform: scale(1.035);
 }
 
 .employee-drawer .employee-profile-avatar {
@@ -575,7 +575,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 }
 
 .report-format-option:hover .report-format-icon {
-  transform: translateY(-2px) rotate(-3deg);
+  transform: translateY(-1px);
 }
 
 /* Enrollment */
@@ -746,7 +746,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 .worksite-world-frame[data-ready="true"] .worksite-world-caption { animation-delay: 260ms; }
 
 .worksite-world-tools button:hover svg {
-  transform: rotate(-12deg) scale(1.08);
+  transform: scale(1.04);
 }
 
 .worksite-selector-item,
@@ -760,7 +760,7 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 
 .worksite-selector-item:hover,
 .camera-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
 }
 
 .worksite-selector-item[data-active="true"] {
@@ -844,16 +844,16 @@ html[data-theme-transition="true"]::view-transition-new(root) {
 }
 
 @keyframes motion-route-old {
-  to { opacity: 0; transform: translateY(-6px) scale(0.995); filter: blur(2px); }
+  to { opacity: 0; transform: translateY(-3px); }
 }
 
 @keyframes motion-route-new {
-  from { opacity: 0; transform: translateY(12px) scale(0.992); filter: blur(3px); }
-  to { opacity: 1; transform: none; filter: none; }
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes motion-surface-reveal {
-  from { opacity: 0; transform: translateY(10px) scale(0.994); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
 
