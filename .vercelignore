@@ -34,7 +34,7 @@ design-system/
 docs/
 logs/
 mobile/
-models/
+/models/
 scripts/
 supabase/
 tests/
