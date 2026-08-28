@@ -14,6 +14,7 @@ import {
   calculateFaceCropRegion,
   cameraAccessErrorMessage,
   faceBoxesFromLandmarks,
+  mergeFaceBoxes,
   CameraCapture,
 } from './CameraCapture';
 
@@ -139,5 +140,18 @@ describe('calculateFaceCropRegion', () => {
     expect(crop!.side).toBeGreaterThanOrEqual(128);
     expect(crop!.side).toBeLessThan(190);
     expect((distantFace.width * 1920) / crop!.side).toBeGreaterThan(0.4);
+  });
+});
+
+describe('mergeFaceBoxes', () => {
+  it('remove caixas duplicadas produzidas por regiões sobrepostas', () => {
+    const boxes = mergeFaceBoxes([
+      { x: 0.40, y: 0.25, width: 0.08, height: 0.14 },
+      { x: 0.405, y: 0.255, width: 0.08, height: 0.14 },
+      { x: 0.70, y: 0.28, width: 0.07, height: 0.13 },
+    ]);
+
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0].x).toBeLessThan(boxes[1].x);
   });
 });

@@ -1,6 +1,6 @@
 import { Camera, RefreshCcw, Video } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { FaceDetector, FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import type { FaceLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision';
 
 export type FaceBox = {
@@ -56,8 +56,13 @@ const LANDMARK_WASM_PATH = import.meta.env.VITE_MEDIAPIPE_WASM_URL?.trim()
   || `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
 const FACE_LANDMARKER_MODEL_PATH = import.meta.env.VITE_FACE_LANDMARKER_MODEL_URL?.trim()
   || 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const DISTANT_FACE_DETECTOR_MODEL_PATH = import.meta.env.VITE_FACE_DETECTOR_MODEL_URL?.trim()
+  || 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
 const MAX_TRACKED_FACES = 5;
 const LANDMARK_FRAME_INTERVAL_MS = 32;
+const DISTANT_SCAN_INTERVAL_MS = 110;
+const DISTANT_DETECTION_TTL_MS = 850;
+const DISTANT_TILE_SIZE = 512;
 const CAMERA_RELEASE_DELAY_MS = 180;
 const CAMERA_START_RETRIES = 2;
 const SELECTED_CAMERA_STORAGE_KEY = 'ponto-facial:selected-camera';
@@ -86,6 +91,30 @@ const TONE_RGB: Record<FaceOverlayTone, string> = {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+function faceBoxIou(left: FaceBox, right: FaceBox) {
+  const intersectionLeft = Math.max(left.x, right.x);
+  const intersectionTop = Math.max(left.y, right.y);
+  const intersectionRight = Math.min(left.x + left.width, right.x + right.width);
+  const intersectionBottom = Math.min(left.y + left.height, right.y + right.height);
+  const intersection = Math.max(0, intersectionRight - intersectionLeft)
+    * Math.max(0, intersectionBottom - intersectionTop);
+  const union = left.width * left.height + right.width * right.height - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+export function mergeFaceBoxes(boxes: FaceBox[], limit = MAX_TRACKED_FACES) {
+  return [...boxes]
+    .sort((left, right) => right.width * right.height - left.width * left.height)
+    .reduce<FaceBox[]>((merged, candidate) => {
+      if (merged.length >= limit || merged.some((current) => faceBoxIou(current, candidate) > 0.32)) {
+        return merged;
+      }
+      merged.push(candidate);
+      return merged;
+    }, [])
+    .sort((left, right) => left.x - right.x);
+}
 
 export function faceBoxesFromLandmarks(
   detectedLandmarks: NormalizedLandmark[][],
@@ -519,6 +548,13 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let animationFrame = 0;
       let videoFrameCallback = 0;
       let landmarker: FaceLandmarker | null = null;
+      let distantDetector: FaceDetector | null = null;
+      let distantCanvas: HTMLCanvasElement | null = null;
+      let distantContext: CanvasRenderingContext2D | null = null;
+      let distantTileIndex = 0;
+      let lastDistantScanAt = 0;
+      let lastLandmarkerFaceAt = 0;
+      let distantCandidates: Array<{ box: FaceBox; expiresAt: number }> = [];
       let lastFacePresent = false;
       let lastFaceCount = 0;
       let lastVideoTime = -1;
@@ -654,6 +690,24 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           .filter((landmarks) => landmarks.length > 0)
           .slice(0, MAX_TRACKED_FACES);
         if (!detectedLandmarks.length) {
+          const now = performance.now();
+          distantCandidates = distantCandidates.filter((candidate) => candidate.expiresAt > now);
+          const distantBoxes = mergeFaceBoxes(distantCandidates.map((candidate) => candidate.box));
+          if (distantBoxes.length) {
+            normalizedFaceBoxesRef.current = distantBoxes;
+            normalizedFaceBoxRef.current = distantBoxes[0];
+            setDetectedFaceCount(distantBoxes.length);
+            const color = TONE_RGB.tracking;
+            distantBoxes.forEach((box, index) => {
+              drawLabel(context, [
+                { x: box.x, y: box.y, z: 0, visibility: 1 },
+                { x: box.x + box.width, y: box.y, z: 0, visibility: 1 },
+                { x: box.x + box.width, y: box.y + box.height, z: 0, visibility: 1 },
+                { x: box.x, y: box.y + box.height, z: 0, visibility: 1 },
+              ], color, index, distantBoxes.length);
+            });
+            return;
+          }
           normalizedFaceBoxRef.current = null;
           normalizedFaceBoxesRef.current = [];
           setDetectedFaceCount(0);
@@ -661,6 +715,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         }
 
         const normalizedBoxes = faceBoxesFromLandmarks(detectedLandmarks);
+        lastLandmarkerFaceAt = performance.now();
+        distantCandidates = [];
         normalizedFaceBoxesRef.current = normalizedBoxes;
         normalizedFaceBoxRef.current = normalizedBoxes.reduce((largest, box) => (
           box.width * box.height > largest.width * largest.height ? box : largest
@@ -673,6 +729,64 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         });
       };
 
+      const scanDistantTile = (now: number) => {
+        const video = videoRef.current;
+        if (
+          !distantDetector
+          || !distantCanvas
+          || !distantContext
+          || !video
+          || !video.videoWidth
+          || !video.videoHeight
+          || now - lastDistantScanAt < DISTANT_SCAN_INTERVAL_MS
+          || now - lastLandmarkerFaceAt < 420
+        ) return;
+
+        lastDistantScanAt = now;
+        const columns = 3;
+        const rows = 2;
+        const column = distantTileIndex % columns;
+        const row = Math.floor(distantTileIndex / columns) % rows;
+        distantTileIndex = (distantTileIndex + 1) % (columns * rows);
+        const sourceWidth = video.videoWidth * 0.46;
+        const sourceHeight = video.videoHeight * 0.64;
+        const sourceX = column * ((video.videoWidth - sourceWidth) / Math.max(columns - 1, 1));
+        const sourceY = row * ((video.videoHeight - sourceHeight) / Math.max(rows - 1, 1));
+
+        distantContext.drawImage(
+          video,
+          sourceX,
+          sourceY,
+          sourceWidth,
+          sourceHeight,
+          0,
+          0,
+          DISTANT_TILE_SIZE,
+          DISTANT_TILE_SIZE,
+        );
+        const detections = distantDetector.detect(distantCanvas).detections;
+        const expiresAt = now + DISTANT_DETECTION_TTL_MS;
+        const detectedBoxes = detections.flatMap((detection) => {
+          const box = detection.boundingBox;
+          if (!box) return [];
+          const normalizedBox = {
+            x: clamp((sourceX + (box.originX / DISTANT_TILE_SIZE) * sourceWidth) / video.videoWidth, 0, 1),
+            y: clamp((sourceY + (box.originY / DISTANT_TILE_SIZE) * sourceHeight) / video.videoHeight, 0, 1),
+            width: clamp((box.width / DISTANT_TILE_SIZE) * sourceWidth / video.videoWidth, 0, 1),
+            height: clamp((box.height / DISTANT_TILE_SIZE) * sourceHeight / video.videoHeight, 0, 1),
+          };
+          return normalizedBox.width > 0.012 && normalizedBox.height > 0.02
+            ? [{ box: normalizedBox, expiresAt }]
+            : [];
+        });
+        if (detectedBoxes.length) {
+          distantCandidates = [
+            ...distantCandidates.filter((candidate) => candidate.expiresAt > now),
+            ...detectedBoxes,
+          ];
+        }
+      };
+
       const processFrame = (now: DOMHighResTimeStamp) => {
         if (cancelled || document.hidden || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS) return;
 
@@ -683,6 +797,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           lastLandmarkAt = now;
           try {
             drawFaces(landmarker.detectForVideo(video, now));
+            scanDistantTile(now);
           } catch {
             setLandmarkState('error');
           }
@@ -747,6 +862,23 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           }
 
           setLandmarkState('ready');
+          try {
+            distantCanvas = document.createElement('canvas');
+            distantCanvas.width = DISTANT_TILE_SIZE;
+            distantCanvas.height = DISTANT_TILE_SIZE;
+            distantContext = distantCanvas.getContext('2d', { alpha: false });
+            distantDetector = await FaceDetector.createFromOptions(vision, {
+              baseOptions: {
+                modelAssetPath: DISTANT_FACE_DETECTOR_MODEL_PATH,
+                delegate: 'CPU',
+              },
+              runningMode: 'IMAGE',
+              minDetectionConfidence: 0.28,
+              minSuppressionThreshold: 0.25,
+            });
+          } catch {
+            distantDetector = null;
+          }
           scheduleFrame();
         } catch {
           if (!cancelled) {
@@ -766,6 +898,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           context.clearRect(0, 0, canvas.width, canvas.height);
         }
         landmarker?.close();
+        distantDetector?.close();
         normalizedFaceBoxRef.current = null;
         normalizedFaceBoxesRef.current = [];
         setLandmarkFacePresent(false);
