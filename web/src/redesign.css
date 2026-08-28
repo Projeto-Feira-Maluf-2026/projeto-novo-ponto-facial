@@ -1650,3 +1650,146 @@ body::before {
     animation: none;
   }
 }
+
+/* Restaura a composição anterior do terminal; as correções ficam só no fluxo técnico. */
+.terminal-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.terminal-camera-card {
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 20px;
+  background: #050806;
+  box-shadow: 0 20px 56px rgb(0 0 0 / 0.2);
+}
+
+.terminal-toolbar,
+.terminal-status-strip {
+  background: rgb(10 15 12 / 0.94);
+  backdrop-filter: blur(18px);
+}
+
+.terminal-toolbar {
+  min-height: 72px;
+  padding: 12px 15px;
+}
+
+.terminal-toolbar .input-field,
+.terminal-toolbar .icon-button {
+  min-height: 44px;
+  border-color: #345b41;
+  border-radius: 13px;
+  background: #183f2a;
+  color: #f6f4ec;
+}
+
+.terminal-camera-frame::after {
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #8de0a8, transparent);
+  box-shadow: 0 0 18px rgb(141 224 168 / 0.55);
+  opacity: 0;
+  animation: none;
+  transition: opacity 180ms ease;
+}
+
+.terminal-camera-frame[data-mode="scanning"]::after,
+.terminal-camera-frame[data-mode="confirming"]::after,
+.terminal-camera-frame[data-mode="submitting"]::after {
+  opacity: 1;
+  animation: scan-line 2.8s linear infinite;
+}
+
+.terminal-status-strip {
+  display: grid;
+  min-height: 0;
+  gap: 0;
+}
+
+.terminal-primary-status {
+  padding: 13px;
+}
+
+.terminal-status-symbol {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.04);
+}
+
+.terminal-side {
+  display: grid;
+  position: static;
+  max-height: none;
+  align-content: start;
+  gap: 13px;
+  overflow: visible;
+}
+
+.terminal-panel {
+  border-top: 1px solid var(--ui-line);
+  border-radius: 16px;
+  background: var(--color-surface);
+  padding: 18px;
+}
+
+.terminal-clock {
+  font-family: "Lexend Variable", sans-serif;
+  font-size: clamp(3.2rem, 7vw, 5.2rem);
+  font-weight: 520;
+  letter-spacing: -0.075em;
+}
+
+.terminal-result {
+  min-height: 0;
+  border: 0;
+  border-radius: 17px;
+  background: var(--color-surface-muted);
+  padding: 16px;
+}
+
+.terminal-result[data-tone="success"] {
+  background: var(--color-success-soft);
+}
+
+.terminal-result-icon,
+.terminal-event-icon,
+.camera-chip,
+.face-track-label,
+.camera-device-controls,
+.camera-error-panel,
+.camera-error-panel button {
+  border-radius: 11px;
+}
+
+.terminal-empty-events,
+.terminal-events {
+  margin: 12px 0 0;
+}
+
+@media (min-width: 1024px) {
+  .terminal-shell {
+    grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.55fr);
+  }
+
+  .terminal-side {
+    position: sticky;
+    top: 88px;
+    max-height: calc(100vh - 104px);
+    overflow-y: auto;
+  }
+
+  .terminal-status-strip {
+    grid-template-columns: minmax(280px, 0.82fr) minmax(450px, 1.18fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .terminal-camera-frame .camera-view {
+    height: clamp(440px, 62vh, 690px) !important;
+    min-height: 440px;
+  }
+}

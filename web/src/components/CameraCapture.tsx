@@ -213,6 +213,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const mountedRef = useRef(true);
     const restartTimerRef = useRef(0);
     const startPromiseRef = useRef<Promise<void> | null>(null);
+    const startQueueRef = useRef<Promise<void>>(Promise.resolve());
+    const cameraFailureCountRef = useRef(0);
     const restartCameraRef = useRef<(() => void) | null>(null);
     const faceOverlayRef = useRef<FaceOverlayState | undefined>(faceOverlay);
     const onReadyChangeRef = useRef(onReadyChange);
@@ -271,7 +273,24 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       return cameras;
     }, []);
 
-    const startCamera = useCallback(async (requestedDeviceId = selectedDeviceIdRef.current) => {
+    const startCamera = useCallback(async (
+      requestedDeviceId = selectedDeviceIdRef.current,
+      forceRestart = false,
+    ) => {
+      if (!mountedRef.current) return;
+      const currentTrack = streamRef.current?.getVideoTracks()[0];
+      const currentDeviceId = currentTrack?.getSettings().deviceId || '';
+      if (
+        !forceRestart
+        && currentTrack?.readyState === 'live'
+        && (!requestedDeviceId || requestedDeviceId === currentDeviceId)
+      ) {
+        setError('');
+        setStarting(false);
+        setReady(true);
+        onReadyChangeRef.current?.(true);
+        return;
+      }
       const previousStream = streamRef.current;
       stop();
       const requestId = startRequestIdRef.current + 1;
@@ -362,6 +381,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           // A captura pode funcionar mesmo quando o navegador não expõe a lista de dispositivos.
         }
         setError('');
+        cameraFailureCountRef.current = 0;
         setReady(true);
         onReadyChangeRef.current?.(true);
       } catch (cameraError) {
@@ -369,14 +389,36 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (streamRef.current === stream) streamRef.current = null;
         if (requestId === startRequestIdRef.current) {
           setError(cameraAccessErrorMessage(cameraError));
+          const retryableErrors = new Set([
+            'NotReadableError',
+            'TrackStartError',
+            'NotFoundError',
+            'DevicesNotFoundError',
+            'OverconstrainedError',
+            'ConstraintNotSatisfiedError',
+          ]);
+          const errorName = cameraError instanceof DOMException ? cameraError.name : '';
+          if (retryableErrors.has(errorName)) {
+            cameraFailureCountRef.current += 1;
+            const retryDelay = Math.min(1_200 * cameraFailureCountRef.current, 5_000);
+            restartTimerRef.current = window.setTimeout(() => {
+              if (mountedRef.current) restartCameraRef.current?.();
+            }, retryDelay);
+          }
         }
       } finally {
         if (requestId === startRequestIdRef.current) setStarting(false);
       }
     }, [refreshDevices, stop]);
 
-    const start = useCallback(async (requestedDeviceId = selectedDeviceIdRef.current) => {
-      const operation = startCamera(requestedDeviceId);
+    const start = useCallback(async (
+      requestedDeviceId = selectedDeviceIdRef.current,
+      forceRestart = false,
+    ) => {
+      const operation = startQueueRef.current
+        .catch(() => undefined)
+        .then(() => startCamera(requestedDeviceId, forceRestart));
+      startQueueRef.current = operation;
       startPromiseRef.current = operation;
       await operation;
       if (startPromiseRef.current === operation) startPromiseRef.current = null;
@@ -869,7 +911,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
               ))
               .filter(Boolean) as string[];
           },
-          restart: start,
+          restart: () => start(selectedDeviceIdRef.current, true),
         };
       },
       [start],
@@ -980,7 +1022,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           )}
           <button
             type="button"
-            onClick={() => void start()}
+            onClick={() => void start(selectedDeviceIdRef.current, true)}
             className="camera-restart-button"
             title="Reiniciar câmera"
             aria-label="Reiniciar câmera"
@@ -993,7 +1035,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         {error && (
           <div className="camera-error-panel" role="alert" aria-live="assertive">
             <span>{error}</span>
-            <button type="button" onClick={() => void start()} disabled={starting}>
+            <button type="button" onClick={() => void start(selectedDeviceIdRef.current, true)} disabled={starting}>
               Tentar novamente
             </button>
           </div>

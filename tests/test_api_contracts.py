@@ -2,11 +2,18 @@ import httpx
 import pytest
 from pydantic import ValidationError
 from unittest.mock import AsyncMock
+from types import SimpleNamespace
 
+from app.api.v1.routes import ai as ai_routes
 from app.api.health import health_snapshot
 from app.application import create_application
 from app.core.config import settings
-from app.schemas.ai import FaceIdentifyBatchRequest, FaceIdentifyRequest, FaceVerifyRequest
+from app.schemas.ai import (
+    FaceIdentifyBatchRequest,
+    FaceIdentifyRequest,
+    FaceIdentifyResponse,
+    FaceVerifyRequest,
+)
 from app.schemas.enrollment import EnrollmentCaptureRequest
 from app.schemas.reports import ReportRequest
 from app.services.ai.facial_service import get_face_provider
@@ -66,6 +73,32 @@ def test_batch_identification_accepts_up_to_five_independent_faces() -> None:
         FaceIdentifyBatchRequest(images_base64=[], worksite_id="worksite-1")
     with pytest.raises(ValidationError):
         FaceIdentifyBatchRequest(images_base64=[image] * 6, worksite_id="worksite-1")
+
+
+@pytest.mark.asyncio
+async def test_batch_identification_returns_two_distinct_people(monkeypatch) -> None:
+    recognized = [
+        FaceIdentifyResponse.model_construct(matched=True, employee_id="employee-1"),
+        FaceIdentifyResponse.model_construct(matched=True, employee_id="employee-2"),
+    ]
+    identify_mock = AsyncMock(side_effect=recognized)
+    monkeypatch.setattr(ai_routes, "identify_face", identify_mock)
+
+    response = await ai_routes.identify_faces(
+        FaceIdentifyBatchRequest(
+            images_base64=[
+                "data:image/jpeg;base64,face-one",
+                "data:image/jpeg;base64,face-two",
+            ],
+            worksite_id="worksite-1",
+        ),
+        SimpleNamespace(),
+        SimpleNamespace(id="operator-1"),
+        SimpleNamespace(),
+    )
+
+    assert [result.employee_id for result in response.results] == ["employee-1", "employee-2"]
+    assert identify_mock.await_count == 2
 
 
 def test_enrollment_capture_requires_timezone_and_burst() -> None:
