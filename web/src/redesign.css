@@ -904,6 +904,10 @@ body::before {
   letter-spacing: -0.075em;
 }
 
+.terminal-date {
+  text-transform: none;
+}
+
 .terminal-result {
   border-left: 0;
   padding-left: 0;
@@ -924,6 +928,265 @@ body::before {
 .camera-device-controls {
   border-radius: 11px;
   backdrop-filter: blur(14px);
+}
+
+/* Terminal operacional: câmera dominante e livro de registros contínuo. */
+.terminal-shell {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.terminal-camera-card {
+  border-color: #26312b;
+  border-radius: 6px;
+  box-shadow: 0 24px 60px rgb(12 22 17 / 0.16);
+}
+
+.terminal-toolbar {
+  min-height: 66px;
+  border-bottom-color: rgb(255 255 255 / 0.1);
+  background: #0d1511;
+  padding: 11px 14px;
+  backdrop-filter: none;
+}
+
+.terminal-eyebrow {
+  display: block;
+  margin-bottom: 2px;
+  color: #8ba396;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.61rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.terminal-toolbar .input-field,
+.terminal-toolbar .icon-button {
+  min-height: 40px;
+  border-color: #35423b;
+  border-radius: 4px;
+  background: #16221c;
+}
+
+.terminal-toolbar .input-field:hover,
+.terminal-toolbar .icon-button:hover:not(:disabled) {
+  border-color: #5d7669;
+  background: #1b2b23;
+}
+
+.terminal-camera-frame::after {
+  display: none;
+}
+
+.terminal-status-strip {
+  display: flex;
+  min-height: 70px;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 20px;
+  border-top-color: rgb(255 255 255 / 0.1);
+  background: #0d1511;
+  backdrop-filter: none;
+}
+
+.terminal-primary-status {
+  min-width: 0;
+  flex: 1;
+  padding: 12px 14px;
+}
+
+.terminal-status-symbol {
+  width: 36px;
+  height: 36px;
+  border-radius: 3px;
+  background: transparent;
+}
+
+.terminal-live-facts {
+  display: flex;
+  min-width: 260px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  border-left: 1px solid rgb(255 255 255 / 0.1);
+  padding: 0 16px;
+  color: #94a39c;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.terminal-live-facts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.terminal-live-facts i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7d4f49;
+}
+
+.terminal-live-facts i[data-active="true"] {
+  background: #63c68d;
+}
+
+.terminal-live-facts strong {
+  max-width: 190px;
+  overflow: hidden;
+  color: #f2f5f3;
+  text-overflow: ellipsis;
+}
+
+.terminal-side {
+  display: block;
+  position: static;
+  max-height: none;
+  overflow: visible;
+}
+
+.terminal-console {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-card);
+}
+
+.terminal-console::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #df7847;
+  content: "";
+}
+
+.terminal-console-time {
+  border-bottom: 1px solid var(--ui-line);
+  padding: 18px 20px 16px 23px;
+}
+
+.terminal-clock {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: clamp(2.7rem, 6vw, 4.5rem);
+  font-weight: 520;
+  letter-spacing: -0.08em;
+}
+
+.terminal-result {
+  min-height: 128px;
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
+  padding: 18px 20px 18px 23px;
+}
+
+.terminal-result[data-tone="success"] {
+  background: color-mix(in srgb, var(--color-success-soft) 55%, transparent);
+}
+
+.terminal-result-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 3px;
+}
+
+.terminal-session-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 20px 12px 23px;
+}
+
+.terminal-session-heading > div {
+  display: grid;
+}
+
+.terminal-session-heading strong {
+  font-size: 0.8rem;
+}
+
+.terminal-session-heading span {
+  color: var(--ui-text-muted);
+  font-size: 0.7rem;
+}
+
+.terminal-session-heading b {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.8rem;
+}
+
+.terminal-empty-events,
+.terminal-events {
+  margin: 0 20px 16px 23px;
+}
+
+.terminal-offline {
+  margin-top: 10px;
+  border-left: 3px solid var(--color-danger);
+  background: var(--color-danger-soft);
+  padding: 12px 14px;
+}
+
+.camera-chip,
+.camera-device-controls,
+.face-track-label {
+  border-radius: 3px;
+}
+
+.camera-error-panel {
+  inset: auto 14px 14px;
+  border: 1px solid rgb(255 153 143 / 0.45);
+  border-radius: 4px;
+  background: rgb(74 24 22 / 0.94);
+  box-shadow: 0 10px 34px rgb(0 0 0 / 0.28);
+}
+
+.camera-error-panel button {
+  border-radius: 3px;
+}
+
+@media (min-width: 1024px) {
+  .terminal-shell {
+    grid-template-columns: minmax(0, 1fr) 304px;
+    gap: 16px;
+  }
+
+  .terminal-side {
+    position: sticky;
+    top: 88px;
+  }
+}
+
+@media (max-width: 720px) {
+  .terminal-camera-frame .camera-view {
+    height: clamp(320px, 52vh, 440px) !important;
+    min-height: 320px;
+  }
+
+  .terminal-status-strip {
+    display: block;
+  }
+
+  .terminal-live-facts {
+    min-width: 0;
+    justify-content: flex-start;
+    border-top: 1px solid rgb(255 255 255 / 0.1);
+    border-left: 0;
+    padding: 11px 14px;
+  }
+
+  .terminal-live-facts strong {
+    display: none;
+  }
 }
 
 /* Worksites, devices and report workspaces */

@@ -17,6 +17,8 @@ from app.schemas.ai import (
     FaceAnalyzeResponse,
     FaceBoxResponse,
     FaceCapabilitiesResponse,
+    FaceIdentifyBatchRequest,
+    FaceIdentifyBatchResponse,
     FaceIdentifyRequest,
     FaceIdentifyResponse,
     FaceLandmarkResponse,
@@ -256,6 +258,26 @@ async def identify_face(
         centroid_score=round(best_match.centroid_score, 4),
         robust_score=round(best_match.robust_score, 4),
     )
+
+
+@router.post("/identify-faces", response_model=FaceIdentifyBatchResponse)
+async def identify_faces(
+    payload: FaceIdentifyBatchRequest,
+    request: Request,
+    user: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
+    session: AsyncSession = Depends(get_session),
+) -> FaceIdentifyBatchResponse:
+    """Processa todos os recortes de um quadro na mesma conexão autenticada."""
+    results = [
+        await identify_face(
+            FaceIdentifyRequest(image_base64=image, worksite_id=payload.worksite_id),
+            request,
+            user,
+            session,
+        )
+        for image in payload.images_base64
+    ]
+    return FaceIdentifyBatchResponse(results=results)
 
 
 @router.post("/verify-face", response_model=FaceVerifyResponse)

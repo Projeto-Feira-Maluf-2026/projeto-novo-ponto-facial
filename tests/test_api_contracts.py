@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 from app.api.health import health_snapshot
 from app.application import create_application
 from app.core.config import settings
-from app.schemas.ai import FaceIdentifyRequest, FaceVerifyRequest
+from app.schemas.ai import FaceIdentifyBatchRequest, FaceIdentifyRequest, FaceVerifyRequest
 from app.schemas.enrollment import EnrollmentCaptureRequest
 from app.schemas.reports import ReportRequest
 from app.services.ai.facial_service import get_face_provider
@@ -52,6 +52,20 @@ def test_identification_and_verification_contracts_are_separate() -> None:
     )
     assert identification.worksite_id == "worksite-1"
     assert verification.employee_id == "employee-1"
+
+
+def test_batch_identification_accepts_up_to_five_independent_faces() -> None:
+    image = "data:image/jpeg;base64,abc"
+    payload = FaceIdentifyBatchRequest(
+        images_base64=[image, image],
+        worksite_id="worksite-1",
+    )
+    assert len(payload.images_base64) == 2
+
+    with pytest.raises(ValidationError):
+        FaceIdentifyBatchRequest(images_base64=[], worksite_id="worksite-1")
+    with pytest.raises(ValidationError):
+        FaceIdentifyBatchRequest(images_base64=[image] * 6, worksite_id="worksite-1")
 
 
 def test_enrollment_capture_requires_timezone_and_burst() -> None:

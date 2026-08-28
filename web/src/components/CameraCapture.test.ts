@@ -1,10 +1,62 @@
-import { describe, expect, it } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
+import { createElement } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@mediapipe/tasks-vision', async () => {
+  const actual = await vi.importActual<typeof import('@mediapipe/tasks-vision')>('@mediapipe/tasks-vision');
+  return {
+    ...actual,
+    FilesetResolver: { forVisionTasks: vi.fn(() => new Promise(() => undefined)) },
+  };
+});
 
 import {
   calculateFaceCropRegion,
   cameraAccessErrorMessage,
   faceBoxesFromLandmarks,
+  CameraCapture,
 } from './CameraCapture';
+
+describe('CameraCapture lifecycle', () => {
+  it('não reinicia a webcam quando o componente pai troca callbacks', async () => {
+    const stopTrack = vi.fn();
+    const getUserMedia = vi.fn().mockResolvedValue({
+      getTracks: () => [{ stop: stopTrack }],
+      getVideoTracks: () => [{ getSettings: () => ({ deviceId: 'camera-1' }), onended: null }],
+    });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia,
+        enumerateDevices: vi.fn().mockResolvedValue([]),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    const firstReady = vi.fn();
+    const view = render(createElement(CameraCapture, { onReadyChange: firstReady }));
+    await waitFor(() => expect(firstReady).toHaveBeenCalledWith(true));
+
+    view.rerender(createElement(CameraCapture, {
+      onReadyChange: vi.fn(),
+      onFaceCountChange: vi.fn(),
+    }));
+    await new Promise((resolve) => window.setTimeout(resolve, 40));
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    view.unmount();
+    expect(stopTrack).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('cameraAccessErrorMessage', () => {
   it('orienta a liberar a permissão quando o navegador bloqueia a câmera', () => {

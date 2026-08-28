@@ -1,5 +1,4 @@
 import {
-  Camera,
   Check,
   CheckCircle2,
   Clock3,
@@ -8,7 +7,6 @@ import {
   Minimize2,
   Pause,
   Play,
-  ScanFace,
   ShieldAlert,
   UserRoundCheck,
   WifiOff,
@@ -67,8 +65,10 @@ type PunchCandidate = {
   faceBox?: FaceIdentifyResponse['face_box'];
 };
 
-const RECOGNITION_INTERVAL_MS = 280;
-const RESULT_HOLD_MS = 6_000;
+const RECOGNITION_INTERVAL_MS = 160;
+const SINGLE_RESULT_HOLD_MS = 2_200;
+const GROUP_RESULT_HOLD_MS = 1_200;
+const PARTIAL_RESULT_HOLD_MS = 450;
 const EMPLOYEE_COOLDOWN_MS = 45_000;
 const MAX_FACES_PER_SCAN = 5;
 
@@ -295,8 +295,12 @@ export function FacialTerminalPage() {
       if (successfulRecognition) setRecognition(successfulRecognition);
 
       if (completed > 0) {
-        resultHoldUntilRef.current = Date.now() + RESULT_HOLD_MS;
         const allCompleted = completed === validCandidates.length;
+        resultHoldUntilRef.current = Date.now() + (
+          allCompleted
+            ? validCandidates.length > 1 ? GROUP_RESULT_HOLD_MS : SINGLE_RESULT_HOLD_MS
+            : PARTIAL_RESULT_HOLD_MS
+        );
         setMode(batch.manual_review > 0 ? 'review' : allCompleted ? 'accepted' : 'attention');
         if (validCandidates.length > 1) {
           setGuidance(allCompleted
@@ -426,12 +430,13 @@ export function FacialTerminalPage() {
           return { result, image: recognizedImage };
         };
 
-        const settledCaptures = await Promise.allSettled(images.map(identifyCapture));
+        const identifiedCaptures = images.length > 1
+          ? (await apiClient.identifyFaces(images, worksiteId, controller.signal)).results.map((result, index) => ({
+              result,
+              image: images[index],
+            }))
+          : await Promise.all(images.map(identifyCapture));
         if (cancelled) return;
-
-        const identifiedCaptures = settledCaptures.flatMap((capture) => (
-          capture.status === 'fulfilled' ? [capture.value] : []
-        ));
         if (!identifiedCaptures.length) {
           throw new Error('Nenhum rosto pôde ser analisado.');
         }
@@ -608,58 +613,19 @@ export function FacialTerminalPage() {
 
   const ResultIcon = resultPresentation.icon;
   const cameraClass = fullscreen ? 'h-[calc(100vh-164px)] min-h-[560px]' : 'h-[clamp(440px,62vh,690px)]';
-  const flowStage = !cameraReady
-    ? 1
-    : mode === 'confirming'
-      ? 3
-      : mode === 'submitting'
-        ? 4
-        : mode === 'accepted'
-          ? 5
-          : 2;
-  const flowSteps = [
-    { label: 'Câmera', detail: cameraReady ? 'Disponível' : 'Iniciando', icon: Camera },
-    { label: 'Reconhecimento', detail: localFaceCount > 1 ? `${localFaceCount} rostos localizados` : analysis?.face_count === 1 ? 'Rosto localizado' : 'Aguardando rosto', icon: Focus },
-    { label: 'Identificado', detail: recognition.employeeName || 'Aguardando identidade', icon: UserRoundCheck },
-    { label: 'Registrado', detail: mode === 'accepted' ? 'Ponto confirmado' : 'Aguardando confirmação', icon: CheckCircle2 },
-  ];
-
   const content = (
     <div className="terminal-shell" data-mode={mode}>
       <h1 className="sr-only">Ponto automático</h1>
-      <section className="terminal-flow" aria-label="Etapas do registro facial">
-        {flowSteps.map((step, index) => {
-          const Icon = step.icon;
-          const stepNumber = index + 1;
-          const state = flowStage > stepNumber
-            ? 'complete'
-            : flowStage === stepNumber
-              ? 'active'
-              : 'pending';
-          return (
-            <div key={step.label} className="terminal-flow-step" data-state={state}>
-              <span className="terminal-flow-icon">
-                {state === 'complete' ? <Check size={17} /> : <Icon size={17} />}
-              </span>
-              <span><strong>{step.label}</strong><small>{step.detail}</small></span>
-              {index < flowSteps.length - 1 && <i aria-hidden="true" />}
-            </div>
-          );
-        })}
-      </section>
       <section className="terminal-camera-card" data-mode={mode}>
         <div className="terminal-toolbar">
           <div className="terminal-toolbar-identity">
             <div>
-              <strong className="block text-sm">Terminal de acesso</strong>
+              <span className="terminal-eyebrow">Ponto facial</span>
+              <strong className="block text-sm">{selectedWorksite?.name || 'Selecione uma obra'}</strong>
               <span className="mt-0.5 block text-xs text-steel">
-                {selectedWorksite ? `${selectedWorksite.code} · ${selectedWorksite.name}` : 'Obra não configurada'}
+                {selectedWorksite?.code || 'Terminal sem local definido'}
               </span>
             </div>
-            <span className={`status-pill ${autoEnabled ? 'status-pill-online' : 'status-pill-neutral'}`}>
-              <span className="status-dot status-dot-pulse" />
-              {autoEnabled ? 'Leitura automática' : 'Pausado'}
-            </span>
           </div>
           <div className="terminal-toolbar-actions">
             <label className="sr-only" htmlFor="terminal-worksite">Obra deste terminal</label>
@@ -731,37 +697,22 @@ export function FacialTerminalPage() {
               <span>{guidance}</span>
             </div>
           </div>
-
-          <div className="terminal-signal-grid">
-            <div className="terminal-signal">
-              <span>Câmera</span>
-              <strong>{cameraReady ? 'Disponível' : 'Iniciando'}</strong>
-            </div>
-            <div className="terminal-signal">
-              <span>Enquadramento</span>
-              <strong>{localFaceCount > 1 ? `${localFaceCount} rostos detectados` : analysis?.face_count === 1 ? 'Rosto detectado' : 'Aguardando'}</strong>
-            </div>
-            <div className="terminal-signal">
-              <span>Imagem</span>
-              <strong>{localFaceCount > 1 ? `${localFaceCount} leituras separadas` : qualityLabel(analysis)}</strong>
-            </div>
-            <div className="terminal-signal">
-              <span>Identificação</span>
-              <strong>{recognition.employeeName || 'Aguardando'}</strong>
-            </div>
+          <div className="terminal-live-facts" aria-label="Estado da leitura">
+            <span><i data-active={cameraReady} />{cameraReady ? 'Câmera pronta' : 'Iniciando câmera'}</span>
+            <span>{localFaceCount > 0 ? `${localFaceCount} ${localFaceCount === 1 ? 'rosto' : 'rostos'}` : qualityLabel(analysis)}</span>
+            {recognition.employeeName && <strong>{recognition.employeeName}</strong>}
           </div>
         </div>
       </section>
 
-      <aside className="terminal-side">
-        <section className="terminal-panel">
-          <div className="terminal-clock">
-            {clock.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-          </div>
-          <div className="terminal-date">{formatDate(clock)}</div>
-        </section>
-
-        <section className="terminal-panel">
+      <aside className="terminal-side" aria-label="Resumo do terminal">
+        <section className="terminal-console">
+          <header className="terminal-console-time">
+            <div className="terminal-clock">
+              {clock.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+            <div className="terminal-date">{formatDate(clock)}</div>
+          </header>
           <div className="terminal-result" data-tone={resultPresentation.tone} data-mode={mode} aria-live="polite">
             <div className="terminal-result-icon">
               <ResultIcon size={25} strokeWidth={1.8} />
@@ -769,20 +720,17 @@ export function FacialTerminalPage() {
             <h3>{resultPresentation.title}</h3>
             <p>{resultPresentation.detail}</p>
           </div>
-        </section>
-
-        <section className="terminal-panel">
-          <div className="flex items-center justify-between gap-3">
+          <div className="terminal-session-heading">
             <div>
-              <strong className="block text-sm">Registros desta sessão</strong>
-              <span className="mt-1 block text-xs text-steel">Últimos pontos confirmados neste terminal</span>
+              <strong>Registros recentes</strong>
+              <span>Confirmados neste terminal</span>
             </div>
-            <span className="status-pill status-pill-neutral">{recentRecords.length}</span>
+            <b>{recentRecords.length}</b>
           </div>
 
           {recentRecords.length === 0 ? (
             <div className="terminal-empty-events">
-              Os registros aparecerão aqui após a confirmação.
+              Nenhum registro nesta sessão.
             </div>
           ) : (
             <div className="terminal-events">
@@ -805,21 +753,11 @@ export function FacialTerminalPage() {
         </section>
 
         {!navigator.onLine && (
-          <section className="terminal-panel flex items-start gap-3 text-sm text-red-700 dark:text-red-300">
+          <section className="terminal-offline flex items-start gap-3 text-sm text-red-700 dark:text-red-300">
             <WifiOff size={18} className="mt-0.5 shrink-0" />
             <span>Sem conexão. Nenhum registro será confirmado enquanto o serviço estiver indisponível.</span>
           </section>
         )}
-
-        <section className="terminal-panel flex items-start gap-3">
-          <ScanFace size={18} className="mt-0.5 shrink-0 text-steel" />
-          <div>
-            <strong className="block text-xs">Leitura sem toque</strong>
-            <p className="mt-1 text-xs leading-5 text-steel">
-              A pessoa só precisa olhar para a câmera. O movimento do ponto é definido automaticamente pelo histórico.
-            </p>
-          </div>
-        </section>
       </aside>
     </div>
   );

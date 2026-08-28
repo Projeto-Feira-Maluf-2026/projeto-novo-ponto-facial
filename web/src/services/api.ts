@@ -19,6 +19,7 @@ import type {
   FaceAnalyzeResponse,
   FaceCapabilitiesResponse,
   FaceIdentifyResponse,
+  FaceIdentifyBatchResponse,
   FaceVerifyResponse,
   Page,
   PunchType,
@@ -338,6 +339,13 @@ export const apiClient = {
   },
   punch: async (payload: PunchPayload) => {
     const response = await faceApi.post<AttendanceDecision>('/attendance/punch', payload);
+    return response.data;
+  },
+  identifyFaces: async (imagesBase64: string[], worksiteId?: string | null, signal?: AbortSignal) => {
+    const response = await faceApi.post<FaceIdentifyBatchResponse>('/ai/identify-faces', {
+      images_base64: imagesBase64,
+      worksite_id: worksiteId || null,
+    }, { signal });
     return response.data;
   },
   employeePhoto: async (employeeId: string) => {

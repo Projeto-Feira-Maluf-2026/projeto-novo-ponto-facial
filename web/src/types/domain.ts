@@ -218,6 +218,10 @@ export interface AttendanceDecision {
   record?: AttendanceRecord | null;
 }
 
+export interface FaceIdentifyBatchResponse {
+  results: FaceIdentifyResponse[];
+}
+
 export interface AttendanceBatchDecision {
   decisions: AttendanceDecision[];
   processed: number;

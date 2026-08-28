@@ -11,6 +11,13 @@ class FaceIdentifyRequest(FaceAnalyzeRequest):
     worksite_id: str | None = None
 
 
+class FaceIdentifyBatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    images_base64: list[str] = Field(min_length=1, max_length=5)
+    worksite_id: str | None = None
+
+
 class FaceVerifyRequest(FaceAnalyzeRequest):
     employee_id: str
 
@@ -107,6 +114,10 @@ class FaceIdentifyResponse(FaceAnalyzeResponse):
     centroid_score: float | None = None
     robust_score: float | None = None
     aggregation_strategy: str = "QUALITY_WEIGHTED_CENTROID_AND_TOP_K_MEDIAN"
+
+
+class FaceIdentifyBatchResponse(BaseModel):
+    results: list[FaceIdentifyResponse]
 
 
 class FaceVerifyResponse(FaceAnalyzeResponse):

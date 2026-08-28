@@ -58,6 +58,25 @@ const FACE_LANDMARKER_MODEL_PATH = import.meta.env.VITE_FACE_LANDMARKER_MODEL_UR
   || 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 const MAX_TRACKED_FACES = 5;
 const LANDMARK_FRAME_INTERVAL_MS = 32;
+const CAMERA_RELEASE_DELAY_MS = 180;
+const CAMERA_START_RETRIES = 2;
+const SELECTED_CAMERA_STORAGE_KEY = 'ponto-facial:selected-camera';
+
+function readStoredCameraId() {
+  try {
+    return window.localStorage.getItem(SELECTED_CAMERA_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function storeCameraId(deviceId: string) {
+  try {
+    window.localStorage.setItem(SELECTED_CAMERA_STORAGE_KEY, deviceId);
+  } catch {
+    // A câmera continua funcional quando o navegador bloqueia armazenamento local.
+  }
+}
 
 const TONE_RGB: Record<FaceOverlayTone, string> = {
   tracking: '203, 213, 225',
@@ -191,7 +210,14 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const landmarkCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const mountedRef = useRef(true);
+    const restartTimerRef = useRef(0);
+    const startPromiseRef = useRef<Promise<void> | null>(null);
+    const restartCameraRef = useRef<(() => void) | null>(null);
     const faceOverlayRef = useRef<FaceOverlayState | undefined>(faceOverlay);
+    const onReadyChangeRef = useRef(onReadyChange);
+    const onFacePresenceChangeRef = useRef(onFacePresenceChange);
+    const onFaceCountChangeRef = useRef(onFaceCountChange);
     const normalizedFaceBoxRef = useRef<FaceBox | null>(null);
     const normalizedFaceBoxesRef = useRef<FaceBox[]>([]);
     const nativeNormalizedFaceBoxesRef = useRef<FaceBox[]>([]);
@@ -211,8 +237,15 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       faceOverlayRef.current = faceOverlay;
     }, [faceOverlay]);
 
+    useEffect(() => {
+      onReadyChangeRef.current = onReadyChange;
+      onFacePresenceChangeRef.current = onFacePresenceChange;
+      onFaceCountChangeRef.current = onFaceCountChange;
+    }, [onFaceCountChange, onFacePresenceChange, onReadyChange]);
+
     const stop = useCallback(() => {
       startRequestIdRef.current += 1;
+      window.clearTimeout(restartTimerRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       if (videoRef.current) {
@@ -226,9 +259,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       normalizedFaceBoxesRef.current = [];
       nativeNormalizedFaceBoxesRef.current = [];
       setLandmarkFaceCount(0);
-      onFaceCountChange?.(0);
-      onReadyChange?.(false);
-    }, [onFaceCountChange, onReadyChange]);
+      onFaceCountChangeRef.current?.(0);
+      onReadyChangeRef.current?.(false);
+    }, []);
 
     const refreshDevices = useCallback(async () => {
       if (!navigator.mediaDevices?.enumerateDevices) return [];
@@ -238,7 +271,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       return cameras;
     }, []);
 
-    const start = useCallback(async (requestedDeviceId = selectedDeviceIdRef.current) => {
+    const startCamera = useCallback(async (requestedDeviceId = selectedDeviceIdRef.current) => {
+      const previousStream = streamRef.current;
       stop();
       const requestId = startRequestIdRef.current + 1;
       startRequestIdRef.current = requestId;
@@ -252,6 +286,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
 
       let stream: MediaStream | null = null;
       try {
+        if (previousStream) {
+          await new Promise((resolve) => window.setTimeout(resolve, CAMERA_RELEASE_DELAY_MS));
+        }
         const preferredVideo: MediaTrackConstraints = {
           ...(requestedDeviceId
             ? { deviceId: { exact: requestedDeviceId } }
@@ -261,9 +298,22 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           frameRate: { ideal: 30, max: 30 },
         };
 
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: preferredVideo });
-        } catch (initialError) {
+        let initialError: unknown;
+        for (let attempt = 0; attempt <= CAMERA_START_RETRIES && !stream; attempt += 1) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: preferredVideo });
+          } catch (cameraError) {
+            initialError = cameraError;
+            const errorName = cameraError && typeof cameraError === 'object' && 'name' in cameraError
+              ? String(cameraError.name)
+              : '';
+            if (!['NotReadableError', 'TrackStartError'].includes(errorName) || attempt === CAMERA_START_RETRIES) {
+              break;
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 220 * (attempt + 1)));
+          }
+        }
+        if (!stream) {
           const errorName = initialError && typeof initialError === 'object' && 'name' in initialError
             ? String(initialError.name)
             : '';
@@ -292,6 +342,19 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (activeDeviceId) {
           selectedDeviceIdRef.current = activeDeviceId;
           setSelectedDeviceId(activeDeviceId);
+          storeCameraId(activeDeviceId);
+        }
+        const activeTrack = stream.getVideoTracks()[0];
+        if (activeTrack) {
+          activeTrack.onended = () => {
+            if (!mountedRef.current || requestId !== startRequestIdRef.current) return;
+            setReady(false);
+            onReadyChangeRef.current?.(false);
+            setError('A câmera foi desconectada. Reconecte o cabo; a leitura será retomada automaticamente.');
+            restartTimerRef.current = window.setTimeout(() => {
+              if (mountedRef.current) restartCameraRef.current?.();
+            }, 900);
+          };
         }
         try {
           await refreshDevices();
@@ -300,7 +363,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         }
         setError('');
         setReady(true);
-        onReadyChange?.(true);
+        onReadyChangeRef.current?.(true);
       } catch (cameraError) {
         stream?.getTracks().forEach((track) => track.stop());
         if (streamRef.current === stream) streamRef.current = null;
@@ -310,7 +373,21 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       } finally {
         if (requestId === startRequestIdRef.current) setStarting(false);
       }
-    }, [onReadyChange, refreshDevices, stop]);
+    }, [refreshDevices, stop]);
+
+    const start = useCallback(async (requestedDeviceId = selectedDeviceIdRef.current) => {
+      const operation = startCamera(requestedDeviceId);
+      startPromiseRef.current = operation;
+      await operation;
+      if (startPromiseRef.current === operation) startPromiseRef.current = null;
+    }, [startCamera]);
+
+    useEffect(() => {
+      restartCameraRef.current = () => void start(selectedDeviceIdRef.current);
+      return () => {
+        restartCameraRef.current = null;
+      };
+    }, [start]);
 
     const projectFaceBoxToVideo = useCallback((
       box: FaceBox,
@@ -342,8 +419,13 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     }, []);
 
     useEffect(() => {
-      start();
-      return stop;
+      mountedRef.current = true;
+      selectedDeviceIdRef.current = readStoredCameraId();
+      void start(selectedDeviceIdRef.current);
+      return () => {
+        mountedRef.current = false;
+        stop();
+      };
     }, [start, stop]);
 
     useEffect(() => {
@@ -387,12 +469,12 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (lastFacePresent !== present) {
           lastFacePresent = present;
           setLandmarkFacePresent(present);
-          onFacePresenceChange?.(present);
+          onFacePresenceChangeRef.current?.(present);
         }
         if (lastFaceCount !== count) {
           lastFaceCount = count;
           setLandmarkFaceCount(count);
-          onFaceCountChange?.(count);
+          onFaceCountChangeRef.current?.(count);
         }
       };
 
@@ -628,10 +710,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         normalizedFaceBoxesRef.current = [];
         setLandmarkFacePresent(false);
         setLandmarkFaceCount(0);
-        onFaceCountChange?.(0);
-        onFacePresenceChange?.(false);
+        onFaceCountChangeRef.current?.(0);
+        onFacePresenceChangeRef.current?.(false);
       };
-    }, [onFaceCountChange, onFacePresenceChange, ready]);
+    }, [ready]);
 
     useEffect(() => {
       if (!ready || landmarkState === 'ready') {
@@ -694,9 +776,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     useEffect(() => {
       if (landmarkState === 'ready') return;
       const count = faceBoxes.length;
-      onFaceCountChange?.(count);
-      onFacePresenceChange?.(count > 0);
-    }, [faceBoxes.length, landmarkState, onFaceCountChange, onFacePresenceChange]);
+      onFaceCountChangeRef.current?.(count);
+      onFacePresenceChangeRef.current?.(count > 0);
+    }, [faceBoxes.length, landmarkState]);
 
     useImperativeHandle(
       ref,
@@ -719,7 +801,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             compact,
           );
           if (!crop) return null;
-          const targetSize = crop.side < 540 ? 720 : Math.min(960, Math.round(crop.side));
+          const targetSize = crop.side < 720 ? 512 : Math.min(720, Math.round(crop.side));
           canvas.width = targetSize;
           canvas.height = targetSize;
           const context = canvas.getContext('2d');
@@ -737,7 +819,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             targetSize,
             targetSize,
           );
-          return canvas.toDataURL('image/jpeg', 0.90);
+          return canvas.toDataURL('image/jpeg', 0.86);
         };
 
         return {
@@ -837,6 +919,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const selectCamera = (deviceId: string) => {
       selectedDeviceIdRef.current = deviceId;
       setSelectedDeviceId(deviceId);
+      storeCameraId(deviceId);
       void start(deviceId);
     };
 
