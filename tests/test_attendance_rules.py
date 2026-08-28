@@ -81,7 +81,9 @@ async def test_punch_ignores_location_and_does_not_require_geofence() -> None:
         return_value=(employee, 0.78, None, 0.86, None)
     )
     payload = PunchCreate(
-        employee_id=employee.id,
+        # O terminal nao precisa mais identificar e depois reenviar a mesma foto.
+        # O registro resolve a identidade diretamente com uma unica inferencia.
+        employee_id=None,
         worksite_id=worksite.id,
         punch_type=PunchType.ENTRY,
         face={
@@ -100,6 +102,10 @@ async def test_punch_ignores_location_and_does_not_require_geofence() -> None:
     decision = await service.register_punch(payload)
 
     assert decision.accepted is True
+    assert face_service.from_image_base64.call_count == 1
+    match_arguments = service._match_employee.await_args.args
+    assert match_arguments[1] is None
+    assert match_arguments[2] == worksite.id
     assert decision.liveness_evaluated is False
     assert decision.liveness_score is None
     assert decision.reasons == []
@@ -188,7 +194,7 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
     payload = PunchBatchCreate(
         punches=[
             PunchCreate(
-                employee_id=f"employee-{index}",
+                employee_id=None,
                 worksite_id="worksite-1",
                 face={"image_base64": f"face-{index}"},
             )
@@ -206,6 +212,10 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
         "employee-2",
     ]
     assert service.register_punch.await_count == 2
+    assert all(
+        call.args[0].employee_id is None
+        for call in service.register_punch.await_args_list
+    )
 
 
 @pytest.mark.asyncio

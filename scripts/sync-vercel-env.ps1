@@ -62,6 +62,7 @@ if ($Profile -eq "face") {
         FACE_MODEL_ROOT = "/opt/insightface"
         FACE_MODEL_SHA256 = "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43"
         FACE_EXECUTION_PROVIDERS = "CPUExecutionProvider"
+        FACE_DETECTION_SIZES = "320,640"
         FACE_EAGER_INITIALIZE = "false"
         FACE_THRESHOLDS_CALIBRATED = "false"
         FACE_THRESHOLD_PROFILE = "development-uncalibrated"

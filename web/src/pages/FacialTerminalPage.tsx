@@ -27,7 +27,6 @@ import type {
   AttendanceDecision,
   Employee,
   FaceAnalyzeResponse,
-  FaceIdentifyResponse,
   PunchType,
   Worksite,
 } from '../types/domain';
@@ -48,7 +47,7 @@ type LiveRecognition = {
   employeeId?: string | null;
   employeeName?: string | null;
   tone: FaceOverlayState['tone'];
-  faceBox?: FaceIdentifyResponse['face_box'];
+  faceBox?: FaceAnalyzeResponse['face_box'];
 };
 
 type RecentRecord = {
@@ -61,17 +60,16 @@ type RecentRecord = {
 };
 
 type PunchCandidate = {
-  employeeId: string;
+  employeeId?: string | null;
   recognizedName?: string | null;
   image: string;
-  faceBox?: FaceIdentifyResponse['face_box'];
+  faceBox?: FaceAnalyzeResponse['face_box'];
 };
 
 const RECOGNITION_INTERVAL_MS = 160;
 const SINGLE_RESULT_HOLD_MS = 2_200;
 const GROUP_RESULT_HOLD_MS = 1_200;
 const PARTIAL_RESULT_HOLD_MS = 450;
-const EMPLOYEE_COOLDOWN_MS = 45_000;
 const MAX_FACES_PER_SCAN = 5;
 
 const punchLabels: Record<PunchType, string> = {
@@ -99,35 +97,6 @@ function qualityLabel(analysis: FaceAnalyzeResponse | null) {
   if (!analysis.accepted) return 'Ajuste necessário';
   if (analysis.quality_score >= 0.78) return 'Imagem boa';
   return 'Imagem adequada';
-}
-
-function guidanceForResult(result: FaceIdentifyResponse) {
-  const reasons = new Set(result.reasons.map((reason) => reason.toUpperCase()));
-  if (result.face_count === 0 || reasons.has('NO_FACE')) {
-    return 'Mostre o rosto à câmera. A leitura será feita automaticamente.';
-  }
-  if (result.face_count > 1 || reasons.has('MULTIPLE_FACES')) {
-    return 'Mantenham os rostos visíveis enquanto a câmera separa cada leitura.';
-  }
-  if (reasons.has('IMAGE_TOO_BLURRY')) {
-    return 'Fique parado por um instante para melhorar a nitidez.';
-  }
-  if (reasons.has('UNDEREXPOSED') || reasons.has('LOW_CONTRAST')) {
-    return 'O rosto está escuro. Procure uma área com mais luz.';
-  }
-  if (reasons.has('OVEREXPOSED')) {
-    return 'Evite luz direta no rosto ou atrás da câmera.';
-  }
-  if (reasons.has('FACE_TOO_SMALL')) {
-    return 'Mantenha o rosto visível enquanto a câmera tenta uma nova leitura.';
-  }
-  if (reasons.has('NO_COMPATIBLE_TEMPLATES')) {
-    return 'Os cadastros faciais desta equipe precisam ser atualizados.';
-  }
-  if (reasons.has('AMBIGUOUS_FACE')) {
-    return 'Permaneça de frente para a câmera enquanto confirmamos sua identidade.';
-  }
-  return 'Olhe de frente para a câmera e aguarde a confirmação.';
 }
 
 function attendanceReasonMessage(reasons: string[]) {
@@ -174,9 +143,9 @@ export function FacialTerminalPage() {
   const requestInFlightRef = useRef(false);
   const punchInFlightRef = useRef(false);
   const localFacePresentRef = useRef(false);
-  const cooldownsRef = useRef(new Map<string, number>());
   const resultHoldUntilRef = useRef(0);
   const triggerScanRef = useRef<(() => void) | null>(null);
+  const awaitingFaceExitRef = useRef(false);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
@@ -239,6 +208,7 @@ export function FacialTerminalPage() {
     const wasPresent = localFacePresentRef.current;
     localFacePresentRef.current = count > 0;
     setLocalFaceCount(count);
+    if (count === 0) awaitingFaceExitRef.current = false;
     if (!wasPresent && count > 0) triggerScanRef.current?.();
   }, []);
 
@@ -254,14 +224,14 @@ export function FacialTerminalPage() {
     punchInFlightRef.current = true;
     setMode('submitting');
     setGuidance(validCandidates.length > 1
-      ? `Identidades confirmadas. Registrando ${validCandidates.length} pontos...`
-      : 'Identidade confirmada. Registrando o ponto...');
+      ? `Reconhecendo e registrando ${validCandidates.length} pessoas...`
+      : 'Reconhecendo e registrando o ponto...');
 
     try {
       const scanId = crypto.randomUUID();
       const occurredAt = new Date().toISOString();
       const batch = await apiClient.punchBatch(validCandidates.map((candidate, index) => ({
-        employee_id: candidate.employeeId,
+        employee_id: candidate.employeeId || null,
         worksite_id: worksiteId,
         punch_type: null,
         face: { image_base64: candidate.image },
@@ -279,10 +249,9 @@ export function FacialTerminalPage() {
           || employee?.name
           || candidate.recognizedName
           || 'Funcionário';
-        const resolvedEmployeeId = result.employee_id || candidate.employeeId;
+        const resolvedEmployeeId = result.employee_id || candidate.employeeId || '';
         if (result.status !== 'ACCEPTED' && result.status !== 'MANUAL_REVIEW') return;
 
-        cooldownsRef.current.set(resolvedEmployeeId, Date.now() + EMPLOYEE_COOLDOWN_MS);
         completedRecords.push({
           id: result.record?.id || crypto.randomUUID(),
           employee: employeeName,
@@ -310,6 +279,7 @@ export function FacialTerminalPage() {
 
       if (completed > 0) {
         const allCompleted = completed === validCandidates.length;
+        if (allCompleted) awaitingFaceExitRef.current = true;
         resultHoldUntilRef.current = Date.now() + (
           allCompleted
             ? validCandidates.length > 1 ? GROUP_RESULT_HOLD_MS : SINGLE_RESULT_HOLD_MS
@@ -373,6 +343,7 @@ export function FacialTerminalPage() {
         cancelled
         || requestInFlightRef.current
         || punchInFlightRef.current
+        || (awaitingFaceExitRef.current && localFacePresentRef.current)
       ) {
         schedule();
         return;
@@ -409,118 +380,9 @@ export function FacialTerminalPage() {
         : 'Reconhecendo o rosto...');
 
       try {
-        const identifyCapture = async (initialImage: string) => {
-          let result = await apiClient.identifyFace(initialImage, worksiteId, controller.signal);
-          let recognizedImage = initialImage;
-          const retryReasons = new Set(result.reasons.map((reason) => reason.toUpperCase()));
-          if (
-            images.length === 1
-            && croppedFaceImages.length === 0
-            && !result.matched
-            && (
-              retryReasons.has('NO_FACE')
-              || retryReasons.has('FACE_TOO_SMALL')
-              || retryReasons.has('LOW_DETECTION_CONFIDENCE')
-            )
-          ) {
-            const focusedImage = cameraRef.current?.capture({
-              faceCrop: true,
-              sourceFaceBox: result.face_box
-                ? {
-                    x: result.face_box.x,
-                    y: result.face_box.y,
-                    width: result.face_box.width,
-                    height: result.face_box.height,
-                    sourceWidth: result.face_box.source_width,
-                    sourceHeight: result.face_box.source_height,
-                  }
-                : null,
-            });
-            if (focusedImage && focusedImage !== initialImage) {
-              result = await apiClient.identifyFace(focusedImage, worksiteId, controller.signal);
-              recognizedImage = focusedImage;
-            }
-          }
-          return { result, image: recognizedImage };
-        };
-
-        const identifiedCaptures = images.length > 1
-          ? (await apiClient.identifyFaces(images, worksiteId, controller.signal)).results.map((result, index) => ({
-              result,
-              image: images[index],
-            }))
-          : await Promise.all(images.map(identifyCapture));
-        if (cancelled) return;
-        if (!identifiedCaptures.length) {
-          throw new Error('Nenhum rosto pôde ser analisado.');
-        }
-
-        const primaryCapture = identifiedCaptures.find(({ result }) => result.matched)
-          || identifiedCaptures.find(({ result }) => result.accepted)
-          || identifiedCaptures[0];
-        const result = primaryCapture.result;
-
-        setAnalysis(result);
+        setAnalysis(null);
         setDecision(null);
-
-        const matchesByEmployee = new Map<string, typeof primaryCapture>();
-        identifiedCaptures.forEach((capture) => {
-          if (capture.result.matched && capture.result.employee_id) {
-            matchesByEmployee.set(capture.result.employee_id, capture);
-          }
-        });
-        const matches = [...matchesByEmployee.values()];
-
-        if (!matches.length) {
-          setRecognition({
-            employeeId: null,
-            employeeName: null,
-            tone: result.accepted ? 'warning' : 'tracking',
-            faceBox: result.face_box,
-          });
-          setMode(result.reasons.some((reason) => reason.toUpperCase() === 'NO_COMPATIBLE_TEMPLATES')
-            ? 'attention'
-            : 'scanning');
-          setGuidance(images.length > 1
-            ? 'Os rostos foram detectados, mas as identidades ainda não foram confirmadas.'
-            : guidanceForResult(result));
-          return;
-        }
-
-        const firstMatch = matches[0].result;
-        setRecognition({
-          employeeId: firstMatch.employee_id,
-          employeeName: firstMatch.employee_name,
-          tone: 'tracking',
-          faceBox: firstMatch.face_box,
-        });
-
-        const pendingMatches = matches.filter(({ result: match }) => (
-          (cooldownsRef.current.get(match.employee_id || '') || 0) <= Date.now()
-        ));
-        if (!pendingMatches.length) {
-          setMode('ready');
-          setGuidance(matches.length > 1
-            ? 'Os pontos destas pessoas já foram registrados. A câmera está pronta para uma nova leitura.'
-            : `Ponto de ${firstMatch.employee_name || 'funcionário'} já registrado. A câmera está pronta para outra pessoa.`);
-          return;
-        }
-
-        setMode('confirming');
-        setGuidance(pendingMatches.length > 1
-          ? `Registrando ${pendingMatches.length} pessoas na mesma leitura...`
-          : 'Identidade localizada. Registrando o ponto...');
-        await submitAutomaticPunches(pendingMatches.flatMap((capture) => {
-          const match = capture.result;
-          return match.employee_id
-            ? [{
-                employeeId: match.employee_id,
-                recognizedName: match.employee_name,
-                image: capture.image,
-                faceBox: match.face_box,
-              }]
-            : [];
-        }));
+        await submitAutomaticPunches(images.map((image) => ({ image })));
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {
           setMode('attention');

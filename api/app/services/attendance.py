@@ -4,7 +4,7 @@ from datetime import UTC, datetime, time
 from statistics import median
 from uuid import uuid4
 
-from sqlalchemy import and_, desc, select
+from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -12,6 +12,7 @@ from app.core.time import as_local, as_utc_naive, local_day_utc_bounds
 from app.models.entities import (
     AttendanceRecord,
     Employee,
+    EmployeeWorksite,
     FaceTemplate,
     SuspiciousAttempt,
     Worksite,
@@ -191,9 +192,12 @@ class AttendanceService:
                 )
 
         quality_score = max([quality_score, *[candidate_quality for _, candidate_quality in vectors]])
+        occurred_at = as_utc_naive(payload.occurred_at or datetime.now(UTC))
         employee, similarity, second_similarity, match_confidence, match_reason = await self._match_employee(
             vectors,
             payload.employee_id,
+            payload.worksite_id,
+            occurred_at,
         )
         margin = face_match_margin(similarity, second_similarity)
 
@@ -247,7 +251,6 @@ class AttendanceService:
                 ),
             )
 
-        occurred_at = as_utc_naive(payload.occurred_at or datetime.now(UTC))
         punch_type = payload.punch_type or await self._infer_next_punch(
             employee.id,
             occurred_at,
@@ -425,6 +428,8 @@ class AttendanceService:
         self,
         vectors: list[tuple[list[float], float]],
         employee_id: str | None,
+        worksite_id: str | None = None,
+        occurred_at: datetime | None = None,
     ) -> tuple[Employee | None, float, float | None, float, str | None]:
         import numpy as np
 
@@ -446,6 +451,23 @@ class AttendanceService:
         )
         if employee_id:
             statement = statement.where(FaceTemplate.employee_id == employee_id)
+        elif worksite_id:
+            reference_time = occurred_at or datetime.now(UTC).replace(tzinfo=None)
+            statement = statement.join(
+                EmployeeWorksite,
+                EmployeeWorksite.employee_id == FaceTemplate.employee_id,
+            ).where(
+                EmployeeWorksite.worksite_id == worksite_id,
+                EmployeeWorksite.active.is_(True),
+                or_(
+                    EmployeeWorksite.starts_at.is_(None),
+                    EmployeeWorksite.starts_at <= reference_time,
+                ),
+                or_(
+                    EmployeeWorksite.ends_at.is_(None),
+                    EmployeeWorksite.ends_at >= reference_time,
+                ),
+            )
         templates = list(await self.session.scalars(statement))
         if not templates:
             return None, 0.0, None, 0.0, "no_compatible_templates"
