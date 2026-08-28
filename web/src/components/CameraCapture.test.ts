@@ -14,6 +14,7 @@ import {
   calculateFaceCropRegion,
   cameraAccessErrorMessage,
   faceBoxesFromLandmarks,
+  isPlausibleDistantFace,
   mergeFaceBoxes,
   CameraCapture,
 } from './CameraCapture';
@@ -153,5 +154,40 @@ describe('mergeFaceBoxes', () => {
 
     expect(boxes).toHaveLength(2);
     expect(boxes[0].x).toBeLessThan(boxes[1].x);
+  });
+});
+
+describe('isPlausibleDistantFace', () => {
+  const faceDetection = {
+    categories: [{ score: 0.82, index: 0, categoryName: 'face', displayName: 'face' }],
+    boundingBox: { originX: 170, originY: 130, width: 150, height: 190, angle: 0 },
+    keypoints: [
+      { x: 0.41, y: 0.38 },
+      { x: 0.54, y: 0.39 },
+      { x: 0.48, y: 0.48 },
+      { x: 0.48, y: 0.57 },
+      { x: 0.36, y: 0.46 },
+      { x: 0.60, y: 0.46 },
+    ],
+  };
+
+  it('aceita uma detecção com olhos, nariz e boca coerentes', () => {
+    expect(isPlausibleDistantFace(faceDetection)).toBe(true);
+  });
+
+  it('rejeita objeto com baixa confiança ou geometria impossível', () => {
+    expect(isPlausibleDistantFace({
+      ...faceDetection,
+      categories: [{ ...faceDetection.categories[0], score: 0.37 }],
+    })).toBe(false);
+    expect(isPlausibleDistantFace({
+      ...faceDetection,
+      keypoints: [
+        { x: 0.40, y: 0.60 },
+        { x: 0.53, y: 0.35 },
+        { x: 0.48, y: 0.30 },
+        { x: 0.48, y: 0.25 },
+      ],
+    })).toBe(false);
   });
 });

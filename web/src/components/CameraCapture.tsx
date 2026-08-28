@@ -1,6 +1,6 @@
 import { Camera, RefreshCcw, Video } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { FaceDetector, FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { FaceDetector, FaceLandmarker, FilesetResolver, type Detection } from '@mediapipe/tasks-vision';
 import type { FaceLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision';
 
 export type FaceBox = {
@@ -57,7 +57,7 @@ const LANDMARK_WASM_PATH = import.meta.env.VITE_MEDIAPIPE_WASM_URL?.trim()
 const FACE_LANDMARKER_MODEL_PATH = import.meta.env.VITE_FACE_LANDMARKER_MODEL_URL?.trim()
   || 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 const DISTANT_FACE_DETECTOR_MODEL_PATH = import.meta.env.VITE_FACE_DETECTOR_MODEL_URL?.trim()
-  || 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
+  || 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite';
 const MAX_TRACKED_FACES = 5;
 const LANDMARK_FRAME_INTERVAL_MS = 32;
 const DISTANT_SCAN_INTERVAL_MS = 110;
@@ -114,6 +114,46 @@ export function mergeFaceBoxes(boxes: FaceBox[], limit = MAX_TRACKED_FACES) {
       return merged;
     }, [])
     .sort((left, right) => left.x - right.x);
+}
+
+export function isPlausibleDistantFace(detection: Detection, inputSize = DISTANT_TILE_SIZE) {
+  const box = detection.boundingBox;
+  const score = detection.categories[0]?.score || 0;
+  if (!box || score < 0.55 || box.width <= 0 || box.height <= 0) return false;
+
+  const aspectRatio = box.width / box.height;
+  if (aspectRatio < 0.55 || aspectRatio > 1.55) return false;
+
+  // BlazeFace fornece, nesta ordem, olhos, nariz e centro da boca. Objetos
+  // confundidos com rostos raramente preservam essa geometria simultaneamente.
+  if (detection.keypoints.length < 4) return false;
+  const [rightEye, leftEye, nose, mouth] = detection.keypoints;
+  const points = [rightEye, leftEye, nose, mouth].map((point) => ({
+    x: point.x * inputSize,
+    y: point.y * inputSize,
+  }));
+  const marginX = box.width * 0.18;
+  const marginY = box.height * 0.18;
+  const pointsInside = points.every((point) => (
+    point.x >= box.originX - marginX
+    && point.x <= box.originX + box.width + marginX
+    && point.y >= box.originY - marginY
+    && point.y <= box.originY + box.height + marginY
+  ));
+  if (!pointsInside) return false;
+
+  const [rightEyePoint, leftEyePoint, nosePoint, mouthPoint] = points;
+  const eyeLine = (rightEyePoint.y + leftEyePoint.y) / 2;
+  const eyeDistance = Math.hypot(
+    rightEyePoint.x - leftEyePoint.x,
+    rightEyePoint.y - leftEyePoint.y,
+  );
+  return eyeDistance >= box.width * 0.16
+    && eyeDistance <= box.width * 0.86
+    && Math.abs(rightEyePoint.y - leftEyePoint.y) <= box.height * 0.34
+    && nosePoint.y >= eyeLine - box.height * 0.06
+    && nosePoint.y <= mouthPoint.y + box.height * 0.08
+    && mouthPoint.y >= eyeLine + box.height * 0.08;
 }
 
 export function faceBoxesFromLandmarks(
@@ -764,7 +804,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           DISTANT_TILE_SIZE,
           DISTANT_TILE_SIZE,
         );
-        const detections = distantDetector.detect(distantCanvas).detections;
+        const detections = distantDetector.detect(distantCanvas).detections
+          .filter((detection) => isPlausibleDistantFace(detection));
         const expiresAt = now + DISTANT_DETECTION_TTL_MS;
         const detectedBoxes = detections.flatMap((detection) => {
           const box = detection.boundingBox;
@@ -873,8 +914,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
                 delegate: 'CPU',
               },
               runningMode: 'IMAGE',
-              minDetectionConfidence: 0.28,
-              minSuppressionThreshold: 0.25,
+              minDetectionConfidence: 0.50,
+              minSuppressionThreshold: 0.35,
             });
           } catch {
             distantDetector = null;
