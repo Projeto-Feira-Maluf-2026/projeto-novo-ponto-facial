@@ -2,6 +2,7 @@ import base64
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -74,6 +75,41 @@ def test_high_resolution_detection_is_reserved_for_small_or_missing_faces() -> N
     assert InsightFaceArcFaceProvider._needs_high_resolution_pass([], image) is True
     assert InsightFaceArcFaceProvider._needs_high_resolution_pass([distant_face], image) is True
     assert InsightFaceArcFaceProvider._needs_high_resolution_pass([large_face], image) is False
+
+
+def test_adaptive_detector_escalates_only_until_distant_face_is_resolved() -> None:
+    image = np.zeros((720, 1280, 3), dtype=np.uint8)
+    distant_face = SimpleNamespace(bbox=np.asarray([580, 280, 680, 380]))
+    resolved_face = SimpleNamespace(bbox=np.asarray([420, 180, 760, 560]))
+    provider = InsightFaceArcFaceProvider(
+        detection_sizes=[(320, 320), (640, 640), (1280, 1280)]
+    )
+    provider._faces_for_sizes = MagicMock(
+        side_effect=[[], [distant_face], [resolved_face]]
+    )
+
+    faces = provider._adaptive_faces(image)
+
+    assert faces == [resolved_face]
+    assert [item.args[1] for item in provider._faces_for_sizes.call_args_list] == [
+        [(320, 320)],
+        [(640, 640)],
+        [(1280, 1280)],
+    ]
+
+
+def test_adaptive_detector_keeps_near_face_on_fastest_pass() -> None:
+    image = np.zeros((720, 1280, 3), dtype=np.uint8)
+    near_face = SimpleNamespace(bbox=np.asarray([360, 120, 800, 620]))
+    provider = InsightFaceArcFaceProvider(
+        detection_sizes=[(320, 320), (640, 640), (1280, 1280)]
+    )
+    provider._faces_for_sizes = MagicMock(return_value=[near_face])
+
+    faces = provider._adaptive_faces(image)
+
+    assert faces == [near_face]
+    provider._faces_for_sizes.assert_called_once_with(image, [(320, 320)])
 
 
 def test_secondary_face_threshold_cannot_be_lower_than_detector_floor() -> None:

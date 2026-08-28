@@ -132,12 +132,13 @@ export function calculateFaceCropRegion(
 
   const faceWidth = face.width * frameWidth;
   const faceHeight = face.height * frameHeight;
+  const distantFace = Math.max(faceWidth, faceHeight) < 150;
   const centerX = (face.x + face.width / 2) * frameWidth;
   const centerY = (face.y + face.height * 0.46) * frameHeight;
   const baseSide = Math.max(
-    faceWidth * (compact ? 1.52 : 2.25),
-    faceHeight * (compact ? 1.48 : 2.05),
-    compact ? 96 : 220,
+    faceWidth * (compact ? 1.52 : distantFace ? 1.78 : 2.25),
+    faceHeight * (compact ? 1.48 : distantFace ? 1.72 : 2.05),
+    compact ? 96 : distantFace ? 128 : 220,
   );
 
   const nearestCenterDistance = nearbyFaces.reduce((nearest, candidate) => {
@@ -346,6 +347,23 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           ].includes(errorName);
           if (!canRetryWithDefaults) throw initialError;
           stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+        }
+
+        const resolutionTrack = stream.getVideoTracks()[0];
+        if (resolutionTrack?.applyConstraints && resolutionTrack.getCapabilities) {
+          try {
+            const capabilities = resolutionTrack.getCapabilities();
+            const maximumWidth = Math.min(capabilities.width?.max || 1920, 2560);
+            const maximumHeight = Math.min(capabilities.height?.max || 1080, 1440);
+            await resolutionTrack.applyConstraints({
+              width: { ideal: maximumWidth },
+              height: { ideal: maximumHeight },
+              frameRate: { ideal: 30, max: 30 },
+            });
+          } catch {
+            // Algumas webcams anunciam resoluções que o driver não consegue aplicar.
+            // Nesse caso, mantemos o melhor modo escolhido pelo navegador.
+          }
         }
 
         if (requestId !== startRequestIdRef.current) {
@@ -843,6 +861,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             compact,
           );
           if (!crop) return null;
+          const distantFace = Math.max(
+            normalizedFace.width * video.videoWidth,
+            normalizedFace.height * video.videoHeight,
+          ) < 150;
           const targetSize = crop.side < 720 ? 512 : Math.min(720, Math.round(crop.side));
           canvas.width = targetSize;
           canvas.height = targetSize;
@@ -861,7 +883,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             targetSize,
             targetSize,
           );
-          return canvas.toDataURL('image/jpeg', 0.86);
+          return canvas.toDataURL('image/jpeg', distantFace ? 0.94 : 0.9);
         };
 
         return {

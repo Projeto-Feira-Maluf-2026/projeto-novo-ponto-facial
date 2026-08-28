@@ -358,15 +358,23 @@ class InsightFaceArcFaceProvider(FaceProvider):
         sizes = list(self.detection_sizes)
         if len(sizes) <= 1:
             return self._faces_for_sizes(image_bgr, sizes)
-        # Um recorte vindo do terminal já concentra o rosto. Uma única passagem
-        # intermediária é suficiente na maioria dos casos e evita rodar o detector
-        # duas ou três vezes antes de cada embedding.
-        regular_size = sizes[-2]
-        faces = self._faces_for_sizes(image_bgr, [regular_size])
+        # Sempre começa pela passagem mais barata. Recortes próximos normalmente
+        # encerram aqui; rostos realmente pequenos avançam de forma gradual até a
+        # resolução máxima, sem penalizar todas as leituras do terminal.
+        faces = self._faces_for_sizes(image_bgr, [sizes[0]])
         if not self._needs_high_resolution_pass(faces, image_bgr):
             return faces
-        detailed_faces = self._faces_for_sizes(image_bgr, [sizes[-1]])
-        return detailed_faces or faces
+        best_faces = faces
+        for detailed_size in sizes[1:]:
+            detailed_faces = self._faces_for_sizes(image_bgr, [detailed_size])
+            if detailed_faces:
+                best_faces = detailed_faces
+            if detailed_faces and not self._needs_high_resolution_pass(
+                detailed_faces,
+                image_bgr,
+            ):
+                break
+        return best_faces
 
     def _result_failure(
         self,

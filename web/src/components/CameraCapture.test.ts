@@ -130,4 +130,14 @@ describe('calculateFaceCropRegion', () => {
     expect(crop!.sourceX + crop!.side).toBeLessThanOrEqual(640);
     expect(crop!.sourceY + crop!.side).toBeLessThanOrEqual(480);
   });
+
+  it('usa um recorte mais fechado para preservar detalhes de um rosto distante', () => {
+    const distantFace = { x: 0.47, y: 0.38, width: 0.042, height: 0.08 };
+    const crop = calculateFaceCropRegion(distantFace, 1920, 1080);
+
+    expect(crop).not.toBeNull();
+    expect(crop!.side).toBeGreaterThanOrEqual(128);
+    expect(crop!.side).toBeLessThan(190);
+    expect((distantFace.width * 1920) / crop!.side).toBeGreaterThan(0.4);
+  });
 });
