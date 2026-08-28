@@ -16,6 +16,7 @@ from app.api.v1.routes.attendance import punch_batch
 from app.services.attendance import (
     AttendanceService,
     attendance_confidence,
+    attendance_frame_is_usable,
     next_punch_type,
 )
 
@@ -38,6 +39,31 @@ def test_evening_second_punch_becomes_exit_instead_of_lunch() -> None:
 
 def test_attendance_confidence_uses_only_measured_server_signals() -> None:
     assert attendance_confidence(0.80, 0.60) == 0.75
+
+
+@pytest.mark.parametrize(
+    "reason",
+    ["IMAGE_TOO_BLURRY", "EXCESSIVE_YAW", "EXCESSIVE_PITCH", "EXCESSIVE_ROLL"],
+)
+def test_attendance_allows_distance_sensitive_quality_warning(reason: str) -> None:
+    processed = SimpleNamespace(
+        inference=SimpleNamespace(embedding=[1.0, 0.0]),
+        quality=SimpleNamespace(accepted=False, reasons=[reason]),
+    )
+
+    assert attendance_frame_is_usable(processed) is True
+
+
+def test_attendance_still_rejects_unsafe_quality_failure() -> None:
+    processed = SimpleNamespace(
+        inference=SimpleNamespace(embedding=[1.0, 0.0]),
+        quality=SimpleNamespace(
+            accepted=False,
+            reasons=["IMAGE_TOO_BLURRY", "LOW_OVERALL_QUALITY"],
+        ),
+    )
+
+    assert attendance_frame_is_usable(processed) is False
 
 
 @pytest.mark.asyncio

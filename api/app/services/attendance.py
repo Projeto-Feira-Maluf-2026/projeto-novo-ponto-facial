@@ -30,6 +30,17 @@ logger = logging.getLogger(__name__)
 
 PUNCH_SEQUENCE = [PunchType.ENTRY, PunchType.LUNCH_OUT, PunchType.LUNCH_IN, PunchType.EXIT]
 
+# Em uma leitura de ponto, a identidade ainda e confirmada pelo embedding,
+# pelo limiar de similaridade e pela margem para o segundo melhor candidato.
+# Blur moderado e a pose estimada a partir de poucos pixels sao sinais muito
+# instaveis em rostos distantes e nao devem, sozinhos, impedir essa comparacao.
+ATTENDANCE_RECOVERABLE_QUALITY_REASONS = {
+    "IMAGE_TOO_BLURRY",
+    "EXCESSIVE_YAW",
+    "EXCESSIVE_PITCH",
+    "EXCESSIVE_ROLL",
+}
+
 
 EVENING_EXIT_START = time(16, 0)
 
@@ -59,6 +70,19 @@ def attendance_confidence(match_confidence: float, quality_score: float) -> floa
     match = max(0.0, min(1.0, float(match_confidence)))
     quality = max(0.0, min(1.0, float(quality_score)))
     return round((match * 0.75) + (quality * 0.25), 4)
+
+
+def attendance_frame_is_usable(processed) -> bool:
+    """Accept a detected embedding when only distance-sensitive checks failed."""
+    if processed.inference.embedding is None:
+        return False
+    if processed.quality.accepted:
+        return True
+    reasons = {
+        getattr(reason, "value", str(reason))
+        for reason in processed.quality.reasons
+    }
+    return bool(reasons) and reasons.issubset(ATTENDANCE_RECOVERABLE_QUALITY_REASONS)
 
 
 class AttendanceService:
@@ -111,7 +135,7 @@ class AttendanceService:
                 ]
             )
             for processed in processed_frames:
-                if processed.quality.accepted and processed.inference.embedding is not None:
+                if attendance_frame_is_usable(processed):
                     vectors.append(
                         (processed.inference.embedding, processed.quality.quality_score)
                     )
