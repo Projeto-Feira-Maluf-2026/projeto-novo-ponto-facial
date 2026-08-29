@@ -261,6 +261,7 @@ export function cameraAccessErrorMessage(error: unknown) {
 interface CameraCaptureProps {
   className?: string;
   analysisPaused?: boolean;
+  fitMode?: 'cover' | 'contain';
   faceOverlay?: FaceOverlayState;
   detectedFaceBox?: FaceSourceBox | null;
   onReadyChange?: (ready: boolean) => void;
@@ -272,6 +273,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
   ({
     className = '',
     analysisPaused = false,
+    fitMode = 'cover',
     faceOverlay,
     detectedFaceBox,
     onReadyChange,
@@ -537,7 +539,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         return null;
       }
 
-      const scale = Math.max(video.clientWidth / frameWidth, video.clientHeight / frameHeight);
+      const scale = fitMode === 'contain'
+        ? Math.min(video.clientWidth / frameWidth, video.clientHeight / frameHeight)
+        : Math.max(video.clientWidth / frameWidth, video.clientHeight / frameHeight);
       const renderedWidth = frameWidth * scale;
       const renderedHeight = frameHeight * scale;
       const offsetX = (video.clientWidth - renderedWidth) / 2;
@@ -552,7 +556,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         width,
         height: box.height * scale,
       };
-    }, []);
+    }, [fitMode]);
 
     useEffect(() => {
       mountedRef.current = true;
@@ -1178,7 +1182,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     };
 
     return (
-      <div className={`camera-view app-view-transition ${className}`}>
+      <div className={`camera-view app-view-transition ${className}`} data-fit={fitMode}>
         <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
         <canvas ref={canvasRef} className="hidden" />
         <canvas ref={landmarkCanvasRef} className="face-landmark-canvas" />

@@ -548,6 +548,7 @@ export function FacialTerminalPage() {
             ref={cameraRef}
             className={cameraClass}
             analysisPaused={Boolean(frozenFrame)}
+            fitMode="contain"
             faceOverlay={faceOverlay}
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
