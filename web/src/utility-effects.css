@@ -550,12 +550,62 @@ html[data-motion-mode="reduced"] .confirmation-strip[role="alertdialog"] { anima
   .activity-chart-axis { right: 4%; left: 4%; min-width: 0; }
 }
 
-/* Montagem de página: cada superfície chega de uma borda e se encaixa no layout. */
+/* Montagem de canteiro: guias técnicas aparecem enquanto as superfícies são posicionadas. */
+.route-content {
+  position: relative;
+  isolation: isolate;
+}
+
+.app-main { overflow-x: clip; }
+
+.route-content > * {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-motion-mode="full"] .app-main:not(.app-main-terminal) .route-content::before {
+  position: absolute;
+  inset: -18px 0;
+  z-index: 0;
+  border: 1px solid rgb(88 129 87 / .14);
+  background-image:
+    linear-gradient(rgb(88 129 87 / .1) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(88 129 87 / .1) 1px, transparent 1px),
+    linear-gradient(rgb(58 90 64 / .13), rgb(58 90 64 / .13)),
+    linear-gradient(90deg, rgb(58 90 64 / .13), rgb(58 90 64 / .13));
+  background-position: 0 0, 0 0, 50% 0, 0 50%;
+  background-size: 32px 32px, 32px 32px, 1px 100%, 100% 1px;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  animation: site-grid-calibrate 940ms var(--motion-smooth) both;
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent 92%);
+  mask-image: linear-gradient(to bottom, #000, transparent 92%);
+}
+
 html[data-motion-mode="full"] .page-assembly-heading {
   --assemble-x: -72px;
   --assemble-y: -38px;
   --assemble-rotate: -1.2deg;
+  --dock-x: 3px;
+  --dock-y: 2px;
   animation: page-piece-dock 520ms var(--motion-smooth) both !important;
+  transform-origin: left top;
+}
+
+html[data-motion-mode="full"] .page-assembly-heading::after {
+  position: absolute;
+  bottom: -14px;
+  left: 0;
+  display: block;
+  width: min(360px, 48vw);
+  height: 5px;
+  background:
+    linear-gradient(90deg, #588157, #588157) left top / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, rgb(58 90 64 / .55) 0 1px, transparent 1px 24px) left top / 100% 5px no-repeat;
+  content: "";
+  transform-origin: left center;
+  animation: survey-line-draw 720ms var(--motion-smooth) 120ms both;
 }
 
 html[data-motion-mode="full"] .route-content,
@@ -568,7 +618,10 @@ html[data-motion-mode="full"] .route-content > .app-view-transition > * {
   --assemble-x: -110px;
   --assemble-y: -44px;
   --assemble-rotate: -1deg;
+  --dock-x: 4px;
+  --dock-y: 2px;
   animation: page-piece-dock 560ms var(--motion-smooth) var(--assemble-delay) both !important;
+  transform-origin: left top;
   will-change: transform, opacity;
 }
 
@@ -577,6 +630,9 @@ html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child
   --assemble-x: 120px;
   --assemble-y: -32px;
   --assemble-rotate: 1deg;
+  --dock-x: -4px;
+  --dock-y: 2px;
+  transform-origin: right top;
 }
 
 html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n + 3) {
@@ -584,6 +640,9 @@ html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child
   --assemble-x: -125px;
   --assemble-y: 58px;
   --assemble-rotate: .8deg;
+  --dock-x: 4px;
+  --dock-y: -2px;
+  transform-origin: left bottom;
 }
 
 html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n) {
@@ -591,6 +650,9 @@ html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child
   --assemble-x: 130px;
   --assemble-y: 64px;
   --assemble-rotate: -1deg;
+  --dock-x: -4px;
+  --dock-y: -2px;
+  transform-origin: right bottom;
 }
 
 html[data-motion-mode="full"] .route-content :is(
@@ -610,7 +672,10 @@ html[data-motion-mode="full"] .route-content :is(
   --assemble-x: -92px;
   --assemble-y: 54px;
   --assemble-rotate: -1.4deg;
+  --dock-x: 3px;
+  --dock-y: -2px;
   animation: page-piece-dock 600ms var(--motion-smooth) var(--assemble-delay) both !important;
+  transform-origin: left bottom;
   will-change: transform, opacity;
 }
 
@@ -631,6 +696,9 @@ html[data-motion-mode="full"] .route-content :is(
   --assemble-x: 96px;
   --assemble-y: -48px;
   --assemble-rotate: 1.2deg;
+  --dock-x: -3px;
+  --dock-y: 2px;
+  transform-origin: right top;
 }
 
 html[data-motion-mode="full"] .route-content :is(
@@ -650,6 +718,9 @@ html[data-motion-mode="full"] .route-content :is(
   --assemble-x: -88px;
   --assemble-y: -58px;
   --assemble-rotate: .9deg;
+  --dock-x: 3px;
+  --dock-y: 2px;
+  transform-origin: left top;
 }
 
 html[data-motion-mode="full"] .route-content :is(
@@ -669,6 +740,9 @@ html[data-motion-mode="full"] .route-content :is(
   --assemble-x: 102px;
   --assemble-y: 60px;
   --assemble-rotate: -1deg;
+  --dock-x: -3px;
+  --dock-y: -2px;
+  transform-origin: right bottom;
 }
 
 html[data-motion-mode="full"] .route-content :is(.table-shell, .form-panel, .toolbar-panel, .configuration-panel) {
@@ -676,6 +750,8 @@ html[data-motion-mode="full"] .route-content :is(.table-shell, .form-panel, .too
   --assemble-x: 0px;
   --assemble-y: 86px;
   --assemble-rotate: 0deg;
+  --dock-x: 0px;
+  --dock-y: -3px;
   animation: page-piece-dock 580ms var(--motion-smooth) var(--assemble-delay) both !important;
   will-change: transform, opacity;
 }
@@ -688,6 +764,8 @@ html[data-motion-mode="full"] .enrollment-side-panel > * {
   --assemble-x: -58px;
   --assemble-y: -32px;
   --assemble-rotate: -.7deg;
+  --dock-x: 2px;
+  --dock-y: 2px;
   animation: page-piece-dock 460ms var(--motion-smooth) var(--assemble-delay) both !important;
 }
 
@@ -702,6 +780,8 @@ html[data-motion-mode="full"] .enrollment-side-panel > :nth-child(3n + 2) {
   --assemble-x: 62px;
   --assemble-y: -26px;
   --assemble-rotate: .7deg;
+  --dock-x: -2px;
+  --dock-y: 2px;
 }
 
 html[data-motion-mode="full"] .form-panel > :nth-child(3n),
@@ -711,6 +791,8 @@ html[data-motion-mode="full"] .enrollment-side-panel > :nth-child(3n) {
   --assemble-x: 0px;
   --assemble-y: 48px;
   --assemble-rotate: 0deg;
+  --dock-x: 0px;
+  --dock-y: -2px;
 }
 
 html[data-motion-mode="full"] .enrollment-camera-column {
@@ -719,13 +801,88 @@ html[data-motion-mode="full"] .enrollment-camera-column {
   --assemble-y: 36px;
 }
 
+html[data-motion-mode="full"] :is(
+  .metric-tile,
+  .activity-module,
+  .worksite-module,
+  .worksite-command,
+  .camera-card,
+  .table-shell,
+  .toolbar-panel,
+  .form-panel,
+  .report-filter-panel,
+  .report-format-panel,
+  .terminal-camera-card,
+  .terminal-panel
+) {
+  position: relative;
+}
+
+html[data-motion-mode="full"] :is(
+  .metric-tile,
+  .activity-module,
+  .worksite-module,
+  .worksite-command,
+  .camera-card,
+  .table-shell,
+  .toolbar-panel,
+  .form-panel,
+  .report-filter-panel,
+  .report-format-panel,
+  .terminal-camera-card,
+  .terminal-panel
+)::after {
+  position: absolute;
+  inset: 7px;
+  z-index: 8;
+  background:
+    linear-gradient(#588157, #588157) left top / 18px 1px no-repeat,
+    linear-gradient(#588157, #588157) left top / 1px 18px no-repeat,
+    linear-gradient(#588157, #588157) right top / 18px 1px no-repeat,
+    linear-gradient(#588157, #588157) right top / 1px 18px no-repeat,
+    linear-gradient(#588157, #588157) left bottom / 18px 1px no-repeat,
+    linear-gradient(#588157, #588157) left bottom / 1px 18px no-repeat,
+    linear-gradient(#588157, #588157) right bottom / 18px 1px no-repeat,
+    linear-gradient(#588157, #588157) right bottom / 1px 18px no-repeat;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  animation: dock-calibration 420ms ease-out 430ms both;
+}
+
 @keyframes page-piece-dock {
   0% {
     opacity: 0;
-    transform: translate3d(var(--assemble-x), var(--assemble-y), 0) rotate(var(--assemble-rotate)) scale(.965);
+    transform: translate3d(var(--assemble-x), var(--assemble-y), 0) rotate(var(--assemble-rotate)) scale(.955);
   }
-  72% { opacity: 1; }
+  56% { opacity: 1; }
+  72% {
+    opacity: 1;
+    transform: translate3d(var(--dock-x, 2px), var(--dock-y, 1px), 0) rotate(0) scale(1.008);
+  }
+  86% {
+    transform: translate3d(0, 0, 0) rotate(0) scale(.998);
+  }
   100% { opacity: 1; transform: translate3d(0, 0, 0) rotate(0) scale(1); }
+}
+
+@keyframes site-grid-calibrate {
+  0% { opacity: 0; transform: scale(.985); }
+  16% { opacity: .72; }
+  68% { opacity: .34; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.008); }
+}
+
+@keyframes dock-calibration {
+  0%, 28% { opacity: 0; transform: scale(1.018); }
+  52% { opacity: .72; }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+@keyframes survey-line-draw {
+  0% { opacity: 0; transform: scaleX(.08); }
+  45% { opacity: .78; }
+  100% { opacity: .34; transform: scaleX(1); }
 }
 
 html[data-motion-mode="reduced"] .page-assembly-heading,

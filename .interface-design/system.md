@@ -30,6 +30,7 @@
 - Obras: Three.js continua como única cena WebGL principal, com marcador do acesso e onda de atividade.
 - Elementos de RA/RV são linguagem espacial na tela (malha, feixe, profundidade e localização), não promessa de suporte a headset.
 - A troca de páginas é imediata e monta a própria interface: cabeçalho, superfícies, cards e painéis chegam alternadamente dos quatro cantos e se encaixam em cascata. Não usar tela intermediária cobrindo a navegação.
+- A assinatura dessa montagem é de canteiro, não de dashboard genérico: malha de implantação transitória, pequeno encaixe magnético no destino, linha de levantamento sob o título e cantos de aferição que piscam somente ao concluir o posicionamento.
 - Selos de vidro aparecem somente após confirmação real do backend.
 
 ## Acessibilidade e desempenho
