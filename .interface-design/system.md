@@ -39,3 +39,11 @@
 - Foco de teclado sempre visível; alvos mínimos de 44 px em ações principais.
 - Efeitos decorativos usam `aria-hidden` e `pointer-events: none`.
 - Nunca comprometer captura, detecção facial ou registro para manter animações.
+
+## Terminal de ponto
+
+- A câmera é a superfície principal e ocupa praticamente toda a altura útil; não dividir o terminal com uma coluna lateral de cards.
+- Manter somente uma barra superior compacta para obra, pausa e tela cheia, mais uma faixa inferior única para estado, horário e último registro.
+- Etapas de fluxo, diagnósticos repetidos, textos explicativos e histórico completo pertencem a outras telas, não ao terminal operacional.
+- Sobre o vídeo, exibir apenas enquadramento facial, estado curto da câmera, seletor quando houver mais de um dispositivo e ação de reinício.
+- Não usar tilt, totem 3D, scan line ou ornamento permanente sobre a webcam; a prioridade visual e de GPU é a captura.
