@@ -130,7 +130,7 @@ function DashboardContent({
           <h2 id="operations-heading">Hoje, em campo.</h2>
           <p>Uma leitura objetiva de pessoas, obras e pontos registrados nos últimos vinte segundos.</p>
           <div className="dashboard-hero-actions">
-            <Link to="/terminal-facial" viewTransition className="btn btn-on-dark">
+            <Link to="/terminal-facial" className="btn btn-on-dark">
               Abrir ponto automático <ArrowUpRight size={17} />
             </Link>
           </div>
@@ -180,22 +180,14 @@ function DashboardContent({
           </header>
           {metrics.timeline.length ? (
             <>
-              <div className="timeline-chart" role="img" aria-label="Gráfico de registros por horário">
-                {metrics.timeline.map((item, index) => (
-                  <div key={item.hour} className="timeline-column">
-                    <span className="timeline-value">{item.records}</span>
-                    <div className="timeline-track"><span className="timeline-bar" style={{ height: `${Math.max(7, (item.records / peak) * 100)}%`, animationDelay: `${index * 35}ms` }} /></div>
-                    <span className="timeline-label">{item.hour.slice(0, 5)}</span>
-                  </div>
-                ))}
-              </div>
+              <ActivityTimeline timeline={metrics.timeline} peak={peak} />
               <table className="sr-only"><caption>Registros por horário</caption><thead><tr><th>Horário</th><th>Registros</th></tr></thead><tbody>{metrics.timeline.map((item) => <tr key={item.hour}><td>{item.hour}</td><td>{item.records}</td></tr>)}</tbody></table>
             </>
           ) : <div className="chart-empty">O primeiro registro do dia aparecerá aqui.</div>}
         </article>
 
         <article className="worksite-module" aria-labelledby="worksite-movement-title">
-          <header className="module-heading"><div><span>Distribuição</span><h2 id="worksite-movement-title">Movimento por obra</h2><p>Onde a atividade está concentrada.</p></div><Link to="/obras" viewTransition aria-label="Ver obras"><ArrowUpRight size={18} /></Link></header>
+          <header className="module-heading"><div><span>Distribuição</span><h2 id="worksite-movement-title">Movimento por obra</h2><p>Onde a atividade está concentrada.</p></div><Link to="/obras" aria-label="Ver obras"><ArrowUpRight size={18} /></Link></header>
           <div className="worksite-ranking">
             {metrics.by_worksite.length ? metrics.by_worksite.map((site, index) => (
               <div className="worksite-ranking-row" key={site.name}>
@@ -206,6 +198,79 @@ function DashboardContent({
           </div>
         </article>
       </section>
+    </div>
+  );
+}
+
+function ActivityTimeline({
+  timeline,
+  peak,
+}: {
+  timeline: DashboardMetrics['timeline'];
+  peak: number;
+}) {
+  const width = 760;
+  const height = 250;
+  const baseline = 198;
+  const chartTop = 38;
+  const side = 28;
+  const span = width - side * 2;
+  const points = timeline.map((item, index) => ({
+    ...item,
+    x: side + (timeline.length === 1 ? span / 2 : (index / (timeline.length - 1)) * span),
+    y: baseline - (item.records / peak) * (baseline - chartTop),
+  }));
+  const first = points[0];
+  const last = points[points.length - 1];
+  const linePath = points.length === 1
+    ? `M ${first.x - 1} ${first.y} L ${first.x + 1} ${first.y}`
+    : points.slice(1).reduce((path, point, index) => {
+        const previous = points[index];
+        const middleX = (previous.x + point.x) / 2;
+        const middleY = (previous.y + point.y) / 2;
+        return `${path} Q ${previous.x} ${previous.y} ${middleX} ${middleY}`;
+      }, `M ${first.x} ${first.y}`) + ` T ${last.x} ${last.y}`;
+  const areaPath = `${linePath} L ${last.x} ${baseline} L ${first.x} ${baseline} Z`;
+  const peakItem = timeline.reduce((current, item) => item.records > current.records ? item : current);
+  const total = timeline.reduce((sum, item) => sum + item.records, 0);
+  const labelStep = Math.max(1, Math.ceil(timeline.length / 6));
+
+  return (
+    <div className="activity-chart">
+      <div className="activity-chart-summary">
+        <span><small>Total no período</small><strong>{total}</strong></span>
+        <span><small>Maior movimento</small><strong>{peakItem.hour.slice(0, 5)} <i>{peakItem.records} registros</i></strong></span>
+      </div>
+      <div className="activity-chart-plot">
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Curva de registros por horário" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="activity-area-gradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="currentColor" stopOpacity=".28" />
+              <stop offset="100%" stopColor="currentColor" stopOpacity=".015" />
+            </linearGradient>
+          </defs>
+          {[0, 1, 2, 3].map((line) => {
+            const y = chartTop + (line / 3) * (baseline - chartTop);
+            return <line key={line} className="activity-grid-line" x1={side} x2={width - side} y1={y} y2={y} />;
+          })}
+          <path className="activity-area" d={areaPath} />
+          <path className="activity-line" d={linePath} pathLength="1" />
+          {points.map((point) => (
+            <g key={point.hour} className="activity-point" transform={`translate(${point.x} ${point.y})`}>
+              <title>{point.hour.slice(0, 5)} — {point.records} registros</title>
+              <circle className="activity-point-halo" r="10" />
+              <circle className="activity-point-core" r="4" />
+            </g>
+          ))}
+        </svg>
+        <div className="activity-chart-axis" aria-hidden="true">
+          {timeline.map((item, index) => (
+            (index % labelStep === 0 || index === timeline.length - 1)
+              ? <span key={item.hour} style={{ left: `${timeline.length === 1 ? 50 : (index / (timeline.length - 1)) * 100}%` }}>{item.hour.slice(0, 5)}</span>
+              : null
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

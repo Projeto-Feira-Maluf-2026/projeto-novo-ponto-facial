@@ -156,7 +156,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
     mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (previousPathRef.current === location.pathname) return undefined;
     previousPathRef.current = location.pathname;
     setSpatialRouteActive(true);
@@ -243,7 +243,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
 
       <aside ref={sidebarRef} className="app-sidebar" data-open={mobileMenuOpen} aria-hidden={!mobileMenuOpen}>
         <div className="sidebar-brand-row">
-          <NavLink to="/" viewTransition className="brand-lockup">
+          <NavLink to="/" className="brand-lockup">
             <BrandMark />
             <span>
               <strong>Curitiba Empreiteira</strong>
@@ -270,7 +270,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
               <NavLink
                 key={item.to}
                 to={item.to}
-                viewTransition
                 className="sidebar-link"
                 data-active={active}
                 aria-current={active ? 'page' : undefined}
@@ -317,7 +316,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
           <div className="topbar-brand-mobile">
             <BrandMark />
           </div>
-          <NavLink to="/" viewTransition className="topbar-brand-desktop" aria-label="Ir para a visão geral">
+          <NavLink to="/" className="topbar-brand-desktop" aria-label="Ir para a visão geral">
             <BrandMark />
             <span>
               <strong>Curitiba Empreiteira</strong>
@@ -336,7 +335,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  viewTransition
                   data-active={active}
                   aria-current={active ? 'page' : undefined}
                 >
@@ -393,7 +391,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             <NavLink
               key={item.to}
               to={item.to}
-              viewTransition
               data-active={active}
               aria-current={active ? 'page' : undefined}
             >

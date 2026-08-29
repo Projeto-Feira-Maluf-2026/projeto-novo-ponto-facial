@@ -20,6 +20,7 @@
 - Spring oficial: `cubic-bezier(.34, 1.56, .64, 1)`.
 - Animar somente `transform` e `opacity` sempre que possível. Nunca usar `transition: all`.
 - Todo movimento deve explicar: foco, mudança de estado, detecção, confirmação ou fluxo de dados.
+- Modais entram com fade de fundo em 180 ms e superfície em 260 ms, deslocando no máximo 8 px.
 - Respeitar `prefers-reduced-motion`, touch, economia de dados e hardware limitado.
 
 ## 3D utilitário
