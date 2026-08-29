@@ -22,6 +22,7 @@ import {
 import { DataTable } from '../components/DataTable';
 import { apiClient } from '../services/api';
 import type { DashboardMetrics, Device, Worksite } from '../types/domain';
+import { readAttendancePulse, subscribeAttendancePulse } from '../utils/attendancePulse';
 
 const WorksiteWorld3D = lazy(() => import('../components/WorksiteWorld3D')
   .then((module) => ({ default: module.WorksiteWorld3D })));
@@ -33,7 +34,7 @@ const initialForm = {
   manager_name: '',
 };
 
-function VisibleDigitalTwin({ worksite }: { worksite: Worksite }) {
+function VisibleDigitalTwin({ worksite, activityPulse }: { worksite: Worksite; activityPulse: number }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
 
@@ -58,7 +59,7 @@ function VisibleDigitalTwin({ worksite }: { worksite: Worksite }) {
     <div ref={rootRef} className="digital-twin-stage">
       {visible ? (
         <Suspense fallback={<div className="digital-twin-loading"><span /> Carregando gêmeo digital</div>}>
-          <WorksiteWorld3D worksite={worksite} />
+          <WorksiteWorld3D worksite={worksite} activityPulse={activityPulse} />
         </Suspense>
       ) : <div className="digital-twin-loading"><span /> Preparando visualização</div>}
     </div>
@@ -75,6 +76,7 @@ export function WorksitesPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [selectedWorksiteId, setSelectedWorksiteId] = useState('');
+  const [attendancePulse, setAttendancePulse] = useState(0);
 
   const selectedWorksite = worksites.find((item) => item.id === selectedWorksiteId) ?? worksites[0] ?? null;
   const selectedDevices = selectedWorksite
@@ -109,6 +111,28 @@ export function WorksitesPage() {
   }, []);
 
   useEffect(() => { void loadWorksites(); }, [loadWorksites]);
+
+  useEffect(() => {
+    let active = true;
+    const refreshMetrics = async () => {
+      if (document.hidden) return;
+      const dashboard = await apiClient.dashboard().catch(() => null);
+      if (active && dashboard) setMetrics(dashboard);
+    };
+    const timer = window.setInterval(() => void refreshMetrics(), 20_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const applyPulse = (pulse: ReturnType<typeof readAttendancePulse>) => {
+      if (pulse?.worksiteId === selectedWorksiteId) setAttendancePulse(pulse.at);
+    };
+    applyPulse(readAttendancePulse());
+    return subscribeAttendancePulse(applyPulse);
+  }, [selectedWorksiteId]);
 
   const setField = (field: keyof typeof initialForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -234,7 +258,11 @@ export function WorksitesPage() {
               role="tabpanel"
               aria-labelledby={`worksite-tab-${selectedWorksite.id}`}
             >
-              <VisibleDigitalTwin key={selectedWorksite.id} worksite={selectedWorksite} />
+              <VisibleDigitalTwin
+                key={selectedWorksite.id}
+                worksite={selectedWorksite}
+                activityPulse={selectedMovement + attendancePulse}
+              />
               <div className="worksite-intelligence">
                 <div className="worksite-intelligence-heading">
                   <div><span>{selectedWorksite.code}</span><h3>{selectedWorksite.name}</h3><p><MapPin size={14} /> {selectedWorksite.address}</p></div>

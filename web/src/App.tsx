@@ -5,6 +5,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { userHasRole, type AppRole } from './auth/permissions';
 import { Layout } from './components/Layout';
+import { BrandMark } from './components/BrandMark';
+import { useUtilityEffects } from './effects/useUtilityEffects';
 const AuditPage = lazy(() => import('./pages/AuditPage').then((module) => ({ default: module.AuditPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const DevicesPage = lazy(() => import('./pages/DevicesPage').then((module) => ({ default: module.DevicesPage })));
@@ -30,6 +32,7 @@ function RouteLoading() {
 }
 
 export default function App() {
+  useUtilityEffects();
   const { loading, session, signOut, user } = useAuth();
   const privilegedRoles: AppRole[] = ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'];
   const initialPath = userHasRole(user, privilegedRoles) ? '/' : '/terminal-facial';
@@ -90,7 +93,7 @@ export default function App() {
     return (
       <main className="login-page" aria-label="Carregando sessão">
         <section className="auth-loading-card" role="status" aria-live="polite">
-          <div className="auth-loading-mark">CE</div>
+          <BrandMark className="auth-loading-mark" title="Curitiba Empreiteira" />
           <div className="auth-loading-spinner" aria-hidden="true" />
           <h1>Preparando seu acesso</h1>
           <p>Validando a sessão.</p>

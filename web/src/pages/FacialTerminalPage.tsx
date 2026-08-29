@@ -22,6 +22,7 @@ import {
   type FaceOverlayState,
   type FaceSourceBox,
 } from '../components/CameraCapture';
+import { GlassCheckmark3D, TerminalTotem3D } from '../components/SpatialEffects';
 import { apiClient } from '../services/api';
 import type {
   AttendanceDecision,
@@ -31,6 +32,7 @@ import type {
   Worksite,
 } from '../types/domain';
 import { parseApiDate } from '../utils/dateTime';
+import { publishAttendancePulse } from '../utils/attendancePulse';
 
 type TerminalMode =
   | 'starting'
@@ -278,6 +280,7 @@ export function FacialTerminalPage() {
       if (successfulRecognition) setRecognition(successfulRecognition);
 
       if (completed > 0) {
+        publishAttendancePulse(worksiteId, completed);
         const allCompleted = completed === validCandidates.length;
         if (allCompleted) awaitingFaceExitRef.current = true;
         resultHoldUntilRef.current = Date.now() + (
@@ -532,7 +535,7 @@ export function FacialTerminalPage() {
           );
         })}
       </section>
-      <section className="terminal-camera-card" data-mode={mode}>
+      <section className="terminal-camera-card" data-mode={mode} data-tilt data-tilt-strength="1.2">
         <div className="terminal-toolbar">
           <div className="terminal-toolbar-identity">
             <div>
@@ -582,7 +585,7 @@ export function FacialTerminalPage() {
           </div>
         </div>
 
-        <div className="terminal-camera-frame" data-mode={mode}>
+        <div className="terminal-camera-frame" data-mode={mode} data-lens-track>
           <CameraCapture
             ref={cameraRef}
             className={cameraClass}
@@ -591,6 +594,10 @@ export function FacialTerminalPage() {
             onReadyChange={setCameraReady}
             onFacePresenceChange={handleLocalFacePresence}
             onFaceCountChange={handleLocalFaceCount}
+          />
+          <TerminalTotem3D
+            active={mode === 'scanning' || mode === 'confirming' || mode === 'submitting'}
+            faceCount={localFaceCount}
           />
         </div>
 
@@ -632,6 +639,7 @@ export function FacialTerminalPage() {
         </section>
         <section className="terminal-panel">
           <div className="terminal-result" data-tone={resultPresentation.tone} data-mode={mode} aria-live="polite">
+            {mode === 'accepted' && <GlassCheckmark3D />}
             <div className="terminal-result-icon">
               <ResultIcon size={25} strokeWidth={1.8} />
             </div>

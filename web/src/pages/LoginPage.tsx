@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useLoginMotion } from '../animations/useMotion';
 import { useAuth } from '../auth/AuthContext';
+import { BrandMark } from '../components/BrandMark';
 
 export function LoginPage() {
   const loginRef = useRef<HTMLElement>(null);
@@ -81,7 +82,7 @@ export function LoginPage() {
             </svg>
           </div>
           <div className="login-brand">
-            <div className="login-brand-mark">CE</div>
+            <BrandMark className="login-brand-mark" />
             <div>
               <strong>Curitiba Empreiteira</strong>
             </div>
@@ -94,7 +95,7 @@ export function LoginPage() {
 
         <section className="login-access">
           <div className="login-mobile-brand">
-            <div className="login-brand-mark">CE</div>
+            <BrandMark className="login-brand-mark" />
             <strong>Curitiba Empreiteira</strong>
           </div>
 

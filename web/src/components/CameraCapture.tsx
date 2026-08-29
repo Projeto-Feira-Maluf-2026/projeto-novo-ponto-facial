@@ -1172,6 +1172,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             key={`face-${index}`}
             className="face-outline face-track-overlay"
             data-tone={overlayTone}
+            data-face-index={index + 1}
             style={{
               left: `${faceOutline.left}px`,
               top: `${faceOutline.top}px`,

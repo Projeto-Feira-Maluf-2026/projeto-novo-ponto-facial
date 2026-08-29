@@ -17,15 +17,18 @@ import {
   Material,
   MathUtils,
   Mesh,
+  MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
   PCFSoftShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
+  RingGeometry,
   Raycaster,
   Scene,
   SRGBColorSpace,
+  SphereGeometry,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -36,10 +39,13 @@ import type { Worksite } from '../types/domain';
 
 interface WorksiteWorld3DProps {
   worksite: Worksite;
+  activityPulse?: number;
 }
 interface WorldBuild {
   root: Group;
   interactables: Object3D[];
+  gateBeacon: Group;
+  pulseRing: Mesh<RingGeometry, MeshBasicMaterial>;
 }
 
 const palettes = [
@@ -305,13 +311,44 @@ function buildWorld(worksite: Worksite): WorldBuild {
     root.add(tree);
   }
 
-  return { root, interactables };
+  const gateBeacon = new Group();
+  gateBeacon.position.set(-10.6, 0.04, 11.6);
+  const beaconGlass = new MeshPhysicalMaterial({
+    color: 0x76d49a,
+    emissive: 0x2d7a4c,
+    emissiveIntensity: 0.75,
+    roughness: 0.12,
+    metalness: 0.06,
+    transparent: true,
+    opacity: 0.88,
+  });
+  const beaconStem = new Mesh(new CylinderGeometry(0.055, 0.09, 1.25, 16), beaconGlass);
+  beaconStem.position.y = 0.72;
+  const beaconHead = new Mesh(new SphereGeometry(0.2, 20, 14), beaconGlass);
+  beaconHead.position.y = 1.42;
+  gateBeacon.add(beaconStem, beaconHead);
+  root.add(gateBeacon);
+
+  const pulseMaterial = new MeshBasicMaterial({
+    color: 0x6fe39d,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const pulseRing = new Mesh(new RingGeometry(0.42, 0.55, 40), pulseMaterial);
+  pulseRing.rotation.x = -Math.PI / 2;
+  pulseRing.position.set(gateBeacon.position.x, 0.075, gateBeacon.position.z);
+  pulseRing.visible = false;
+  root.add(pulseRing);
+
+  return { root, interactables, gateBeacon, pulseRing };
 }
 
-export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
+export function WorksiteWorld3D({ worksite, activityPulse = 0 }: WorksiteWorld3DProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const resetRef = useRef<() => void>(() => undefined);
+  const pulseRef = useRef<() => void>(() => undefined);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
@@ -491,6 +528,7 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
     let running = true;
     let interacting = false;
     let settleFrames = 0;
+    let pulseStartedAt = 0;
     const startedAt = performance.now();
     const animate = (time: number) => {
       if (!running || !visible || document.hidden) {
@@ -522,16 +560,35 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       if (ambientMotion && entranceComplete && !interacting && !cameraTransition) {
         world.root.rotation.y = Math.sin(elapsed * 0.00012) * 0.012;
       }
+      if (pulseStartedAt > 0) {
+        const progress = Math.min(1, (time - pulseStartedAt) / 1_150);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        world.pulseRing.visible = progress < 1;
+        world.pulseRing.scale.setScalar(1 + eased * 5.5);
+        world.pulseRing.material.opacity = (1 - progress) * 0.62;
+        world.gateBeacon.position.y = 0.04 + Math.sin(progress * Math.PI) * 0.28;
+        if (progress >= 1) {
+          pulseStartedAt = 0;
+          world.pulseRing.visible = false;
+          world.gateBeacon.position.y = 0.04;
+        }
+      }
       controls.update();
       renderer.render(scene, camera);
       if (settleFrames > 0) settleFrames -= 1;
-      if (ambientMotion || !entranceComplete || cameraTransition || interacting || settleFrames > 0) {
+      if (ambientMotion || !entranceComplete || cameraTransition || interacting || settleFrames > 0 || pulseStartedAt > 0) {
         animationFrame = window.requestAnimationFrame(animate);
       }
       else animationFrame = 0;
     };
     const startAnimation = () => {
       if (!animationFrame && running && visible && !document.hidden) animationFrame = window.requestAnimationFrame(animate);
+    };
+    pulseRef.current = () => {
+      if (reduceMotion) return;
+      pulseStartedAt = performance.now();
+      world.pulseRing.visible = true;
+      startAnimation();
     };
     const onControlStart = () => {
       if (!entranceComplete) finishWorldEntrance();
@@ -576,6 +633,7 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
 
     return () => {
       running = false;
+      pulseRef.current = () => undefined;
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       canvas.removeEventListener('pointermove', onPointerMove);
@@ -600,6 +658,10 @@ export function WorksiteWorld3D({ worksite }: WorksiteWorld3DProps) {
       resetRef.current = () => undefined;
     };
   }, [worksite]);
+
+  useEffect(() => {
+    if (activityPulse > 0) pulseRef.current();
+  }, [activityPulse]);
 
   useEffect(() => {
     const onFullscreenChange = () => setFullscreen(document.fullscreenElement === frameRef.current);

@@ -1,0 +1,511 @@
+:root {
+  --motion-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --motion-smooth: cubic-bezier(.22, 1, .36, 1);
+  --utility-glass: rgb(250 251 248 / .78);
+  --utility-glass-line: rgb(255 255 255 / .62);
+  --utility-halo: rgb(88 129 87 / .22);
+}
+
+.dark {
+  --utility-glass: rgb(18 25 20 / .78);
+  --utility-glass-line: rgb(255 255 255 / .1);
+  --utility-halo: rgb(163 177 138 / .18);
+}
+
+/* Identidade vetorial: o mesmo símbolo permanece nítido no cabeçalho, login e favicon. */
+.brand-mark,
+.login-brand-mark,
+.auth-loading-mark {
+  display: block;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #3a5a40;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.topbar-brand-desktop .brand-mark,
+.brand-lockup .brand-mark,
+.topbar-brand-mobile .brand-mark {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #3a5a40;
+  box-shadow: none;
+}
+
+.brand-mark { width: 38px; height: 38px; }
+.login-brand-mark { width: 44px; height: 44px; }
+.auth-loading-mark { width: 48px; height: 48px; }
+.dark .brand-mark,
+.dark .login-brand-mark,
+.dark .auth-loading-mark { color: #344e41; }
+
+/* Vidro somente em superfícies elevadas ou fixas. */
+.app-topbar,
+.mobile-nav,
+.modal-backdrop > section,
+.enrollment-dialog,
+.terminal-panel {
+  border-color: var(--utility-glass-line);
+  background-color: var(--utility-glass);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  backdrop-filter: blur(12px) saturate(1.08);
+}
+
+.app-topbar {
+  box-shadow: 0 1px 0 rgb(52 78 65 / .09), 0 12px 30px rgb(31 48 38 / .06);
+}
+
+/* Navegação tátil: mudança curta, elástica e sem deslocar o layout. */
+.desktop-primary-nav a,
+.sidebar-link,
+.mobile-nav a,
+.mobile-nav button {
+  transition:
+    transform 210ms var(--motion-spring),
+    color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 180ms ease;
+}
+
+.desktop-primary-nav a:hover,
+.sidebar-link:hover,
+.mobile-nav a:hover,
+.mobile-nav button:hover { transform: translateY(-1px); }
+
+.desktop-primary-nav a[data-active="true"] {
+  box-shadow: inset 0 0 0 1px rgb(163 177 138 / .26), 0 5px 18px rgb(17 48 29 / .16);
+}
+
+.sidebar-active-indicator,
+.mobile-active-indicator {
+  transition:
+    transform 300ms var(--motion-spring),
+    width 300ms var(--motion-spring),
+    height 300ms var(--motion-spring);
+}
+
+/* Halo é um feedback de foco, não uma luz permanente. */
+.btn-primary,
+.btn-on-dark,
+.icon-button,
+.topbar-icon,
+.input-field,
+.login-input {
+  transition:
+    transform 180ms var(--motion-spring),
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 180ms ease,
+    color 150ms ease;
+}
+
+.btn-primary:hover,
+.btn-on-dark:hover,
+.icon-button:hover,
+.topbar-icon:hover {
+  box-shadow: 0 0 0 1px rgb(163 177 138 / .42), 0 8px 24px var(--utility-halo);
+}
+
+.input-field:hover,
+.login-input:hover { border-color: rgb(88 129 87 / .48); }
+.input-field:focus,
+.input-field:focus-visible,
+.login-input:focus-within {
+  border-color: #588157;
+  box-shadow: 0 0 0 3px rgb(88 129 87 / .16), 0 8px 24px rgb(58 90 64 / .08);
+  outline: none;
+}
+
+/* Inclinação progressiva. Em hardware limitado, a superfície permanece estática. */
+html[data-spatial-effects="full"] [data-tilt] {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --halo-x: 50%;
+  --halo-y: 50%;
+  transform: perspective(1100px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateZ(0);
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 240ms var(--motion-spring), box-shadow 180ms ease;
+}
+
+html[data-spatial-effects="full"] .metric-tile[data-tilt]:hover {
+  box-shadow: 0 16px 36px rgb(37 56 45 / .12), 0 0 0 1px rgb(88 129 87 / .15);
+}
+
+html[data-spatial-effects="full"] .terminal-camera-card[data-mode="scanning"],
+html[data-spatial-effects="full"] .terminal-camera-card[data-mode="confirming"],
+html[data-spatial-effects="full"] .terminal-camera-card[data-mode="submitting"],
+html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
+  --tilt-x: 0deg !important;
+  --tilt-y: 0deg !important;
+}
+
+/* Skeleton mantém a geometria final e move apenas o brilho. */
+.skeleton,
+.ui-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after,
+.ui-skeleton::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / .48) 46%, transparent 62%);
+  transform: translateX(-105%);
+  animation: utility-shimmer 1.25s linear infinite;
+}
+
+@keyframes utility-shimmer { to { transform: translateX(105%); } }
+
+/* Confirmação local para cada face: não interfere na captura nem no canvas. */
+.face-track-overlay {
+  transition:
+    left 70ms linear,
+    top 70ms linear,
+    width 70ms linear,
+    height 70ms linear,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.face-track-overlay::after {
+  position: absolute;
+  inset: 50%;
+  z-index: -1;
+  border: 2px solid rgb(144 238 176 / .86);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  animation: face-spatial-ping 780ms var(--motion-smooth) both;
+}
+
+.face-track-overlay[data-tone="success"] {
+  color: #70e29a;
+  filter: drop-shadow(0 0 7px rgb(112 226 154 / .34));
+}
+
+@keyframes face-spatial-ping {
+  from { inset: 48%; opacity: .9; }
+  to { inset: -16%; opacity: 0; }
+}
+
+/* Camada espacial do terminal: CSS 3D mantém a GPU livre para a webcam e MediaPipe. */
+.terminal-camera-frame { isolation: isolate; perspective: 900px; }
+.terminal-spatial-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  opacity: .24;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.terminal-spatial-layer[data-active="true"] { opacity: .48; }
+.terminal-spatial-layer[data-faces="true"] { opacity: .16; }
+.terminal-depth-grid {
+  position: absolute;
+  inset: 58% -15% -36%;
+  background-image:
+    linear-gradient(rgb(143 210 163 / .18) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(143 210 163 / .18) 1px, transparent 1px);
+  background-size: 36px 28px;
+  transform: rotateX(64deg) translateZ(-20px);
+  transform-origin: center top;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 28%);
+  mask-image: linear-gradient(to bottom, transparent, #000 28%);
+}
+.terminal-scan-volume {
+  position: absolute;
+  left: 50%;
+  bottom: 10%;
+  width: 42%;
+  height: 54%;
+  background: linear-gradient(to top, rgb(112 226 154 / .24), transparent 82%);
+  clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%);
+  opacity: 0;
+  transform: translateX(-50%);
+}
+.terminal-spatial-layer[data-active="true"] .terminal-scan-volume {
+  opacity: 1;
+  animation: scan-volume-breathe 1.4s ease-in-out infinite alternate;
+}
+.terminal-totem-3d {
+  position: absolute;
+  right: 4%;
+  bottom: 7%;
+  width: 54px;
+  height: 112px;
+  transform: rotateY(calc(var(--pointer-x, 0) * 7deg)) rotateX(calc(var(--pointer-y, 0) * -4deg));
+  transform-style: preserve-3d;
+  transition: transform 160ms ease-out;
+}
+.terminal-totem-head,
+.terminal-totem-body,
+.terminal-totem-base,
+.terminal-totem-neck { position: absolute; display: block; left: 50%; transform: translateX(-50%); }
+.terminal-totem-head {
+  top: 0;
+  width: 48px;
+  height: 32px;
+  border: 1px solid rgb(178 229 194 / .48);
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgb(210 239 219 / .28), rgb(38 83 53 / .5));
+  box-shadow: inset -7px -7px 14px rgb(6 31 16 / .28), 0 7px 18px rgb(4 18 9 / .2);
+  transform: translateX(-50%) translateZ(12px);
+}
+.terminal-totem-head i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #a3b18a;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #dff7e6 0 8%, #477053 22%, #0c2113 65%);
+  box-shadow: 0 0 13px rgb(112 226 154 / .46);
+  transform: translate(calc(-50% + var(--pointer-x, 0) * 3px), calc(-50% + var(--pointer-y, 0) * 2px));
+  transition: transform 120ms ease-out;
+}
+.terminal-totem-neck { top: 32px; width: 9px; height: 12px; background: #6d8574; }
+.terminal-totem-body {
+  top: 42px;
+  width: 36px;
+  height: 55px;
+  border: 1px solid rgb(184 225 197 / .3);
+  border-radius: 8px 8px 5px 5px;
+  background: linear-gradient(90deg, rgb(30 66 42 / .72), rgb(95 135 107 / .5), rgb(20 51 30 / .72));
+}
+.terminal-totem-body i { display: block; width: 15px; height: 2px; margin: 10px auto -5px; border-radius: 2px; background: rgb(184 225 197 / .5); }
+.terminal-totem-base { bottom: 0; width: 52px; height: 7px; border-radius: 50%; background: rgb(101 140 113 / .62); box-shadow: 0 4px 16px rgb(0 0 0 / .26); }
+@keyframes scan-volume-breathe { to { opacity: .45; transform: translateX(-50%) scaleX(1.08); } }
+
+/* Selo de vidro aparece somente quando o backend confirmou o registro. */
+.terminal-result { position: relative; }
+.glass-checkmark-3d {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgb(208 255 222 / .48);
+  border-radius: 13px;
+  background: linear-gradient(145deg, rgb(180 242 198 / .38), rgb(43 115 67 / .28));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .5), 0 10px 24px rgb(35 97 56 / .18);
+  transform: perspective(260px) rotateY(15deg);
+  animation: glass-check-enter 420ms var(--motion-spring) both;
+}
+.glass-checkmark-3d i {
+  width: 18px;
+  height: 10px;
+  border-bottom: 3px solid #3a7650;
+  border-left: 3px solid #3a7650;
+  transform: translateY(-2px) rotate(-45deg);
+}
+@keyframes glass-check-enter {
+  from { opacity: 0; transform: perspective(260px) rotateY(42deg) scale(.55) translateY(8px); }
+  to { opacity: 1; transform: perspective(260px) rotateY(15deg) scale(1) translateY(0); }
+}
+
+/* Indicadores tridimensionais permanecem discretos e atrás do conteúdo. */
+.dashboard-hero { isolation: isolate; }
+.dashboard-hero-copy,
+.dashboard-presence-orbit,
+.dashboard-hero-status { position: relative; z-index: 1; }
+.data-flow-cubes { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.data-flow-cubes > span {
+  --cube-size: calc(13px + var(--cube-index) * 4px);
+  position: absolute;
+  left: calc(40% + var(--cube-index) * 16%);
+  top: calc(18% + var(--cube-index) * 22%);
+  width: var(--cube-size);
+  height: var(--cube-size);
+  border: 1px solid rgb(196 221 202 / .24);
+  border-radius: 4px;
+  background: rgb(163 177 138 / .08);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .18);
+  transform: rotate(30deg) skew(-6deg);
+  animation: data-cube-float calc(5.2s + var(--cube-index) * .8s) ease-in-out infinite alternate;
+}
+.data-flow-cubes > span i { display: none; }
+@keyframes data-cube-float { to { transform: translateY(-13px) rotate(42deg) skew(-6deg); opacity: .46; } }
+
+/* Passagem espacial entre rotas: orientação AR/RV curta, sem bloquear interação. */
+.route-spatial-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  overflow: hidden;
+  background: rgb(16 35 23 / .08);
+  pointer-events: none;
+  perspective: 900px;
+  animation: route-spatial-shell 680ms var(--motion-smooth) both;
+}
+
+.route-spatial-viewport {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.route-spatial-plane {
+  position: absolute;
+  top: -15%;
+  bottom: -15%;
+  width: 44%;
+  border: 1px solid rgb(178 226 192 / .34);
+  background: linear-gradient(115deg, rgb(58 90 64 / .2), rgb(218 215 205 / .05));
+  box-shadow: inset 0 0 70px rgb(163 177 138 / .08);
+  transform-style: preserve-3d;
+}
+
+.route-spatial-plane-near {
+  left: -9%;
+  transform-origin: left center;
+  animation: route-plane-near 680ms var(--motion-smooth) both;
+}
+
+.route-spatial-plane-far {
+  right: -11%;
+  transform-origin: right center;
+  animation: route-plane-far 680ms var(--motion-smooth) both;
+}
+
+.route-spatial-grid {
+  position: absolute;
+  inset: 44% -12% -38%;
+  background-image:
+    linear-gradient(rgb(114 170 129 / .22) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(114 170 129 / .22) 1px, transparent 1px);
+  background-size: 42px 32px;
+  transform: rotateX(68deg) translateZ(-80px);
+  transform-origin: center top;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, transparent 88%);
+  mask-image: linear-gradient(to bottom, transparent, #000 25%, transparent 88%);
+  animation: route-grid-depth 680ms var(--motion-smooth) both;
+}
+
+.route-spatial-scan {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: #9ee7b5;
+  box-shadow: 0 0 18px 4px rgb(112 226 154 / .35), 0 0 80px 22px rgb(88 129 87 / .12);
+  animation: route-scan-pass 620ms ease-in-out both;
+}
+
+.route-spatial-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 112px;
+  height: 112px;
+  border: 1px solid rgb(158 231 181 / .5);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: route-reticle 620ms var(--motion-spring) both;
+}
+
+.route-spatial-reticle::before,
+.route-spatial-reticle::after,
+.route-spatial-reticle i {
+  position: absolute;
+  content: "";
+  background: rgb(158 231 181 / .65);
+}
+.route-spatial-reticle::before { top: 50%; left: -18px; right: -18px; height: 1px; }
+.route-spatial-reticle::after { top: -18px; bottom: -18px; left: 50%; width: 1px; }
+.route-spatial-reticle i:first-child { inset: 20px; border: 1px solid rgb(158 231 181 / .34); border-radius: 50%; background: transparent; }
+.route-spatial-reticle i:last-child { top: 50%; left: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translate(-50%, -50%); }
+
+.route-spatial-copy {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  display: grid;
+  gap: 3px;
+  min-width: 190px;
+  padding: 10px 14px;
+  border: 1px solid rgb(196 229 205 / .3);
+  border-radius: 10px;
+  background: rgb(25 53 34 / .76);
+  color: #f4f6f1;
+  box-shadow: 0 12px 32px rgb(11 28 17 / .18);
+  transform: translateX(-50%);
+  text-align: center;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: route-copy 600ms var(--motion-smooth) both;
+}
+.route-spatial-copy small { color: #b8cbbd; font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.route-spatial-copy strong { font-size: .86rem; font-weight: 700; }
+
+@keyframes route-spatial-shell {
+  0%, 100% { opacity: 0; }
+  12%, 72% { opacity: 1; }
+}
+@keyframes route-plane-near {
+  from { opacity: 0; transform: translateX(-42%) rotateY(42deg) translateZ(80px); }
+  42% { opacity: 1; }
+  to { opacity: 0; transform: translateX(112%) rotateY(-12deg) translateZ(-100px); }
+}
+@keyframes route-plane-far {
+  from { opacity: 0; transform: translateX(42%) rotateY(-42deg) translateZ(40px); }
+  42% { opacity: .8; }
+  to { opacity: 0; transform: translateX(-112%) rotateY(12deg) translateZ(-130px); }
+}
+@keyframes route-grid-depth {
+  from { opacity: 0; transform: rotateX(68deg) translateY(80px) translateZ(80px); }
+  35% { opacity: 1; }
+  to { opacity: 0; transform: rotateX(68deg) translateY(-30px) translateZ(-160px); }
+}
+@keyframes route-scan-pass {
+  from { opacity: 0; transform: translateX(-4vw); }
+  18% { opacity: 1; }
+  82% { opacity: 1; }
+  to { opacity: 0; transform: translateX(104vw); }
+}
+@keyframes route-reticle {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.58) rotate(-16deg); }
+  40% { opacity: .9; }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(1.32) rotate(8deg); }
+}
+@keyframes route-copy {
+  from { opacity: 0; transform: translate(-50%, 16px) scale(.94); }
+  35%, 72% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -8px) scale(.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after,
+  .ui-skeleton::after,
+  .face-track-overlay::after,
+  .terminal-scan-volume,
+  .glass-checkmark-3d,
+  .data-flow-cubes > span,
+  .route-spatial-transition,
+  .route-spatial-transition * { animation: none !important; }
+  [data-tilt],
+  .terminal-totem-3d { transform: none !important; }
+}
+
+html[data-spatial-effects="reduced"] .route-spatial-transition { display: none; }
+
+@media (max-width: 767px) {
+  .terminal-totem-3d { right: 3%; transform: scale(.82); transform-origin: right bottom; }
+  .data-flow-cubes { display: none; }
+  .glass-checkmark-3d { width: 36px; height: 36px; }
+  .route-spatial-copy { bottom: 18%; }
+  .route-spatial-reticle { width: 84px; height: 84px; }
+}

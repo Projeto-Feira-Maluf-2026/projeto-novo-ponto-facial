@@ -21,6 +21,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { createPageMotion, moveIndicator } from '../animations/motion';
 import { useAuth } from '../auth/AuthContext';
 import { ALL_ROLES, roleForUser, type AppRole } from '../auth/permissions';
+import { BrandMark } from './BrandMark';
 
 interface NavItem {
   to: string;
@@ -101,6 +102,8 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   const isTerminal = location.pathname === '/terminal-facial';
   const [online, setOnline] = useState(navigator.onLine);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [spatialRouteActive, setSpatialRouteActive] = useState(false);
+  const previousPathRef = useRef(location.pathname);
   const mainRef = useRef<HTMLElement>(null);
   const sidebarNavRef = useRef<HTMLElement>(null);
   const sidebarIndicatorRef = useRef<HTMLSpanElement>(null);
@@ -151,6 +154,14 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   useEffect(() => {
     setMobileMenuOpen(false);
     mainRef.current?.focus({ preventScroll: true });
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (previousPathRef.current === location.pathname) return undefined;
+    previousPathRef.current = location.pathname;
+    setSpatialRouteActive(true);
+    const timer = window.setTimeout(() => setSpatialRouteActive(false), 680);
+    return () => window.clearTimeout(timer);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -214,10 +225,26 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
     <div className="app-shell">
       <a href="#main-content" className="skip-link">Pular para o conteúdo</a>
 
+      {spatialRouteActive && (
+        <div key={location.pathname} className="route-spatial-transition" aria-hidden="true">
+          <div className="route-spatial-viewport">
+            <span className="route-spatial-plane route-spatial-plane-near" />
+            <span className="route-spatial-plane route-spatial-plane-far" />
+            <span className="route-spatial-grid" />
+            <span className="route-spatial-scan" />
+            <span className="route-spatial-reticle"><i /><i /></span>
+            <span className="route-spatial-copy">
+              <small>{current.eyebrow}</small>
+              <strong>{current.title}</strong>
+            </span>
+          </div>
+        </div>
+      )}
+
       <aside ref={sidebarRef} className="app-sidebar" data-open={mobileMenuOpen} aria-hidden={!mobileMenuOpen}>
         <div className="sidebar-brand-row">
           <NavLink to="/" viewTransition className="brand-lockup">
-            <span className="brand-mark" aria-hidden="true">CE</span>
+            <BrandMark />
             <span>
               <strong>Curitiba Empreiteira</strong>
             </span>
@@ -288,10 +315,10 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             <Menu size={20} />
           </button>
           <div className="topbar-brand-mobile">
-            <span className="brand-mark">CE</span>
+            <BrandMark />
           </div>
           <NavLink to="/" viewTransition className="topbar-brand-desktop" aria-label="Ir para a visão geral">
-            <span className="brand-mark" aria-hidden="true">CE</span>
+            <BrandMark />
             <span>
               <strong>Curitiba Empreiteira</strong>
               <small>Controle de presença</small>

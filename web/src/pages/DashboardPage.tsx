@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 
 import { apiClient } from '../services/api';
 import type { DashboardMetrics } from '../types/domain';
+import { DataFlowCubes } from '../components/SpatialEffects';
 
 function useAnimatedNumber(value: number, duration = 620) {
   const [display, setDisplay] = useState(value);
@@ -124,6 +125,7 @@ function DashboardContent({
   return (
     <div className="app-view-transition operations-board premium-dashboard">
       <section className="dashboard-hero" aria-labelledby="operations-heading">
+        <DataFlowCubes />
         <div className="dashboard-hero-copy">
           <h2 id="operations-heading">Hoje, em campo.</h2>
           <p>Uma leitura objetiva de pessoas, obras e pontos registrados nos últimos vinte segundos.</p>
@@ -149,19 +151,19 @@ function DashboardContent({
       </section>
 
       <section className="metric-mosaic" aria-label="Indicadores do dia">
-        <article className="metric-tile metric-tile-primary" data-tone="success">
+        <article className="metric-tile metric-tile-primary" data-tone="success" data-tilt>
           <span className="metric-icon"><UserCheck size={20} /></span>
           <div><span>Presentes agora</span><strong>{Math.round(animatedPresent)}</strong><small>Equipe confirmada hoje</small></div>
         </article>
-        <article className="metric-tile" data-tone={metrics.absent_employees > 0 ? 'warning' : 'neutral'}>
+        <article className="metric-tile" data-tone={metrics.absent_employees > 0 ? 'warning' : 'neutral'} data-tilt>
           <span className="metric-icon"><UserX size={20} /></span>
           <div><span>Sem registro</span><strong>{metrics.absent_employees}</strong><small>Funcionários ainda ausentes</small></div>
         </article>
-        <article className="metric-tile">
+        <article className="metric-tile" data-tilt>
           <span className="metric-icon"><Clock3 size={20} /></span>
           <div><span>Horas consolidadas</span><strong>{animatedHours.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}<small>h</small></strong><small>Parcial apurado no dia</small></div>
         </article>
-        <article className="metric-tile metric-tile-wide">
+        <article className="metric-tile metric-tile-wide" data-tilt>
           <span className="metric-icon"><ShieldCheck size={20} /></span>
           <div><span>Marcações recebidas</span><strong>{Math.round(animatedRecords)}</strong><small>Entradas, intervalos e saídas</small></div>
           <div className="metric-attention" data-alert={operationalAttention > 0}>
