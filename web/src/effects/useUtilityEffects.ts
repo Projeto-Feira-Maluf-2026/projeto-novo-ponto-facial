@@ -10,9 +10,14 @@ export function useUtilityEffects() {
     const constrainedDevice = (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4)
       || (navigatorInfo.deviceMemory !== undefined && navigatorInfo.deviceMemory <= 4)
       || Boolean(navigatorInfo.connection?.saveData);
-    const enabled = !reducedMotion && canHover && !constrainedDevice;
-    document.documentElement.dataset.spatialEffects = enabled ? 'full' : 'reduced';
-    if (!enabled) return undefined;
+    const reductionRequired = reducedMotion || Boolean(navigatorInfo.connection?.saveData);
+    const pointerEffectsEnabled = !reductionRequired && canHover && !constrainedDevice;
+    document.documentElement.dataset.spatialEffects = reductionRequired
+      ? 'reduced'
+      : pointerEffectsEnabled
+        ? 'full'
+        : 'lite';
+    if (!pointerEffectsEnabled) return undefined;
 
     let frame = 0;
     let pending: { element: HTMLElement; event: PointerEvent } | null = null;
