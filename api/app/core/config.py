@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SUPABASE_URL: str
     SUPABASE_PUBLISHABLE_KEY: str
+    SUPABASE_JWKS_JSON: str | None = None
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_REQUIRED: bool = False
     HEALTHCHECK_TIMEOUT_SECONDS: float = 1.5
