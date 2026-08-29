@@ -448,7 +448,6 @@ input::placeholder, textarea::placeholder { color: var(--color-subtle); }
 @keyframes scan-line { from { transform: translateY(-20px); opacity: 0; } 20%, 80% { opacity: 0.75; } to { transform: translateY(460px); opacity: 0; } }
 
 @layer components {
-  .app-view-transition { animation: reveal-up 260ms var(--ease-out) both; }
 
   .skip-link {
     position: fixed;

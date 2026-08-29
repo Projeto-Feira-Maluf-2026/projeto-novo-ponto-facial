@@ -10,13 +10,14 @@ import {
   MoreHorizontal,
   Moon,
   ScrollText,
+  Sparkles,
   Sun,
   Users,
   X,
   type LucideIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 import { createPageMotion, moveIndicator } from '../animations/motion';
 import { useAuth } from '../auth/AuthContext';
@@ -91,6 +92,7 @@ function isActivePath(pathname: string, target: string) {
 
 export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const userRole = roleForUser(user);
   const visibleNavItems = useMemo(
@@ -101,9 +103,17 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   const current = pageCopy[location.pathname] ?? pageCopy['/'];
   const isTerminal = location.pathname === '/terminal-facial';
   const [online, setOnline] = useState(navigator.onLine);
+  const [motionReduced, setMotionReduced] = useState(() => localStorage.getItem('motion-preference') === 'reduced');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [spatialRouteActive, setSpatialRouteActive] = useState(false);
-  const previousPathRef = useRef(location.pathname);
+  const [spatialRoute, setSpatialRoute] = useState<{
+    phase: 'leave' | 'enter';
+    path: string;
+    title: string;
+    eyebrow: string;
+    sequence: number;
+  } | null>(null);
+  const spatialRouteRef = useRef(spatialRoute);
+  const spatialTimersRef = useRef<number[]>([]);
   const mainRef = useRef<HTMLElement>(null);
   const sidebarNavRef = useRef<HTMLElement>(null);
   const sidebarIndicatorRef = useRef<HTMLSpanElement>(null);
@@ -152,17 +162,74 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   }, []);
 
   useEffect(() => {
+    const mode = motionReduced ? 'reduced' : 'full';
+    document.documentElement.dataset.motionMode = mode;
+    localStorage.setItem('motion-preference', mode);
+    return () => { delete document.documentElement.dataset.motionMode; };
+  }, [motionReduced]);
+
+  useEffect(() => {
     setMobileMenuOpen(false);
     mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
-  useLayoutEffect(() => {
-    if (previousPathRef.current === location.pathname) return undefined;
-    previousPathRef.current = location.pathname;
-    setSpatialRouteActive(true);
-    const timer = window.setTimeout(() => setSpatialRouteActive(false), 680);
-    return () => window.clearTimeout(timer);
-  }, [location.pathname]);
+  useEffect(() => {
+    spatialRouteRef.current = spatialRoute;
+  }, [spatialRoute]);
+
+  useEffect(() => () => {
+    spatialTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+  }, []);
+
+  const handleInternalNavigation = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (
+      event.defaultPrevented
+      || event.button !== 0
+      || event.metaKey
+      || event.ctrlKey
+      || event.shiftKey
+      || event.altKey
+    ) return;
+    const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href]');
+    if (!anchor || anchor.target || anchor.hasAttribute('download')) return;
+    const destination = new URL(anchor.href, window.location.href);
+    if (destination.origin !== window.location.origin) return;
+    const targetPath = `${destination.pathname}${destination.search}${destination.hash}`;
+    const currentPath = `${location.pathname}${location.search}${location.hash}`;
+    if (targetPath === currentPath || destination.hash && destination.pathname === location.pathname) return;
+
+    event.preventDefault();
+    if (spatialRouteRef.current) return;
+    const targetCopy = pageCopy[destination.pathname] ?? {
+      title: 'Área de trabalho',
+      eyebrow: 'Curitiba Empreiteira',
+      description: '',
+    };
+    const reduced = motionReduced;
+    const leaveDuration = reduced ? 180 : 420;
+    const enterDuration = reduced ? 260 : 520;
+    const sequence = Date.now();
+    const transition = {
+      phase: 'leave' as const,
+      path: destination.pathname,
+      title: targetCopy.title,
+      eyebrow: targetCopy.eyebrow,
+      sequence,
+    };
+    spatialRouteRef.current = transition;
+    setSpatialRoute(transition);
+    spatialTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    spatialTimersRef.current = [window.setTimeout(() => {
+      navigate(targetPath);
+      const entering = { ...transition, phase: 'enter' as const };
+      spatialRouteRef.current = entering;
+      setSpatialRoute(entering);
+      spatialTimersRef.current = [window.setTimeout(() => {
+        spatialRouteRef.current = null;
+        setSpatialRoute(null);
+      }, enterDuration)];
+    }, leaveDuration)];
+  }, [location.hash, location.pathname, location.search, motionReduced, navigate]);
 
   useEffect(() => {
     if (!mobileMenuOpen) return undefined;
@@ -222,20 +289,27 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   const moreActive = visibleNavItems.slice(4).some((item) => isActivePath(location.pathname, item.to));
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" onClickCapture={handleInternalNavigation}>
       <a href="#main-content" className="skip-link">Pular para o conteúdo</a>
 
-      {spatialRouteActive && (
-        <div key={location.pathname} className="route-spatial-transition" aria-hidden="true">
+      {spatialRoute && (
+        <div
+          key={`${spatialRoute.sequence}-${spatialRoute.phase}`}
+          className="route-spatial-transition"
+          data-phase={spatialRoute.phase}
+          aria-hidden="true"
+        >
           <div className="route-spatial-viewport">
             <span className="route-spatial-plane route-spatial-plane-near" />
             <span className="route-spatial-plane route-spatial-plane-far" />
             <span className="route-spatial-grid" />
+            <span className="route-spatial-depth"><i /><i /><i /><i /></span>
             <span className="route-spatial-scan" />
             <span className="route-spatial-reticle"><i /><i /></span>
+            <span className="route-spatial-mark"><BrandMark /></span>
             <span className="route-spatial-copy">
-              <small>{current.eyebrow}</small>
-              <strong>{current.title}</strong>
+              <small>{spatialRoute.eyebrow}</small>
+              <strong>{spatialRoute.title}</strong>
             </span>
           </div>
         </div>
@@ -282,6 +356,10 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         </nav>
 
         <div className="sidebar-footer">
+          <button onClick={() => setMotionReduced((current) => !current)} className="sidebar-theme" type="button">
+            <Sparkles size={17} />
+            {motionReduced ? 'Ativar animações' : 'Reduzir animações'}
+          </button>
           <button onClick={(event) => onToggleTheme({ x: event.clientX, y: event.clientY })} className="sidebar-theme" type="button">
             {dark ? <Sun size={17} /> : <Moon size={17} />}
             {dark ? 'Usar tema claro' : 'Usar tema escuro'}
@@ -352,6 +430,16 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             <button onClick={(event) => onToggleTheme({ x: event.clientX, y: event.clientY })} className="topbar-icon" type="button" aria-label={dark ? 'Usar tema claro' : 'Usar tema escuro'}>
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+            <button
+              onClick={() => setMotionReduced((current) => !current)}
+              className="topbar-icon"
+              type="button"
+              aria-label={motionReduced ? 'Ativar animações completas' : 'Reduzir animações'}
+              aria-pressed={!motionReduced}
+              title={motionReduced ? 'Ativar animações completas' : 'Reduzir animações'}
+            >
+              <Sparkles size={18} />
+            </button>
             <div className="topbar-profile" title={user?.email ?? undefined}>
               <span className="topbar-avatar">{initials || 'OP'}</span>
               <span>
@@ -378,7 +466,9 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
               )}
             </section>
           )}
-          {children}
+          <div key={location.pathname} className="route-content">
+            {children}
+          </div>
         </main>
       </div>
 

@@ -67,6 +67,17 @@ html:not([data-theme-transition="true"])::view-transition-new(root) {
   box-shadow: 0 1px 0 rgb(52 78 65 / .09), 0 12px 30px rgb(31 48 38 / .06);
 }
 
+.route-content {
+  min-width: 0;
+  animation: utility-route-content-in 440ms var(--motion-smooth) both;
+}
+
+.form-panel.app-view-transition,
+.configuration-panel.app-view-transition {
+  transform-origin: center top;
+  animation: utility-panel-in 300ms var(--motion-spring) both;
+}
+
 /* Abertura leve e compartilhada pelos diálogos reais. */
 .modal-backdrop,
 .enrollment-dialog-backdrop,
@@ -76,10 +87,14 @@ html:not([data-theme-transition="true"])::view-transition-new(root) {
 
 .modal-backdrop > [role="dialog"],
 .enrollment-dialog-backdrop > [role="dialog"],
-.employee-drawer,
 .confirmation-strip[role="alertdialog"] {
   transform-origin: center top;
   animation: utility-modal-surface-in 260ms var(--motion-spring) both;
+}
+
+.employee-drawer {
+  transform-origin: right center;
+  animation: utility-drawer-in 300ms var(--motion-smooth) both;
 }
 
 @keyframes utility-modal-backdrop-in {
@@ -90,6 +105,21 @@ html:not([data-theme-transition="true"])::view-transition-new(root) {
 @keyframes utility-modal-surface-in {
   from { opacity: 0; transform: translateY(8px) scale(.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes utility-drawer-in {
+  from { opacity: 0; transform: translateX(28px) scale(.992); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes utility-panel-in {
+  from { opacity: 0; transform: translateY(-7px) scaleY(.985); }
+  to { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+
+@keyframes utility-route-content-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Navegação tátil: mudança curta, elástica e sem deslocar o layout. */
@@ -437,10 +467,21 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   inset: 0;
   z-index: 12000;
   overflow: hidden;
-  background: rgb(16 35 23 / .08);
+  background:
+    radial-gradient(circle at 50% 48%, rgb(88 129 87 / .22), transparent 30%),
+    rgb(8 20 13 / .94);
   pointer-events: none;
-  perspective: 900px;
-  animation: route-spatial-shell 680ms var(--motion-smooth) both;
+  perspective: 1100px;
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+.route-spatial-transition[data-phase="leave"] {
+  animation: route-spatial-cover-in 420ms var(--motion-smooth) both;
+}
+
+.route-spatial-transition[data-phase="enter"] {
+  animation: route-spatial-cover-out 520ms var(--motion-smooth) both;
 }
 
 .route-spatial-viewport {
@@ -453,7 +494,7 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   position: absolute;
   top: -15%;
   bottom: -15%;
-  width: 44%;
+  width: 52%;
   border: 1px solid rgb(178 226 192 / .34);
   background: linear-gradient(115deg, rgb(58 90 64 / .2), rgb(218 215 205 / .05));
   box-shadow: inset 0 0 70px rgb(163 177 138 / .08);
@@ -461,16 +502,19 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
 }
 
 .route-spatial-plane-near {
-  left: -9%;
+  left: -2%;
   transform-origin: left center;
-  animation: route-plane-near 680ms var(--motion-smooth) both;
 }
 
 .route-spatial-plane-far {
-  right: -11%;
+  right: -2%;
   transform-origin: right center;
-  animation: route-plane-far 680ms var(--motion-smooth) both;
 }
+
+.route-spatial-transition[data-phase="leave"] .route-spatial-plane-near { animation: route-plane-left-in 420ms var(--motion-smooth) both; }
+.route-spatial-transition[data-phase="leave"] .route-spatial-plane-far { animation: route-plane-right-in 420ms var(--motion-smooth) both; }
+.route-spatial-transition[data-phase="enter"] .route-spatial-plane-near { animation: route-plane-left-out 520ms var(--motion-smooth) both; }
+.route-spatial-transition[data-phase="enter"] .route-spatial-plane-far { animation: route-plane-right-out 520ms var(--motion-smooth) both; }
 
 .route-spatial-grid {
   position: absolute;
@@ -483,8 +527,28 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   transform-origin: center top;
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, transparent 88%);
   mask-image: linear-gradient(to bottom, transparent, #000 25%, transparent 88%);
-  animation: route-grid-depth 680ms var(--motion-smooth) both;
 }
+
+.route-spatial-transition[data-phase="leave"] .route-spatial-grid { animation: route-grid-in 420ms var(--motion-smooth) both; }
+.route-spatial-transition[data-phase="enter"] .route-spatial-grid { animation: route-grid-out 520ms var(--motion-smooth) both; }
+
+.route-spatial-depth,
+.route-spatial-depth i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  border: 1px solid rgb(163 225 181 / .2);
+  border-radius: 24%;
+  transform-style: preserve-3d;
+}
+.route-spatial-depth { inset: 0; border: 0; }
+.route-spatial-depth i { width: 22vmin; height: 22vmin; transform: translate(-50%, -50%); }
+.route-spatial-depth i:nth-child(2) { width: 38vmin; height: 38vmin; }
+.route-spatial-depth i:nth-child(3) { width: 58vmin; height: 58vmin; }
+.route-spatial-depth i:nth-child(4) { width: 82vmin; height: 82vmin; }
+.route-spatial-transition[data-phase="leave"] .route-spatial-depth { animation: route-depth-in 420ms var(--motion-smooth) both; }
+.route-spatial-transition[data-phase="enter"] .route-spatial-depth { animation: route-depth-out 520ms var(--motion-smooth) both; }
 
 .route-spatial-scan {
   position: absolute;
@@ -494,8 +558,9 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   width: 2px;
   background: #9ee7b5;
   box-shadow: 0 0 18px 4px rgb(112 226 154 / .35), 0 0 80px 22px rgb(88 129 87 / .12);
-  animation: route-scan-pass 620ms ease-in-out both;
 }
+.route-spatial-transition[data-phase="leave"] .route-spatial-scan { animation: route-scan-pass 420ms ease-in-out both; }
+.route-spatial-transition[data-phase="enter"] .route-spatial-scan { animation: route-scan-return 520ms ease-in-out both; }
 
 .route-spatial-reticle {
   position: absolute;
@@ -506,8 +571,9 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   border: 1px solid rgb(158 231 181 / .5);
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  animation: route-reticle 620ms var(--motion-spring) both;
 }
+.route-spatial-transition[data-phase="leave"] .route-spatial-reticle { animation: route-reticle-in 420ms var(--motion-spring) both; }
+.route-spatial-transition[data-phase="enter"] .route-spatial-reticle { animation: route-reticle-out 520ms var(--motion-smooth) both; }
 
 .route-spatial-reticle::before,
 .route-spatial-reticle::after,
@@ -520,6 +586,20 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
 .route-spatial-reticle::after { top: -18px; bottom: -18px; left: 50%; width: 1px; }
 .route-spatial-reticle i:first-child { inset: 20px; border: 1px solid rgb(158 231 181 / .34); border-radius: 50%; background: transparent; }
 .route-spatial-reticle i:last-child { top: 50%; left: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translate(-50%, -50%); }
+
+.route-spatial-mark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  transform: translate(-50%, -50%);
+}
+.route-spatial-mark .brand-mark { width: 58px; height: 58px; color: #3a5a40; filter: drop-shadow(0 0 24px rgb(132 225 159 / .35)); }
+.route-spatial-transition[data-phase="leave"] .route-spatial-mark { animation: route-mark-in 420ms var(--motion-spring) both; }
+.route-spatial-transition[data-phase="enter"] .route-spatial-mark { animation: route-mark-out 520ms var(--motion-smooth) both; }
 
 .route-spatial-copy {
   position: absolute;
@@ -538,46 +618,35 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   text-align: center;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
-  animation: route-copy 600ms var(--motion-smooth) both;
 }
+.route-spatial-transition[data-phase="leave"] .route-spatial-copy { animation: route-copy-in 420ms var(--motion-smooth) both; }
+.route-spatial-transition[data-phase="enter"] .route-spatial-copy { animation: route-copy-out 520ms var(--motion-smooth) both; }
 .route-spatial-copy small { color: #b8cbbd; font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .route-spatial-copy strong { font-size: .86rem; font-weight: 700; }
 
-@keyframes route-spatial-shell {
-  0%, 100% { opacity: 0; }
-  12%, 72% { opacity: 1; }
-}
-@keyframes route-plane-near {
-  from { opacity: 0; transform: translateX(-42%) rotateY(42deg) translateZ(80px); }
-  42% { opacity: 1; }
-  to { opacity: 0; transform: translateX(112%) rotateY(-12deg) translateZ(-100px); }
-}
-@keyframes route-plane-far {
-  from { opacity: 0; transform: translateX(42%) rotateY(-42deg) translateZ(40px); }
-  42% { opacity: .8; }
-  to { opacity: 0; transform: translateX(-112%) rotateY(12deg) translateZ(-130px); }
-}
-@keyframes route-grid-depth {
-  from { opacity: 0; transform: rotateX(68deg) translateY(80px) translateZ(80px); }
-  35% { opacity: 1; }
-  to { opacity: 0; transform: rotateX(68deg) translateY(-30px) translateZ(-160px); }
-}
+@keyframes route-spatial-cover-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes route-spatial-cover-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes route-plane-left-in { from { transform: translateX(-108%) rotateY(34deg); } to { transform: translateX(0) rotateY(0); } }
+@keyframes route-plane-right-in { from { transform: translateX(108%) rotateY(-34deg); } to { transform: translateX(0) rotateY(0); } }
+@keyframes route-plane-left-out { from { transform: translateX(0); } to { transform: translateX(-112%) rotateY(30deg); } }
+@keyframes route-plane-right-out { from { transform: translateX(0); } to { transform: translateX(112%) rotateY(-30deg); } }
+@keyframes route-grid-in { from { opacity: 0; transform: rotateX(68deg) translateY(80px) translateZ(120px); } to { opacity: .9; transform: rotateX(68deg) translateY(0) translateZ(-110px); } }
+@keyframes route-grid-out { from { opacity: .9; transform: rotateX(68deg) translateZ(-110px); } to { opacity: 0; transform: rotateX(68deg) translateY(-60px) translateZ(-260px); } }
+@keyframes route-depth-in { from { opacity: 0; transform: rotateZ(-12deg) scale(1.35); } to { opacity: 1; transform: rotateZ(0) scale(.82); } }
+@keyframes route-depth-out { from { opacity: 1; transform: rotateZ(0) scale(.82); } to { opacity: 0; transform: rotateZ(10deg) scale(1.3); } }
 @keyframes route-scan-pass {
   from { opacity: 0; transform: translateX(-4vw); }
   18% { opacity: 1; }
   82% { opacity: 1; }
   to { opacity: 0; transform: translateX(104vw); }
 }
-@keyframes route-reticle {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(.58) rotate(-16deg); }
-  40% { opacity: .9; }
-  to { opacity: 0; transform: translate(-50%, -50%) scale(1.32) rotate(8deg); }
-}
-@keyframes route-copy {
-  from { opacity: 0; transform: translate(-50%, 16px) scale(.94); }
-  35%, 72% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-  to { opacity: 0; transform: translate(-50%, -8px) scale(.98); }
-}
+@keyframes route-scan-return { from { opacity: 0; transform: translateX(104vw); } 20%, 76% { opacity: 1; } to { opacity: 0; transform: translateX(-4vw); } }
+@keyframes route-reticle-in { from { opacity: 0; transform: translate(-50%, -50%) scale(1.55) rotate(-18deg); } to { opacity: .85; transform: translate(-50%, -50%) scale(1) rotate(0); } }
+@keyframes route-reticle-out { from { opacity: .85; transform: translate(-50%, -50%) scale(1); } to { opacity: 0; transform: translate(-50%, -50%) scale(.68) rotate(12deg); } }
+@keyframes route-mark-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.45) rotateY(70deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateY(0); } }
+@keyframes route-mark-out { from { opacity: 1; transform: translate(-50%, -50%) scale(1); } to { opacity: 0; transform: translate(-50%, -50%) scale(1.3) rotateY(-55deg); } }
+@keyframes route-copy-in { from { opacity: 0; transform: translate(-50%, 18px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes route-copy-out { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -12px); } }
 
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after,
@@ -586,32 +655,108 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   .terminal-scan-volume,
   .glass-checkmark-3d,
   .data-flow-cubes > span,
+  .activity-line,
+  .route-spatial-transition * { animation: none !important; }
+  .route-content { animation: utility-fade-in 180ms ease-out both !important; }
+  .form-panel.app-view-transition,
+  .configuration-panel.app-view-transition,
   .modal-backdrop,
   .enrollment-dialog-backdrop,
-  .employee-drawer-scrim,
+  .employee-drawer-scrim { animation: utility-fade-in 160ms ease-out both !important; }
   .modal-backdrop > [role="dialog"],
   .enrollment-dialog-backdrop > [role="dialog"],
   .employee-drawer,
-  .confirmation-strip[role="alertdialog"],
-  .activity-line,
-  .route-spatial-transition * { animation: none !important; }
-  .route-spatial-transition {
-    background: rgb(27 55 37 / .12);
-    animation: route-spatial-reduced 440ms ease-out both !important;
-  }
+  .confirmation-strip[role="alertdialog"] { animation: utility-fade-in 180ms ease-out both !important; }
+  .route-spatial-transition[data-phase="leave"] { animation: route-spatial-reduced-in 180ms ease-out both !important; }
+  .route-spatial-transition[data-phase="enter"] { animation: route-spatial-reduced-out 260ms ease-out both !important; }
   .route-spatial-plane,
   .route-spatial-grid,
+  .route-spatial-depth,
   .route-spatial-scan { display: none; }
   .route-spatial-reticle { opacity: .35; transform: translate(-50%, -50%) scale(.88); }
+  .route-spatial-mark { opacity: 1; transform: translate(-50%, -50%); }
   .route-spatial-copy { opacity: 1; transform: translateX(-50%); }
   [data-tilt],
   .terminal-totem-3d { transform: none !important; }
 }
 
-@keyframes route-spatial-reduced {
-  0%, 100% { opacity: 0; }
-  22%, 68% { opacity: 1; }
-}
+/* Preferência explícita do produto vence a configuração global do dispositivo. */
+html[data-motion-mode="full"] .route-content { animation: utility-route-content-in 440ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .form-panel.app-view-transition,
+html[data-motion-mode="full"] .configuration-panel.app-view-transition { animation: utility-panel-in 300ms var(--motion-spring) both !important; }
+html[data-motion-mode="full"] .modal-backdrop,
+html[data-motion-mode="full"] .enrollment-dialog-backdrop,
+html[data-motion-mode="full"] .employee-drawer-scrim { animation: utility-modal-backdrop-in 180ms ease-out both !important; }
+html[data-motion-mode="full"] .modal-backdrop > [role="dialog"],
+html[data-motion-mode="full"] .enrollment-dialog-backdrop > [role="dialog"],
+html[data-motion-mode="full"] .confirmation-strip[role="alertdialog"] { animation: utility-modal-surface-in 260ms var(--motion-spring) both !important; }
+html[data-motion-mode="full"] .employee-drawer { animation: utility-drawer-in 300ms var(--motion-smooth) both !important; }
+
+/* O modo completo restaura também a narrativa dos estados, que o SO pode ter silenciado. */
+html[data-motion-mode="full"] .skeleton::after,
+html[data-motion-mode="full"] .ui-skeleton::after { animation: utility-shimmer 1.25s linear infinite !important; }
+html[data-motion-mode="full"] .face-track-overlay::after { animation: face-spatial-ping 780ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .terminal-spatial-layer[data-active="true"] .terminal-scan-volume { animation: scan-volume-breathe 1.4s ease-in-out infinite alternate !important; }
+html[data-motion-mode="full"] .glass-checkmark-3d { animation: glass-check-enter 420ms var(--motion-spring) both !important; }
+html[data-motion-mode="full"] .data-flow-cubes > span { animation: data-cube-float calc(5.2s + var(--cube-index) * .8s) ease-in-out infinite alternate !important; }
+html[data-motion-mode="full"] .activity-line { animation: activity-line-draw 820ms var(--motion-smooth) 80ms forwards !important; }
+html[data-motion-mode="full"] .presence-ring { animation: motion-presence-fill 1.15s 180ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .timeline-bar { animation: motion-grow-bar 720ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .feedback-banner,
+html[data-motion-mode="full"] .confirmation-strip,
+html[data-motion-mode="full"] .report-feedback { animation: motion-feedback-in 460ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .employee-drawer .employee-profile-avatar { animation: motion-avatar-arrive 560ms 120ms var(--motion-ease-spring) both !important; }
+html[data-motion-mode="full"] .employee-detail-list > div,
+html[data-motion-mode="full"] .employee-drawer-actions > * { animation: motion-detail-row 430ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .enrollment-step.is-complete { animation: motion-sample-complete 520ms var(--motion-ease-spring) both !important; }
+html[data-motion-mode="full"] .enrollment-step.is-complete img { animation: motion-avatar-arrive 520ms var(--motion-ease-spring) both !important; }
+html[data-motion-mode="full"] .enrollment-diagnostics > div { animation: motion-detail-row 360ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .terminal-flow-step[data-state="complete"] .terminal-flow-icon { animation: motion-stage-complete 480ms var(--motion-ease-spring) both !important; }
+html[data-motion-mode="full"] .terminal-result[data-mode="confirming"] { animation: motion-result-confirming 520ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .terminal-result[data-mode="accepted"] { animation: motion-result-accepted 720ms var(--motion-ease-spring) both !important; }
+html[data-motion-mode="full"] .terminal-result[data-mode="attention"],
+html[data-motion-mode="full"] .terminal-result[data-mode="review"] { animation: motion-result-attention 420ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .terminal-result[data-mode="accepted"] .terminal-result-icon { animation: motion-success-icon 720ms 80ms var(--motion-ease-spring) both !important; }
+html[data-motion-mode="full"] .terminal-evidence-meter i[data-complete="true"] { animation: motion-evidence-lock 520ms var(--motion-ease-spring) both !important; }
+html[data-motion-mode="full"] .terminal-camera-frame[data-mode="accepted"] { animation: motion-camera-accepted 780ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .terminal-event:first-child { animation: motion-event-arrive 520ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .worksite-world-frame[data-ready="true"] .worksite-world-hud,
+html[data-motion-mode="full"] .worksite-world-frame[data-ready="true"] .worksite-world-tools,
+html[data-motion-mode="full"] .worksite-world-frame[data-ready="true"] .worksite-world-guide,
+html[data-motion-mode="full"] .worksite-world-frame[data-ready="true"] .worksite-world-caption { animation: motion-world-hud 620ms var(--motion-ease-out) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] { animation: route-spatial-cover-in 420ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] { animation: route-spatial-cover-out 520ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-plane-near { display: block; animation: route-plane-left-in 420ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-plane-far { display: block; animation: route-plane-right-in 420ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-plane-near { display: block; animation: route-plane-left-out 520ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-plane-far { display: block; animation: route-plane-right-out 520ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-grid { display: block; animation: route-grid-in 420ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-grid { display: block; animation: route-grid-out 520ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-depth { display: block; animation: route-depth-in 420ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-depth { display: block; animation: route-depth-out 520ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-scan { display: block; animation: route-scan-pass 420ms ease-in-out both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-scan { display: block; animation: route-scan-return 520ms ease-in-out both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-reticle { animation: route-reticle-in 420ms var(--motion-spring) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-reticle { animation: route-reticle-out 520ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-mark { animation: route-mark-in 420ms var(--motion-spring) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-mark { animation: route-mark-out 520ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-copy { animation: route-copy-in 420ms var(--motion-smooth) both !important; }
+html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-copy { animation: route-copy-out 520ms var(--motion-smooth) both !important; }
+
+html[data-motion-mode="reduced"] .route-content,
+html[data-motion-mode="reduced"] .form-panel.app-view-transition,
+html[data-motion-mode="reduced"] .configuration-panel.app-view-transition,
+html[data-motion-mode="reduced"] .modal-backdrop,
+html[data-motion-mode="reduced"] .enrollment-dialog-backdrop,
+html[data-motion-mode="reduced"] .employee-drawer-scrim,
+html[data-motion-mode="reduced"] .modal-backdrop > [role="dialog"],
+html[data-motion-mode="reduced"] .enrollment-dialog-backdrop > [role="dialog"],
+html[data-motion-mode="reduced"] .employee-drawer,
+html[data-motion-mode="reduced"] .confirmation-strip[role="alertdialog"] { animation: utility-fade-in 160ms ease-out both !important; }
+
+@keyframes utility-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes route-spatial-reduced-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes route-spatial-reduced-out { from { opacity: 1; } to { opacity: 0; } }
 
 @media (max-width: 767px) {
   .terminal-totem-3d { right: 3%; transform: scale(.82); transform-origin: right bottom; }

@@ -22,6 +22,7 @@
 - Todo movimento deve explicar: foco, mudança de estado, detecção, confirmação ou fluxo de dados.
 - Modais entram com fade de fundo em 180 ms e superfície em 260 ms, deslocando no máximo 8 px.
 - Respeitar `prefers-reduced-motion`, touch, economia de dados e hardware limitado.
+- A preferência do cabeçalho permite escolher movimento completo ou reduzido; para este produto, movimento completo é o padrão solicitado.
 
 ## 3D utilitário
 

@@ -104,10 +104,6 @@ body {
   color: var(--color-text);
 }
 
-.app-view-transition {
-  animation: none;
-}
-
 button,
 a,
 input,
