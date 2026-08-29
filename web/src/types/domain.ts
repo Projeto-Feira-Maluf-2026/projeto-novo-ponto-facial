@@ -215,6 +215,7 @@ export interface AttendanceDecision {
   reasons: string[];
   temporal_evidence_count: number;
   temporal_similarity_median?: number | null;
+  email_notification_sent: boolean;
   record?: AttendanceRecord | null;
 }
 

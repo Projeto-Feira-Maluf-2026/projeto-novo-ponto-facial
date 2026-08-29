@@ -47,3 +47,12 @@
 - Etapas de fluxo, diagnósticos repetidos, textos explicativos e histórico completo pertencem a outras telas, não ao terminal operacional.
 - Sobre o vídeo, exibir apenas enquadramento facial, estado curto da câmera, seletor quando houver mais de um dispositivo e ação de reinício.
 - Não usar tilt, totem 3D, scan line ou ornamento permanente sobre a webcam; a prioridade visual e de GPU é a captura.
+
+## Modo apresentação
+
+- O modo normal continua sendo a fonte de verdade operacional. A apresentação apenas reorganiza dados e oferece atalhos para os fluxos reais; não inventa métricas nem simula confirmações.
+- O acionamento fica discreto no cabeçalho. Quando ativo, ganha uma rota própria e pode ser encerrado sem alterar cadastros ou configurações do sistema.
+- O roteiro oficial da feira é: cadastro com e-mail, matrícula facial, ponto pela câmera e confirmação do registro/e-mail.
+- Cadastro rápido gera uma matrícula de feira, exige e-mail e abre a matrícula facial automaticamente após salvar.
+- Contadores da sessão reagem somente a confirmações emitidas pelo terminal. E-mail aparece como enviado somente quando o backend recebe sucesso do SMTP.
+- O painel usa composição de console/roteiro, sem hero promocional genérico, depoimentos, números falsos, brilho decorativo ou excesso de cards.

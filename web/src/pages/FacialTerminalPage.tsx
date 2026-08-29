@@ -55,6 +55,7 @@ type RecentRecord = {
   punchType?: PunchType | null;
   status: 'ACCEPTED' | 'MANUAL_REVIEW';
   occurredAt: Date;
+  emailSent: boolean;
 };
 
 type PunchCandidate = {
@@ -252,6 +253,7 @@ export function FacialTerminalPage() {
           occurredAt: result.record?.occurred_at
             ? parseApiDate(result.record.occurred_at)
             : new Date(),
+          emailSent: result.email_notification_sent,
         });
         successfulRecognition ||= {
           employeeId: resolvedEmployeeId,
@@ -269,7 +271,11 @@ export function FacialTerminalPage() {
       if (successfulRecognition) setRecognition(successfulRecognition);
 
       if (completed > 0) {
-        publishAttendancePulse(worksiteId, completed);
+        publishAttendancePulse(
+          worksiteId,
+          completed,
+          batch.decisions.filter((result) => result.email_notification_sent).length,
+        );
         const allCompleted = completed === validCandidates.length;
         if (allCompleted) awaitingFaceExitRef.current = true;
         resultHoldUntilRef.current = Date.now() + (
@@ -595,6 +601,7 @@ export function FacialTerminalPage() {
                 <small>
                   {latestRecord.punchType ? punchLabels[latestRecord.punchType] : 'Ponto'} ·{' '}
                   {latestRecord.occurredAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {latestRecord.emailSent ? ' · E-mail enviado' : ''}
                 </small>
               </div>
             )}

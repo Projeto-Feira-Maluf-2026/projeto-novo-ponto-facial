@@ -7,6 +7,7 @@ import {
   HardDrive,
   LogOut,
   Menu,
+  MonitorPlay,
   MoreHorizontal,
   Moon,
   ScrollText,
@@ -17,12 +18,13 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 import { moveIndicator } from '../animations/motion';
 import { useAuth } from '../auth/AuthContext';
 import { ALL_ROLES, roleForUser, type AppRole } from '../auth/permissions';
 import { BrandMark } from './BrandMark';
+import { usePresentationMode } from '../presentation/PresentationContext';
 
 interface NavItem {
   to: string;
@@ -39,6 +41,12 @@ const navItems: NavItem[] = [
   { to: '/relatorios', label: 'Relatórios', icon: ClipboardList, roles: ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA'] },
   { to: '/auditoria', label: 'Auditoria', icon: ScrollText, roles: ['SUPER_ADMIN', 'RH'] },
 ];
+const presentationNavItem: NavItem = {
+  to: '/apresentacao',
+  label: 'Apresentação',
+  icon: MonitorPlay,
+  roles: ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'],
+};
 
 const pageCopy: Record<string, { title: string; description: string; eyebrow: string }> = {
   '/': {
@@ -76,6 +84,11 @@ const pageCopy: Record<string, { title: string; description: string; eyebrow: st
     description: 'Histórico das operações sensíveis realizadas no sistema.',
     eyebrow: 'Segurança e rastreabilidade',
   },
+  '/apresentacao': {
+    title: 'Modo apresentação',
+    description: 'Demonstração guiada com dados reais do sistema.',
+    eyebrow: 'Feira de tecnologia',
+  },
 };
 
 interface LayoutProps {
@@ -92,12 +105,15 @@ function isActivePath(pathname: string, target: string) {
 
 export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const presentation = usePresentationMode();
   const userRole = roleForUser(user);
-  const visibleNavItems = useMemo(
-    () => navItems.filter((item) => item.roles.includes(userRole)),
-    [userRole],
-  );
+  const visibleNavItems = useMemo(() => {
+    const items = navItems.filter((item) => item.roles.includes(userRole));
+    if (presentation.active && presentationNavItem.roles.includes(userRole)) items.push(presentationNavItem);
+    return items;
+  }, [presentation.active, userRole]);
   const mobileNavItems = visibleNavItems.slice(0, 4);
   const current = pageCopy[location.pathname] ?? pageCopy['/'];
   const isTerminal = location.pathname === '/terminal-facial';
@@ -214,6 +230,16 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
 
   const moreActive = visibleNavItems.slice(4).some((item) => isActivePath(location.pathname, item.to));
 
+  const togglePresentation = () => {
+    if (presentation.active) {
+      presentation.stop();
+      if (location.pathname === '/apresentacao') navigate('/');
+      return;
+    }
+    presentation.start();
+    navigate('/apresentacao');
+  };
+
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">Pular para o conteúdo</a>
@@ -259,6 +285,10 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         </nav>
 
         <div className="sidebar-footer">
+          <button onClick={togglePresentation} className="sidebar-theme" type="button" aria-pressed={presentation.active}>
+            <MonitorPlay size={17} />
+            {presentation.active ? 'Encerrar apresentação' : 'Modo apresentação'}
+          </button>
           <button onClick={() => setMotionReduced((current) => !current)} className="sidebar-theme" type="button">
             <Sparkles size={17} />
             {motionReduced ? 'Ativar animações' : 'Reduzir animações'}
@@ -326,6 +356,16 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             })}
           </nav>
           <div className="topbar-actions">
+            <button
+              onClick={togglePresentation}
+              className="topbar-presentation-toggle"
+              type="button"
+              aria-pressed={presentation.active}
+              title={presentation.active ? 'Encerrar modo apresentação' : 'Iniciar modo apresentação'}
+            >
+              <MonitorPlay size={17} />
+              <span>{presentation.active ? 'Em apresentação' : 'Apresentar'}</span>
+            </button>
             <span className="topbar-date">
               <CalendarDays size={15} />
               {currentDate}

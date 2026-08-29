@@ -5,10 +5,11 @@ export interface AttendancePulse {
   worksiteId: string;
   at: number;
   count: number;
+  emailCount?: number;
 }
 
-export function publishAttendancePulse(worksiteId: string, count: number) {
-  const pulse: AttendancePulse = { worksiteId, count, at: Date.now() };
+export function publishAttendancePulse(worksiteId: string, count: number, emailCount = 0) {
+  const pulse: AttendancePulse = { worksiteId, count, emailCount, at: Date.now() };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(pulse));
   } catch {
@@ -21,7 +22,12 @@ export function readAttendancePulse(): AttendancePulse | null {
   try {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') as Partial<AttendancePulse> | null;
     if (!value || typeof value.worksiteId !== 'string' || typeof value.at !== 'number' || typeof value.count !== 'number') return null;
-    return { worksiteId: value.worksiteId, at: value.at, count: value.count };
+    return {
+      worksiteId: value.worksiteId,
+      at: value.at,
+      count: value.count,
+      emailCount: typeof value.emailCount === 'number' ? value.emailCount : 0,
+    };
   } catch {
     return null;
   }

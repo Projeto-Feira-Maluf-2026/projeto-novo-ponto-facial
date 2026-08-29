@@ -99,6 +99,7 @@ async def test_accepted_punch_notifies_employee_after_commit() -> None:
     )
 
     assert decision.status == AttendanceStatus.ACCEPTED
+    assert decision.email_notification_sent is True
     session.commit.assert_awaited_once()
     notifier.send_confirmation.assert_awaited_once_with(
         recipient=employee.email,

@@ -323,9 +323,10 @@ class AttendanceService:
             )
         await self.session.commit()
         await self.session.refresh(record)
+        email_notification_sent = False
         if status == AttendanceStatus.ACCEPTED and getattr(employee, "email", None):
             try:
-                await self._email_notifier().send_confirmation(
+                email_notification_sent = await self._email_notifier().send_confirmation(
                     recipient=employee.email,
                     employee_name=employee.name,
                     worksite_name=worksite.name,
@@ -361,6 +362,7 @@ class AttendanceService:
                 if temporal_similarity_median is not None
                 else None
             ),
+            email_notification_sent=email_notification_sent,
             record=AttendanceRead.model_validate(record),
         )
 

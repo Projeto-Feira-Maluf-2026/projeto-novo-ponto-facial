@@ -5,6 +5,7 @@ import { supabase } from './supabase';
 import type {
   AttendanceDecision,
   AttendanceBatchDecision,
+  AttendanceRecord,
   AuditLog,
   CameraConfig,
   CameraTestResponse,
@@ -358,6 +359,11 @@ export const apiClient = {
     const response = await faceApi.post<AttendanceBatchDecision>('/attendance/punch/batch', {
       punches,
     });
+    return response.data;
+  },
+  attendanceHistory: async (worksiteId?: string | null) => {
+    const params = worksiteId ? `?worksite_id=${encodeURIComponent(worksiteId)}` : '';
+    const response = await api.get<AttendanceRecord[]>(`/attendance/history${params}`);
     return response.data;
   },
   auditLogs: async () => {

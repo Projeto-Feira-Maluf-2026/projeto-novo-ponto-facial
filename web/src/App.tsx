@@ -13,6 +13,7 @@ const DevicesPage = lazy(() => import('./pages/DevicesPage').then((module) => ({
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((module) => ({ default: module.EmployeesPage })));
 const FacialTerminalPage = lazy(() => import('./pages/FacialTerminalPage').then((module) => ({ default: module.FacialTerminalPage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
+const PresentationPage = lazy(() => import('./pages/PresentationPage').then((module) => ({ default: module.PresentationPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then((module) => ({ default: module.ReportsPage })));
 const WorksitesPage = lazy(() => import('./pages/WorksitesPage').then((module) => ({ default: module.WorksitesPage })));
 
@@ -122,6 +123,7 @@ export default function App() {
               <Route path="terminal-facial" element={<FacialTerminalPage />} />
               <Route path="relatorios" element={<RoleRoute roles={['SUPER_ADMIN', 'RH', 'GESTOR_OBRA']}><ReportsPage /></RoleRoute>} />
               <Route path="auditoria" element={<RoleRoute roles={['SUPER_ADMIN', 'RH']}><AuditPage /></RoleRoute>} />
+              <Route path="apresentacao" element={<RoleRoute roles={privilegedRoles}><PresentationPage /></RoleRoute>} />
               <Route path="*" element={<Navigate to={initialPath} replace />} />
             </Routes>
           </Layout> : <Navigate to="/login" replace />

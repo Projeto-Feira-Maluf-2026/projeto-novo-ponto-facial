@@ -96,6 +96,7 @@ class AttendanceDecision(BaseModel):
     reasons: list[str]
     temporal_evidence_count: int = 0
     temporal_similarity_median: float | None = None
+    email_notification_sent: bool = False
     record: AttendanceRead | None = None
 
 

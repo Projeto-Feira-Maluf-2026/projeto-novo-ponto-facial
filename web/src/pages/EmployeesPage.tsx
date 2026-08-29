@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import type { CameraCaptureHandle } from '../components/CameraCapture';
 import { DataTable } from '../components/DataTable';
@@ -92,6 +93,9 @@ function friendlyCaptureFeedback(instruction: string, reasons: string[]) {
 }
 
 export function EmployeesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const presentationRegistration = searchParams.get('novo') === 'apresentacao';
+  const presentationFormOpenedRef = useRef(false);
   const cameraRef = useRef<CameraCaptureHandle | null>(null);
   const enrollmentModalRef = useRef<HTMLDivElement>(null);
   const enrollmentCloseButtonRef = useRef<HTMLButtonElement>(null);
@@ -161,6 +165,19 @@ export function EmployeesPage() {
       .catch(() => undefined);
   }, [loadEmployees]);
 
+  useEffect(() => {
+    if (!presentationRegistration || presentationFormOpenedRef.current) return;
+    presentationFormOpenedRef.current = true;
+    setEditingEmployee(null);
+    setForm({
+      ...initialForm,
+      registration: `FEIRA-${Date.now().toString().slice(-6)}`,
+      worksite_id: worksites.find((worksite) => worksite.active)?.id || '',
+    });
+    setShowForm(true);
+    setMessage('Cadastre o participante e informe um e-mail válido. A matrícula facial abrirá em seguida.');
+  }, [presentationRegistration, worksites]);
+
   const filtered = useMemo(
     () =>
       employees.filter((employee) => {
@@ -194,6 +211,7 @@ export function EmployeesPage() {
     setEditingEmployee(null);
     setForm(initialForm);
     setShowForm(false);
+    if (presentationRegistration) setSearchParams({}, { replace: true });
   };
 
   const onSaveEmployee = async (event: FormEvent) => {
@@ -201,10 +219,11 @@ export function EmployeesPage() {
     setSaving(true);
     setMessage('');
     try {
+      let createdEmployee: Employee | null = null;
       if (editingEmployee) {
         await apiClient.updateEmployee(editingEmployee.id, { name: form.name, email: form.email || null });
       } else {
-        await apiClient.createEmployee({
+        createdEmployee = await apiClient.createEmployee({
           registration: form.registration,
           name: form.name,
           email: form.email || null,
@@ -219,6 +238,10 @@ export function EmployeesPage() {
       setEditingEmployee(null);
       setMessage(editingEmployee ? 'Dados do funcionário atualizados.' : 'Funcionário cadastrado.');
       await loadEmployees();
+      if (presentationRegistration && createdEmployee) {
+        setSearchParams({}, { replace: true });
+        void openEnrollment(createdEmployee);
+      }
     } catch {
       setMessage(editingEmployee ? 'Não foi possível atualizar o funcionário.' : 'Não foi possível cadastrar o funcionário.');
     } finally {
@@ -477,8 +500,8 @@ export function EmployeesPage() {
       )}
 
       {showForm && (
-        <form onSubmit={onSaveEmployee} className="form-panel app-view-transition md:grid-cols-2 xl:grid-cols-3">
-          <div className="form-panel-heading md:col-span-2 xl:col-span-3"><span>{editingEmployee ? 'Edição de cadastro' : 'Novo cadastro'}</span><h2>{editingEmployee ? editingEmployee.name : 'Adicionar funcionário'}</h2></div>
+        <form onSubmit={onSaveEmployee} className="form-panel app-view-transition md:grid-cols-2 xl:grid-cols-3" data-presentation-registration={presentationRegistration || undefined}>
+          <div className="form-panel-heading md:col-span-2 xl:col-span-3"><span>{presentationRegistration ? 'Participante da feira' : editingEmployee ? 'Edição de cadastro' : 'Novo cadastro'}</span><h2>{editingEmployee ? editingEmployee.name : presentationRegistration ? 'Cadastro rápido com e-mail' : 'Adicionar funcionário'}</h2>{presentationRegistration && <p>Após salvar, a câmera abrirá automaticamente para cadastrar o rosto.</p>}</div>
           <label className="field-label">
             <span>Matrícula</span>
             <input value={form.registration} onChange={(event) => setField('registration', event.target.value)} required disabled={Boolean(editingEmployee)} className="input-field" />
@@ -489,7 +512,7 @@ export function EmployeesPage() {
           </label>
           <label className="field-label">
             <span>Email</span>
-            <input type="email" value={form.email} onChange={(event) => setField('email', event.target.value)} className="input-field" />
+            <input type="email" value={form.email} onChange={(event) => setField('email', event.target.value)} required={presentationRegistration} autoComplete="email" className="input-field" />
           </label>
           {!editingEmployee && <label className="field-label">
             <span>Documento</span>
