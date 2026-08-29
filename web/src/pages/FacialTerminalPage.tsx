@@ -149,6 +149,7 @@ export function FacialTerminalPage() {
   const [decision, setDecision] = useState<AttendanceDecision | null>(null);
   const [guidance, setGuidance] = useState('Iniciando a câmera...');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
+  const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
   const [clock, setClock] = useState(new Date());
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -346,11 +347,12 @@ export function FacialTerminalPage() {
         return;
       }
 
+      const capturedFrame = cameraRef.current?.capture({ faceCrop: false }) || null;
       const croppedFaceImages = localFacePresentRef.current
         ? cameraRef.current?.captureFaces({ limit: MAX_FACES_PER_SCAN }) || []
         : [];
       const fallbackImage = croppedFaceImages.length === 0
-        ? cameraRef.current?.capture({ faceCrop: false })
+        ? capturedFrame
         : null;
       const images = croppedFaceImages.length > 0
         ? croppedFaceImages
@@ -365,6 +367,7 @@ export function FacialTerminalPage() {
       }
 
       requestInFlightRef.current = true;
+      setFrozenFrame(capturedFrame);
       setMode('scanning');
       setGuidance(images.length > 1
         ? `Reconhecendo ${images.length} pessoas ao mesmo tempo...`
@@ -382,6 +385,7 @@ export function FacialTerminalPage() {
         }
       } finally {
         requestInFlightRef.current = false;
+        setFrozenFrame(null);
         schedule();
       }
     };
@@ -543,12 +547,21 @@ export function FacialTerminalPage() {
           <CameraCapture
             ref={cameraRef}
             className={cameraClass}
+            analysisPaused={Boolean(frozenFrame)}
             faceOverlay={faceOverlay}
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
             onFacePresenceChange={handleLocalFacePresence}
             onFaceCountChange={handleLocalFaceCount}
           />
+          {frozenFrame && (
+            <img
+              className="terminal-frozen-frame"
+              src={frozenFrame}
+              alt=""
+              aria-hidden="true"
+            />
+          )}
         </div>
 
         <div className="terminal-status-strip">

@@ -260,6 +260,7 @@ export function cameraAccessErrorMessage(error: unknown) {
 
 interface CameraCaptureProps {
   className?: string;
+  analysisPaused?: boolean;
   faceOverlay?: FaceOverlayState;
   detectedFaceBox?: FaceSourceBox | null;
   onReadyChange?: (ready: boolean) => void;
@@ -270,6 +271,7 @@ interface CameraCaptureProps {
 export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>(
   ({
     className = '',
+    analysisPaused = false,
     faceOverlay,
     detectedFaceBox,
     onReadyChange,
@@ -295,6 +297,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const nativeNormalizedFaceBoxesRef = useRef<FaceBox[]>([]);
     const startRequestIdRef = useRef(0);
     const selectedDeviceIdRef = useRef('');
+    const analysisPausedRef = useRef(analysisPaused);
     const [ready, setReady] = useState(false);
     const [starting, setStarting] = useState(true);
     const [error, setError] = useState('');
@@ -308,6 +311,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     useEffect(() => {
       faceOverlayRef.current = faceOverlay;
     }, [faceOverlay]);
+
+    useEffect(() => {
+      analysisPausedRef.current = analysisPaused;
+    }, [analysisPaused]);
 
     useEffect(() => {
       onReadyChangeRef.current = onReadyChange;
@@ -829,7 +836,12 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       };
 
       const processFrame = (now: DOMHighResTimeStamp) => {
-        if (cancelled || document.hidden || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS) return;
+        if (
+          cancelled
+          || document.hidden
+          || analysisPausedRef.current
+          || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS
+        ) return;
 
         const video = videoRef.current;
         if (landmarker && video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -968,6 +980,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let timer = 0;
 
       const detect = async () => {
+        if (analysisPausedRef.current) {
+          timer = window.setTimeout(detect, 80);
+          return;
+        }
         const video = videoRef.current;
         if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
           timer = window.setTimeout(detect, 80);
