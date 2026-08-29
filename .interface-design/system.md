@@ -29,7 +29,7 @@
 - Terminal: efeitos CSS 3D leves para não disputar GPU com webcam/MediaPipe; a geometria acompanha estados existentes e não adiciona espera.
 - Obras: Three.js continua como única cena WebGL principal, com marcador do acesso e onda de atividade.
 - Elementos de RA/RV são linguagem espacial na tela (malha, feixe, profundidade e localização), não promessa de suporte a headset.
-- A troca de páginas usa uma passagem espacial curta com planos em profundidade, malha, scanner e o nome real do destino; nunca usa GIF remoto.
+- A troca de páginas é imediata e monta a própria interface: cabeçalho, superfícies, cards e painéis chegam alternadamente dos quatro cantos e se encaixam em cascata. Não usar tela intermediária cobrindo a navegação.
 - Selos de vidro aparecem somente após confirmação real do backend.
 
 ## Acessibilidade e desempenho

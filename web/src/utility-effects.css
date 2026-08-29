@@ -461,193 +461,6 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
 .activity-chart-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 @keyframes activity-line-draw { to { stroke-dashoffset: 0; } }
 
-/* Passagem espacial entre rotas: orientação AR/RV curta, sem bloquear interação. */
-.route-spatial-transition {
-  position: fixed;
-  inset: 0;
-  z-index: 12000;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 48%, rgb(88 129 87 / .22), transparent 30%),
-    rgb(8 20 13 / .94);
-  pointer-events: none;
-  perspective: 1100px;
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
-}
-
-.route-spatial-transition[data-phase="leave"] {
-  animation: route-spatial-cover-in 420ms var(--motion-smooth) both;
-}
-
-.route-spatial-transition[data-phase="enter"] {
-  animation: route-spatial-cover-out 520ms var(--motion-smooth) both;
-}
-
-.route-spatial-viewport {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-}
-
-.route-spatial-plane {
-  position: absolute;
-  top: -15%;
-  bottom: -15%;
-  width: 52%;
-  border: 1px solid rgb(178 226 192 / .34);
-  background: linear-gradient(115deg, rgb(58 90 64 / .2), rgb(218 215 205 / .05));
-  box-shadow: inset 0 0 70px rgb(163 177 138 / .08);
-  transform-style: preserve-3d;
-}
-
-.route-spatial-plane-near {
-  left: -2%;
-  transform-origin: left center;
-}
-
-.route-spatial-plane-far {
-  right: -2%;
-  transform-origin: right center;
-}
-
-.route-spatial-transition[data-phase="leave"] .route-spatial-plane-near { animation: route-plane-left-in 420ms var(--motion-smooth) both; }
-.route-spatial-transition[data-phase="leave"] .route-spatial-plane-far { animation: route-plane-right-in 420ms var(--motion-smooth) both; }
-.route-spatial-transition[data-phase="enter"] .route-spatial-plane-near { animation: route-plane-left-out 520ms var(--motion-smooth) both; }
-.route-spatial-transition[data-phase="enter"] .route-spatial-plane-far { animation: route-plane-right-out 520ms var(--motion-smooth) both; }
-
-.route-spatial-grid {
-  position: absolute;
-  inset: 44% -12% -38%;
-  background-image:
-    linear-gradient(rgb(114 170 129 / .22) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(114 170 129 / .22) 1px, transparent 1px);
-  background-size: 42px 32px;
-  transform: rotateX(68deg) translateZ(-80px);
-  transform-origin: center top;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 25%, transparent 88%);
-  mask-image: linear-gradient(to bottom, transparent, #000 25%, transparent 88%);
-}
-
-.route-spatial-transition[data-phase="leave"] .route-spatial-grid { animation: route-grid-in 420ms var(--motion-smooth) both; }
-.route-spatial-transition[data-phase="enter"] .route-spatial-grid { animation: route-grid-out 520ms var(--motion-smooth) both; }
-
-.route-spatial-depth,
-.route-spatial-depth i {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: block;
-  border: 1px solid rgb(163 225 181 / .2);
-  border-radius: 24%;
-  transform-style: preserve-3d;
-}
-.route-spatial-depth { inset: 0; border: 0; }
-.route-spatial-depth i { width: 22vmin; height: 22vmin; transform: translate(-50%, -50%); }
-.route-spatial-depth i:nth-child(2) { width: 38vmin; height: 38vmin; }
-.route-spatial-depth i:nth-child(3) { width: 58vmin; height: 58vmin; }
-.route-spatial-depth i:nth-child(4) { width: 82vmin; height: 82vmin; }
-.route-spatial-transition[data-phase="leave"] .route-spatial-depth { animation: route-depth-in 420ms var(--motion-smooth) both; }
-.route-spatial-transition[data-phase="enter"] .route-spatial-depth { animation: route-depth-out 520ms var(--motion-smooth) both; }
-
-.route-spatial-scan {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 2px;
-  background: #9ee7b5;
-  box-shadow: 0 0 18px 4px rgb(112 226 154 / .35), 0 0 80px 22px rgb(88 129 87 / .12);
-}
-.route-spatial-transition[data-phase="leave"] .route-spatial-scan { animation: route-scan-pass 420ms ease-in-out both; }
-.route-spatial-transition[data-phase="enter"] .route-spatial-scan { animation: route-scan-return 520ms ease-in-out both; }
-
-.route-spatial-reticle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 112px;
-  height: 112px;
-  border: 1px solid rgb(158 231 181 / .5);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-.route-spatial-transition[data-phase="leave"] .route-spatial-reticle { animation: route-reticle-in 420ms var(--motion-spring) both; }
-.route-spatial-transition[data-phase="enter"] .route-spatial-reticle { animation: route-reticle-out 520ms var(--motion-smooth) both; }
-
-.route-spatial-reticle::before,
-.route-spatial-reticle::after,
-.route-spatial-reticle i {
-  position: absolute;
-  content: "";
-  background: rgb(158 231 181 / .65);
-}
-.route-spatial-reticle::before { top: 50%; left: -18px; right: -18px; height: 1px; }
-.route-spatial-reticle::after { top: -18px; bottom: -18px; left: 50%; width: 1px; }
-.route-spatial-reticle i:first-child { inset: 20px; border: 1px solid rgb(158 231 181 / .34); border-radius: 50%; background: transparent; }
-.route-spatial-reticle i:last-child { top: 50%; left: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translate(-50%, -50%); }
-
-.route-spatial-mark {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  width: 58px;
-  height: 58px;
-  place-items: center;
-  transform: translate(-50%, -50%);
-}
-.route-spatial-mark .brand-mark { width: 58px; height: 58px; color: #3a5a40; filter: drop-shadow(0 0 24px rgb(132 225 159 / .35)); }
-.route-spatial-transition[data-phase="leave"] .route-spatial-mark { animation: route-mark-in 420ms var(--motion-spring) both; }
-.route-spatial-transition[data-phase="enter"] .route-spatial-mark { animation: route-mark-out 520ms var(--motion-smooth) both; }
-
-.route-spatial-copy {
-  position: absolute;
-  left: 50%;
-  bottom: 12%;
-  display: grid;
-  gap: 3px;
-  min-width: 190px;
-  padding: 10px 14px;
-  border: 1px solid rgb(196 229 205 / .3);
-  border-radius: 10px;
-  background: rgb(25 53 34 / .76);
-  color: #f4f6f1;
-  box-shadow: 0 12px 32px rgb(11 28 17 / .18);
-  transform: translateX(-50%);
-  text-align: center;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-}
-.route-spatial-transition[data-phase="leave"] .route-spatial-copy { animation: route-copy-in 420ms var(--motion-smooth) both; }
-.route-spatial-transition[data-phase="enter"] .route-spatial-copy { animation: route-copy-out 520ms var(--motion-smooth) both; }
-.route-spatial-copy small { color: #b8cbbd; font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-.route-spatial-copy strong { font-size: .86rem; font-weight: 700; }
-
-@keyframes route-spatial-cover-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes route-spatial-cover-out { from { opacity: 1; } to { opacity: 0; } }
-@keyframes route-plane-left-in { from { transform: translateX(-108%) rotateY(34deg); } to { transform: translateX(0) rotateY(0); } }
-@keyframes route-plane-right-in { from { transform: translateX(108%) rotateY(-34deg); } to { transform: translateX(0) rotateY(0); } }
-@keyframes route-plane-left-out { from { transform: translateX(0); } to { transform: translateX(-112%) rotateY(30deg); } }
-@keyframes route-plane-right-out { from { transform: translateX(0); } to { transform: translateX(112%) rotateY(-30deg); } }
-@keyframes route-grid-in { from { opacity: 0; transform: rotateX(68deg) translateY(80px) translateZ(120px); } to { opacity: .9; transform: rotateX(68deg) translateY(0) translateZ(-110px); } }
-@keyframes route-grid-out { from { opacity: .9; transform: rotateX(68deg) translateZ(-110px); } to { opacity: 0; transform: rotateX(68deg) translateY(-60px) translateZ(-260px); } }
-@keyframes route-depth-in { from { opacity: 0; transform: rotateZ(-12deg) scale(1.35); } to { opacity: 1; transform: rotateZ(0) scale(.82); } }
-@keyframes route-depth-out { from { opacity: 1; transform: rotateZ(0) scale(.82); } to { opacity: 0; transform: rotateZ(10deg) scale(1.3); } }
-@keyframes route-scan-pass {
-  from { opacity: 0; transform: translateX(-4vw); }
-  18% { opacity: 1; }
-  82% { opacity: 1; }
-  to { opacity: 0; transform: translateX(104vw); }
-}
-@keyframes route-scan-return { from { opacity: 0; transform: translateX(104vw); } 20%, 76% { opacity: 1; } to { opacity: 0; transform: translateX(-4vw); } }
-@keyframes route-reticle-in { from { opacity: 0; transform: translate(-50%, -50%) scale(1.55) rotate(-18deg); } to { opacity: .85; transform: translate(-50%, -50%) scale(1) rotate(0); } }
-@keyframes route-reticle-out { from { opacity: .85; transform: translate(-50%, -50%) scale(1); } to { opacity: 0; transform: translate(-50%, -50%) scale(.68) rotate(12deg); } }
-@keyframes route-mark-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.45) rotateY(70deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateY(0); } }
-@keyframes route-mark-out { from { opacity: 1; transform: translate(-50%, -50%) scale(1); } to { opacity: 0; transform: translate(-50%, -50%) scale(1.3) rotateY(-55deg); } }
-@keyframes route-copy-in { from { opacity: 0; transform: translate(-50%, 18px); } to { opacity: 1; transform: translate(-50%, 0); } }
-@keyframes route-copy-out { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -12px); } }
-
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after,
   .ui-skeleton::after,
@@ -655,8 +468,7 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   .terminal-scan-volume,
   .glass-checkmark-3d,
   .data-flow-cubes > span,
-  .activity-line,
-  .route-spatial-transition * { animation: none !important; }
+  .activity-line { animation: none !important; }
   .route-content { animation: utility-fade-in 180ms ease-out both !important; }
   .form-panel.app-view-transition,
   .configuration-panel.app-view-transition,
@@ -667,21 +479,11 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
   .enrollment-dialog-backdrop > [role="dialog"],
   .employee-drawer,
   .confirmation-strip[role="alertdialog"] { animation: utility-fade-in 180ms ease-out both !important; }
-  .route-spatial-transition[data-phase="leave"] { animation: route-spatial-reduced-in 180ms ease-out both !important; }
-  .route-spatial-transition[data-phase="enter"] { animation: route-spatial-reduced-out 260ms ease-out both !important; }
-  .route-spatial-plane,
-  .route-spatial-grid,
-  .route-spatial-depth,
-  .route-spatial-scan { display: none; }
-  .route-spatial-reticle { opacity: .35; transform: translate(-50%, -50%) scale(.88); }
-  .route-spatial-mark { opacity: 1; transform: translate(-50%, -50%); }
-  .route-spatial-copy { opacity: 1; transform: translateX(-50%); }
   [data-tilt],
   .terminal-totem-3d { transform: none !important; }
 }
 
 /* Preferência explícita do produto vence a configuração global do dispositivo. */
-html[data-motion-mode="full"] .route-content { animation: utility-route-content-in 440ms var(--motion-smooth) both !important; }
 html[data-motion-mode="full"] .form-panel.app-view-transition,
 html[data-motion-mode="full"] .configuration-panel.app-view-transition { animation: utility-panel-in 300ms var(--motion-spring) both !important; }
 html[data-motion-mode="full"] .modal-backdrop,
@@ -724,25 +526,6 @@ html[data-motion-mode="full"] .worksite-world-frame[data-ready="true"] .worksite
 html[data-motion-mode="full"] .worksite-world-frame[data-ready="true"] .worksite-world-tools,
 html[data-motion-mode="full"] .worksite-world-frame[data-ready="true"] .worksite-world-guide,
 html[data-motion-mode="full"] .worksite-world-frame[data-ready="true"] .worksite-world-caption { animation: motion-world-hud 620ms var(--motion-ease-out) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] { animation: route-spatial-cover-in 420ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] { animation: route-spatial-cover-out 520ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-plane-near { display: block; animation: route-plane-left-in 420ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-plane-far { display: block; animation: route-plane-right-in 420ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-plane-near { display: block; animation: route-plane-left-out 520ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-plane-far { display: block; animation: route-plane-right-out 520ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-grid { display: block; animation: route-grid-in 420ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-grid { display: block; animation: route-grid-out 520ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-depth { display: block; animation: route-depth-in 420ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-depth { display: block; animation: route-depth-out 520ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-scan { display: block; animation: route-scan-pass 420ms ease-in-out both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-scan { display: block; animation: route-scan-return 520ms ease-in-out both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-reticle { animation: route-reticle-in 420ms var(--motion-spring) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-reticle { animation: route-reticle-out 520ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-mark { animation: route-mark-in 420ms var(--motion-spring) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-mark { animation: route-mark-out 520ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="leave"] .route-spatial-copy { animation: route-copy-in 420ms var(--motion-smooth) both !important; }
-html[data-motion-mode="full"] .route-spatial-transition[data-phase="enter"] .route-spatial-copy { animation: route-copy-out 520ms var(--motion-smooth) both !important; }
-
 html[data-motion-mode="reduced"] .route-content,
 html[data-motion-mode="reduced"] .form-panel.app-view-transition,
 html[data-motion-mode="reduced"] .configuration-panel.app-view-transition,
@@ -755,18 +538,231 @@ html[data-motion-mode="reduced"] .employee-drawer,
 html[data-motion-mode="reduced"] .confirmation-strip[role="alertdialog"] { animation: utility-fade-in 160ms ease-out both !important; }
 
 @keyframes utility-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes route-spatial-reduced-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes route-spatial-reduced-out { from { opacity: 1; } to { opacity: 0; } }
 
 @media (max-width: 767px) {
   .terminal-totem-3d { right: 3%; transform: scale(.82); transform-origin: right bottom; }
   .data-flow-cubes { display: none; }
   .glass-checkmark-3d { width: 36px; height: 36px; }
-  .route-spatial-copy { bottom: 18%; }
-  .route-spatial-reticle { width: 84px; height: 84px; }
   .activity-chart { padding-inline: 16px; }
   .activity-chart-summary { justify-content: space-between; gap: 16px; }
   .activity-chart-plot { min-height: 244px; overflow: hidden; padding-bottom: 4px; }
   .activity-chart-plot svg { min-width: 100%; height: 224px; }
   .activity-chart-axis { right: 4%; left: 4%; min-width: 0; }
+}
+
+/* Montagem de página: cada superfície chega de uma borda e se encaixa no layout. */
+html[data-motion-mode="full"] .page-assembly-heading {
+  --assemble-x: -72px;
+  --assemble-y: -38px;
+  --assemble-rotate: -1.2deg;
+  animation: page-piece-dock 520ms var(--motion-smooth) both !important;
+}
+
+html[data-motion-mode="full"] .route-content,
+html[data-motion-mode="full"] .route-content > .app-view-transition {
+  animation: none !important;
+}
+
+html[data-motion-mode="full"] .route-content > .app-view-transition > * {
+  --assemble-delay: 35ms;
+  --assemble-x: -110px;
+  --assemble-y: -44px;
+  --assemble-rotate: -1deg;
+  animation: page-piece-dock 560ms var(--motion-smooth) var(--assemble-delay) both !important;
+  will-change: transform, opacity;
+}
+
+html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n + 2) {
+  --assemble-delay: 90ms;
+  --assemble-x: 120px;
+  --assemble-y: -32px;
+  --assemble-rotate: 1deg;
+}
+
+html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n + 3) {
+  --assemble-delay: 145ms;
+  --assemble-x: -125px;
+  --assemble-y: 58px;
+  --assemble-rotate: .8deg;
+}
+
+html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n) {
+  --assemble-delay: 200ms;
+  --assemble-x: 130px;
+  --assemble-y: 64px;
+  --assemble-rotate: -1deg;
+}
+
+html[data-motion-mode="full"] .route-content :is(
+  .metric-mosaic,
+  .operations-analysis,
+  .worksite-statline,
+  .device-statline,
+  .camera-card-grid,
+  .worksite-command-grid,
+  .terminal-shell,
+  .terminal-side,
+  .report-filter-grid,
+  .report-format-list,
+  .dashboard-loading-grid
+) > * {
+  --assemble-delay: 150ms;
+  --assemble-x: -92px;
+  --assemble-y: 54px;
+  --assemble-rotate: -1.4deg;
+  animation: page-piece-dock 600ms var(--motion-smooth) var(--assemble-delay) both !important;
+  will-change: transform, opacity;
+}
+
+html[data-motion-mode="full"] .route-content :is(
+  .metric-mosaic,
+  .operations-analysis,
+  .worksite-statline,
+  .device-statline,
+  .camera-card-grid,
+  .worksite-command-grid,
+  .terminal-shell,
+  .terminal-side,
+  .report-filter-grid,
+  .report-format-list,
+  .dashboard-loading-grid
+) > :nth-child(4n + 2) {
+  --assemble-delay: 205ms;
+  --assemble-x: 96px;
+  --assemble-y: -48px;
+  --assemble-rotate: 1.2deg;
+}
+
+html[data-motion-mode="full"] .route-content :is(
+  .metric-mosaic,
+  .operations-analysis,
+  .worksite-statline,
+  .device-statline,
+  .camera-card-grid,
+  .worksite-command-grid,
+  .terminal-shell,
+  .terminal-side,
+  .report-filter-grid,
+  .report-format-list,
+  .dashboard-loading-grid
+) > :nth-child(4n + 3) {
+  --assemble-delay: 260ms;
+  --assemble-x: -88px;
+  --assemble-y: -58px;
+  --assemble-rotate: .9deg;
+}
+
+html[data-motion-mode="full"] .route-content :is(
+  .metric-mosaic,
+  .operations-analysis,
+  .worksite-statline,
+  .device-statline,
+  .camera-card-grid,
+  .worksite-command-grid,
+  .terminal-shell,
+  .terminal-side,
+  .report-filter-grid,
+  .report-format-list,
+  .dashboard-loading-grid
+) > :nth-child(4n) {
+  --assemble-delay: 315ms;
+  --assemble-x: 102px;
+  --assemble-y: 60px;
+  --assemble-rotate: -1deg;
+}
+
+html[data-motion-mode="full"] .route-content :is(.table-shell, .form-panel, .toolbar-panel, .configuration-panel) {
+  --assemble-delay: 180ms;
+  --assemble-x: 0px;
+  --assemble-y: 86px;
+  --assemble-rotate: 0deg;
+  animation: page-piece-dock 580ms var(--motion-smooth) var(--assemble-delay) both !important;
+  will-change: transform, opacity;
+}
+
+html[data-motion-mode="full"] .form-panel > *,
+html[data-motion-mode="full"] .enrollment-dialog-header > *,
+html[data-motion-mode="full"] .enrollment-camera-column,
+html[data-motion-mode="full"] .enrollment-side-panel > * {
+  --assemble-delay: 150ms;
+  --assemble-x: -58px;
+  --assemble-y: -32px;
+  --assemble-rotate: -.7deg;
+  animation: page-piece-dock 460ms var(--motion-smooth) var(--assemble-delay) both !important;
+}
+
+html[data-motion-mode="full"] :is(.form-panel > *, .enrollment-dialog-header > *, .enrollment-side-panel > *) :where(:focus-visible) {
+  animation: none !important;
+}
+
+html[data-motion-mode="full"] .form-panel > :nth-child(3n + 2),
+html[data-motion-mode="full"] .enrollment-dialog-header > :nth-child(3n + 2),
+html[data-motion-mode="full"] .enrollment-side-panel > :nth-child(3n + 2) {
+  --assemble-delay: 205ms;
+  --assemble-x: 62px;
+  --assemble-y: -26px;
+  --assemble-rotate: .7deg;
+}
+
+html[data-motion-mode="full"] .form-panel > :nth-child(3n),
+html[data-motion-mode="full"] .enrollment-dialog-header > :nth-child(3n),
+html[data-motion-mode="full"] .enrollment-side-panel > :nth-child(3n) {
+  --assemble-delay: 260ms;
+  --assemble-x: 0px;
+  --assemble-y: 48px;
+  --assemble-rotate: 0deg;
+}
+
+html[data-motion-mode="full"] .enrollment-camera-column {
+  --assemble-delay: 185ms;
+  --assemble-x: -72px;
+  --assemble-y: 36px;
+}
+
+@keyframes page-piece-dock {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--assemble-x), var(--assemble-y), 0) rotate(var(--assemble-rotate)) scale(.965);
+  }
+  72% { opacity: 1; }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) rotate(0) scale(1); }
+}
+
+html[data-motion-mode="reduced"] .page-assembly-heading,
+html[data-motion-mode="reduced"] .route-content > .app-view-transition > *,
+html[data-motion-mode="reduced"] .route-content :is(
+  .metric-mosaic,
+  .operations-analysis,
+  .worksite-statline,
+  .device-statline,
+  .camera-card-grid,
+  .worksite-command-grid,
+  .terminal-shell,
+  .terminal-side,
+  .report-filter-grid,
+  .report-format-list,
+  .dashboard-loading-grid
+) > * {
+  animation: utility-fade-in 160ms ease-out both !important;
+}
+
+@media (max-width: 767px) {
+  html[data-motion-mode="full"] .page-assembly-heading,
+  html[data-motion-mode="full"] .route-content > .app-view-transition > *,
+  html[data-motion-mode="full"] .route-content :is(
+    .metric-mosaic,
+    .operations-analysis,
+    .worksite-statline,
+    .device-statline,
+    .camera-card-grid,
+    .worksite-command-grid,
+    .terminal-shell,
+    .terminal-side,
+    .report-filter-grid,
+    .report-format-list,
+    .dashboard-loading-grid
+  ) > * {
+    --assemble-x: clamp(-54px, var(--assemble-x), 54px);
+    --assemble-y: clamp(-42px, var(--assemble-y), 48px);
+  }
 }

@@ -17,9 +17,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 
-import { createPageMotion, moveIndicator } from '../animations/motion';
+import { moveIndicator } from '../animations/motion';
 import { useAuth } from '../auth/AuthContext';
 import { ALL_ROLES, roleForUser, type AppRole } from '../auth/permissions';
 import { BrandMark } from './BrandMark';
@@ -92,7 +92,6 @@ function isActivePath(pathname: string, target: string) {
 
 export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const userRole = roleForUser(user);
   const visibleNavItems = useMemo(
@@ -105,15 +104,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   const [online, setOnline] = useState(navigator.onLine);
   const [motionReduced, setMotionReduced] = useState(() => localStorage.getItem('motion-preference') === 'reduced');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [spatialRoute, setSpatialRoute] = useState<{
-    phase: 'leave' | 'enter';
-    path: string;
-    title: string;
-    eyebrow: string;
-    sequence: number;
-  } | null>(null);
-  const spatialRouteRef = useRef(spatialRoute);
-  const spatialTimersRef = useRef<number[]>([]);
   const mainRef = useRef<HTMLElement>(null);
   const sidebarNavRef = useRef<HTMLElement>(null);
   const sidebarIndicatorRef = useRef<HTMLSpanElement>(null);
@@ -174,64 +164,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   }, [location.pathname]);
 
   useEffect(() => {
-    spatialRouteRef.current = spatialRoute;
-  }, [spatialRoute]);
-
-  useEffect(() => () => {
-    spatialTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-  }, []);
-
-  const handleInternalNavigation = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (
-      event.defaultPrevented
-      || event.button !== 0
-      || event.metaKey
-      || event.ctrlKey
-      || event.shiftKey
-      || event.altKey
-    ) return;
-    const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href]');
-    if (!anchor || anchor.target || anchor.hasAttribute('download')) return;
-    const destination = new URL(anchor.href, window.location.href);
-    if (destination.origin !== window.location.origin) return;
-    const targetPath = `${destination.pathname}${destination.search}${destination.hash}`;
-    const currentPath = `${location.pathname}${location.search}${location.hash}`;
-    if (targetPath === currentPath || destination.hash && destination.pathname === location.pathname) return;
-
-    event.preventDefault();
-    if (spatialRouteRef.current) return;
-    const targetCopy = pageCopy[destination.pathname] ?? {
-      title: 'Área de trabalho',
-      eyebrow: 'Curitiba Empreiteira',
-      description: '',
-    };
-    const reduced = motionReduced;
-    const leaveDuration = reduced ? 180 : 420;
-    const enterDuration = reduced ? 260 : 520;
-    const sequence = Date.now();
-    const transition = {
-      phase: 'leave' as const,
-      path: destination.pathname,
-      title: targetCopy.title,
-      eyebrow: targetCopy.eyebrow,
-      sequence,
-    };
-    spatialRouteRef.current = transition;
-    setSpatialRoute(transition);
-    spatialTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-    spatialTimersRef.current = [window.setTimeout(() => {
-      navigate(targetPath);
-      const entering = { ...transition, phase: 'enter' as const };
-      spatialRouteRef.current = entering;
-      setSpatialRoute(entering);
-      spatialTimersRef.current = [window.setTimeout(() => {
-        spatialRouteRef.current = null;
-        setSpatialRoute(null);
-      }, enterDuration)];
-    }, leaveDuration)];
-  }, [location.hash, location.pathname, location.search, motionReduced, navigate]);
-
-  useEffect(() => {
     if (!mobileMenuOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
     sidebarCloseRef.current?.focus();
@@ -265,12 +197,6 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   }, [closeMobileMenu, mobileMenuOpen]);
 
   useLayoutEffect(() => {
-    if (!mainRef.current) return undefined;
-    const scope = createPageMotion(mainRef.current);
-    return () => scope.revert();
-  }, [location.pathname]);
-
-  useLayoutEffect(() => {
     let sidebarAnimation: ReturnType<typeof moveIndicator>;
     let mobileAnimation: ReturnType<typeof moveIndicator>;
     const frame = window.requestAnimationFrame(() => {
@@ -289,31 +215,8 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
   const moreActive = visibleNavItems.slice(4).some((item) => isActivePath(location.pathname, item.to));
 
   return (
-    <div className="app-shell" onClickCapture={handleInternalNavigation}>
+    <div className="app-shell">
       <a href="#main-content" className="skip-link">Pular para o conteúdo</a>
-
-      {spatialRoute && (
-        <div
-          key={`${spatialRoute.sequence}-${spatialRoute.phase}`}
-          className="route-spatial-transition"
-          data-phase={spatialRoute.phase}
-          aria-hidden="true"
-        >
-          <div className="route-spatial-viewport">
-            <span className="route-spatial-plane route-spatial-plane-near" />
-            <span className="route-spatial-plane route-spatial-plane-far" />
-            <span className="route-spatial-grid" />
-            <span className="route-spatial-depth"><i /><i /><i /><i /></span>
-            <span className="route-spatial-scan" />
-            <span className="route-spatial-reticle"><i /><i /></span>
-            <span className="route-spatial-mark"><BrandMark /></span>
-            <span className="route-spatial-copy">
-              <small>{spatialRoute.eyebrow}</small>
-              <strong>{spatialRoute.title}</strong>
-            </span>
-          </div>
-        </div>
-      )}
 
       <aside ref={sidebarRef} className="app-sidebar" data-open={mobileMenuOpen} aria-hidden={!mobileMenuOpen}>
         <div className="sidebar-brand-row">
@@ -451,22 +354,22 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
         </header>
 
         <main ref={mainRef} id="main-content" tabIndex={-1} className={isTerminal ? 'app-main app-main-terminal' : 'app-main'}>
-          {!isTerminal && (
-            <section className="page-heading">
-              <div>
-                <span className="page-heading-kicker">{current.eyebrow}</span>
-                <h1>{current.title}</h1>
-                <p>{current.description}</p>
-              </div>
-              {!online && (
-                <span className="page-status is-offline">
-                  <span className="status-dot" />
-                  Sem conexão
-                </span>
-              )}
-            </section>
-          )}
           <div key={location.pathname} className="route-content">
+            {!isTerminal && (
+              <section className="page-heading page-assembly-heading">
+                <div>
+                  <span className="page-heading-kicker">{current.eyebrow}</span>
+                  <h1>{current.title}</h1>
+                  <p>{current.description}</p>
+                </div>
+                {!online && (
+                  <span className="page-status is-offline">
+                    <span className="status-dot" />
+                    Sem conexão
+                  </span>
+                )}
+              </section>
+            )}
             {children}
           </div>
         </main>
