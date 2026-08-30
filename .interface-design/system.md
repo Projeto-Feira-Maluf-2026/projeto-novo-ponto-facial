@@ -47,6 +47,7 @@
 - Etapas de fluxo, diagnósticos repetidos, textos explicativos e histórico completo pertencem a outras telas, não ao terminal operacional.
 - Sobre o vídeo, exibir apenas enquadramento facial, estado curto da câmera, seletor quando houver mais de um dispositivo e ação de reinício.
 - Não usar tilt, totem 3D, scan line ou ornamento permanente sobre a webcam; a prioridade visual e de GPU é a captura.
+- A evidência enviada ao backend é um snapshot interno. Nunca cobrir ou congelar o vídeo para mostrá-la; câmera e rastreamento continuam ao vivo durante o processamento.
 
 ## Modo apresentação
 

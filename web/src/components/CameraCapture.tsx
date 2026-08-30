@@ -59,7 +59,9 @@ const FACE_LANDMARKER_MODEL_PATH = import.meta.env.VITE_FACE_LANDMARKER_MODEL_UR
 const DISTANT_FACE_DETECTOR_MODEL_PATH = import.meta.env.VITE_FACE_DETECTOR_MODEL_URL?.trim()
   || 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite';
 const MAX_TRACKED_FACES = 5;
-const LANDMARK_FRAME_INTERVAL_MS = 32;
+// O overlay continua responsivo sem disputar cada frame da webcam com uma
+// inferência síncrona no thread principal.
+const LANDMARK_FRAME_INTERVAL_MS = 42;
 const DISTANT_SCAN_INTERVAL_MS = 110;
 const DISTANT_DETECTION_TTL_MS = 850;
 const DISTANT_TILE_SIZE = 512;
@@ -260,7 +262,6 @@ export function cameraAccessErrorMessage(error: unknown) {
 
 interface CameraCaptureProps {
   className?: string;
-  analysisPaused?: boolean;
   fitMode?: 'cover' | 'contain';
   faceOverlay?: FaceOverlayState;
   detectedFaceBox?: FaceSourceBox | null;
@@ -272,7 +273,6 @@ interface CameraCaptureProps {
 export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>(
   ({
     className = '',
-    analysisPaused = false,
     fitMode = 'cover',
     faceOverlay,
     detectedFaceBox,
@@ -299,7 +299,6 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const nativeNormalizedFaceBoxesRef = useRef<FaceBox[]>([]);
     const startRequestIdRef = useRef(0);
     const selectedDeviceIdRef = useRef('');
-    const analysisPausedRef = useRef(analysisPaused);
     const [ready, setReady] = useState(false);
     const [starting, setStarting] = useState(true);
     const [error, setError] = useState('');
@@ -313,10 +312,6 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     useEffect(() => {
       faceOverlayRef.current = faceOverlay;
     }, [faceOverlay]);
-
-    useEffect(() => {
-      analysisPausedRef.current = analysisPaused;
-    }, [analysisPaused]);
 
     useEffect(() => {
       onReadyChangeRef.current = onReadyChange;
@@ -843,7 +838,6 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (
           cancelled
           || document.hidden
-          || analysisPausedRef.current
           || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS
         ) return;
 
@@ -892,7 +886,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             minFacePresenceConfidence: 0.36,
             minTrackingConfidence: 0.36,
             outputFaceBlendshapes: false,
-            outputFacialTransformationMatrixes: true,
+            // O terminal usa landmarks e caixas, não as matrizes faciais 3D.
+            outputFacialTransformationMatrixes: false,
           };
 
           try {
@@ -984,10 +979,6 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let timer = 0;
 
       const detect = async () => {
-        if (analysisPausedRef.current) {
-          timer = window.setTimeout(detect, 80);
-          return;
-        }
         const video = videoRef.current;
         if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
           timer = window.setTimeout(detect, 80);

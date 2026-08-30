@@ -405,10 +405,10 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
 /* Confirmação local para cada face: não interfere na captura nem no canvas. */
 .face-track-overlay {
   transition:
-    left 70ms linear,
-    top 70ms linear,
-    width 70ms linear,
-    height 70ms linear,
+    left 24ms linear,
+    top 24ms linear,
+    width 24ms linear,
+    height 24ms linear,
     border-color 120ms ease,
     color 120ms ease;
 }
@@ -1194,17 +1194,6 @@ html[data-motion-mode="reduced"] .route-content :is(
 
 .terminal-camera-frame .camera-view[data-fit="contain"] video {
   object-fit: contain !important;
-}
-
-.terminal-frozen-frame {
-  position: absolute;
-  z-index: 6;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  transform: scaleX(-1);
-  pointer-events: none;
 }
 
 .terminal-camera-frame .camera-chip {

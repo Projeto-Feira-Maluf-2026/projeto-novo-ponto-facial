@@ -150,7 +150,6 @@ export function FacialTerminalPage() {
   const [decision, setDecision] = useState<AttendanceDecision | null>(null);
   const [guidance, setGuidance] = useState('Iniciando a câmera...');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
-  const [frozenFrame, setFrozenFrame] = useState<string | null>(null);
   const [clock, setClock] = useState(new Date());
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -373,7 +372,6 @@ export function FacialTerminalPage() {
       }
 
       requestInFlightRef.current = true;
-      setFrozenFrame(capturedFrame);
       setMode('scanning');
       setGuidance(images.length > 1
         ? `Reconhecendo ${images.length} pessoas ao mesmo tempo...`
@@ -391,7 +389,6 @@ export function FacialTerminalPage() {
         }
       } finally {
         requestInFlightRef.current = false;
-        setFrozenFrame(null);
         schedule();
       }
     };
@@ -553,7 +550,6 @@ export function FacialTerminalPage() {
           <CameraCapture
             ref={cameraRef}
             className={cameraClass}
-            analysisPaused={Boolean(frozenFrame)}
             fitMode="contain"
             faceOverlay={faceOverlay}
             detectedFaceBox={detectedFaceBox}
@@ -561,14 +557,6 @@ export function FacialTerminalPage() {
             onFacePresenceChange={handleLocalFacePresence}
             onFaceCountChange={handleLocalFaceCount}
           />
-          {frozenFrame && (
-            <img
-              className="terminal-frozen-frame"
-              src={frozenFrame}
-              alt=""
-              aria-hidden="true"
-            />
-          )}
         </div>
 
         <div className="terminal-status-strip">
