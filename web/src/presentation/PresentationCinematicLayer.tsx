@@ -422,6 +422,9 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
       gsap.fromTo('.presentation-trust-symbol',
         { scale: 0.15, rotate: -160, opacity: 0 },
         { scale: 1, rotate: 0, opacity: 1, ease: 'back.out(1.35)', scrollTrigger: { trigger: '.presentation-story-trust', start: 'top 88%', end: 'center 58%', scrub: 0.55, ...common } });
+      gsap.fromTo('.presentation-school-backdrop',
+        { scale: 1.34, yPercent: -8, filter: 'saturate(.55) contrast(1.08)' },
+        { scale: 1.04, yPercent: 8, filter: 'saturate(.88) contrast(1.02)', ease: 'none', scrollTrigger: { trigger: '.presentation-story-school', start: 'top bottom', end: 'bottom top', scrub: 0.8, ...common } });
       gsap.fromTo('.presentation-story-school > :not(.presentation-school-backdrop):not(.presentation-school-veil)', {
         x: (index) => index ? 180 : -180,
         y: 90,

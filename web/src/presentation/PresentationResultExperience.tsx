@@ -368,6 +368,15 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         </section>
 
         <section id="maluf" className="presentation-story-section presentation-story-school">
+          <img
+            className="presentation-school-backdrop"
+            src="/maluf-school-front.jpg"
+            alt="Estudantes em frente ao Colégio Estadual Alfredo Moisés Maluf, em Maringá"
+            width="2048"
+            height="1152"
+            loading="lazy"
+            decoding="async"
+          />
           <div className="presentation-school-veil" aria-hidden="true" />
           <div className="presentation-school-heading">
             <span className="presentation-story-index">05 / A FEIRA</span>
@@ -391,6 +400,9 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
               </a>
               <a href="https://manna.team/2023/09/11/oficina-de-jogos-no-c-e-alfredo-moises-maluf/" target="_blank" rel="noreferrer">
                 Atividade do curso técnico <ExternalLink size={14} />
+              </a>
+              <a href="https://youthjournalism.org/my-green-hometown-of-maringa-brazil/" target="_blank" rel="noreferrer">
+                Fotografia: Nicole Luna / YJI <ExternalLink size={14} />
               </a>
             </div>
           </div>

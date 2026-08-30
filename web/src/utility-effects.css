@@ -412,9 +412,9 @@
 .presentation-trust-symbol { display: grid; width: 88px; height: 88px; place-items: center; border: 1px solid #9bac99; border-radius: 50%; color: var(--story-forest); }
 .presentation-story-trust h3 { max-width: 980px; margin: 16px 0 22px; }
 .presentation-story-trust p { max-width: 850px; color: #5b665d; font-size: 16px; line-height: 1.66; }
-.presentation-story-school { display: grid; min-height: 145vh; grid-template-columns: minmax(0, .8fr) minmax(420px, 1.2fr); align-content: center; align-items: start; gap: clamp(44px, 8vw, 128px); color: #eef3ea; background: rgb(23 34 25 / .84); }
+.presentation-story-school { display: grid; min-height: 145vh; grid-template-columns: minmax(0, .8fr) minmax(420px, 1.2fr); align-content: center; align-items: start; gap: clamp(44px, 8vw, 128px); color: #eef3ea; background: #172219; }
 .presentation-school-backdrop { position: absolute; z-index: 0; inset: -12% 0; width: 100%; height: 124%; object-fit: cover; object-position: center; filter: saturate(.65) contrast(1.06); transform: scale(1.08); }
-.presentation-school-veil { position: absolute; z-index: 1; inset: 0; background: linear-gradient(90deg, rgb(9 18 11 / .78) 0 34%, rgb(9 18 11 / .32) 62%, rgb(9 18 11 / .6)), linear-gradient(0deg, rgb(9 18 11 / .72), transparent 35% 68%, rgb(9 18 11 / .58)); }
+.presentation-school-veil { position: absolute; z-index: 1; inset: 0; background: linear-gradient(90deg, rgb(9 18 11 / .93) 0 34%, rgb(9 18 11 / .62) 62%, rgb(9 18 11 / .82)), linear-gradient(0deg, rgb(9 18 11 / .92), transparent 35% 68%, rgb(9 18 11 / .78)); }
 .presentation-story-school > :not(.presentation-school-backdrop):not(.presentation-school-veil) { position: relative; z-index: 2; }
 .presentation-school-heading h3 { margin: 17px 0 0; }
 .presentation-school-body > p { max-width: 720px; color: #bdc9bc; font-size: 17px; line-height: 1.68; }
