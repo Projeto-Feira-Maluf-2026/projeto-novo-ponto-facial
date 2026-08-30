@@ -80,6 +80,16 @@ def test_authenticated_user_receives_full_access() -> None:
     assert user.role == UserRole.SUPER_ADMIN
     assert user.name == "Administrador"
     assert "audit:read" in user.scopes
+    assert "employees:delete" in user.scopes
+
+
+def test_only_super_admin_receives_permanent_employee_delete_scope() -> None:
+    rh_user = AuthService._to_read_model(
+        user_payload(app_metadata={"role": "RH"})
+    )
+
+    assert "employees:write" in rh_user.scopes
+    assert "employees:delete" not in rh_user.scopes
 
 
 def test_user_without_role_metadata_receives_minimum_access() -> None:

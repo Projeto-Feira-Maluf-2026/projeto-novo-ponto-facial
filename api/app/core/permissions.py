@@ -4,6 +4,7 @@ from enum import StrEnum
 class Scope(StrEnum):
     DASHBOARD_READ = "dashboard:read"
     EMPLOYEES_WRITE = "employees:write"
+    EMPLOYEES_DELETE = "employees:delete"
     EMPLOYEES_READ = "employees:read"
     ATTENDANCE_WRITE = "attendance:write"
     ATTENDANCE_READ = "attendance:read"
@@ -55,4 +56,3 @@ ROLE_SCOPES: dict[str, set[Scope]] = {
 
 def scopes_for_role(role: str) -> list[str]:
     return sorted(scope.value for scope in ROLE_SCOPES.get(role, set()))
-

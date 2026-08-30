@@ -101,6 +101,15 @@ def test_native_camera_operations_use_the_container_api() -> None:
     assert "faceApi.get<Blob>(`/devices/${deviceId}/snapshot`" in source
 
 
+def test_employee_delete_uses_the_real_delete_endpoint() -> None:
+    source = (PROJECT_ROOT / "web" / "src" / "services" / "api.ts").read_text(
+        encoding="utf-8"
+    )
+
+    assert "deleteEmployee: async" in source
+    assert "api.delete(`/employees/${employeeId}`)" in source
+
+
 def test_example_environment_contains_no_filled_secrets() -> None:
     example = (PROJECT_ROOT / ".env.example").read_text(encoding="utf-8")
 

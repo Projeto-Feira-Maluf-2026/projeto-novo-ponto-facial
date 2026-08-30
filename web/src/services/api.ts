@@ -265,6 +265,9 @@ export const apiClient = {
     const response = await api.patch<Employee>(`/employees/${employeeId}`, payload);
     return response.data;
   },
+  deleteEmployee: async (employeeId: string) => {
+    await api.delete(`/employees/${employeeId}`);
+  },
   createWorksite: async (payload: WorksiteCreatePayload) => {
     const response = await api.post<Worksite>('/worksites', payload);
     return response.data;

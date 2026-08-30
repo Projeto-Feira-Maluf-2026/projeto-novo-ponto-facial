@@ -50,6 +50,12 @@
 - Não usar tilt, totem 3D, scan line ou ornamento permanente sobre a webcam; a prioridade visual e de GPU é a captura.
 - A evidência enviada ao backend é um snapshot interno. Nunca cobrir ou congelar o vídeo para mostrá-la; câmera e rastreamento continuam ao vivo durante o processamento.
 
+## Exclusão de funcionário
+
+- A lixeira representa exclusão permanente e aparece somente para `SUPER_ADMIN`; inativação deve usar linguagem e controle próprios quando voltar a existir.
+- A confirmação explicita que cadastro, foto, biometria, vínculos, pontos e tentativas associadas serão apagados e que a ação não pode ser desfeita.
+- A interface só remove a linha depois da resposta `204`; falhas mantêm o cadastro visível. O backend usa uma transação e registra apenas uma auditoria mínima da exclusão concluída.
+
 ## Modo apresentação
 
 - O modo normal continua sendo a fonte de verdade operacional. A apresentação apenas reorganiza dados e oferece atalhos para os fluxos reais; não inventa métricas nem simula confirmações.

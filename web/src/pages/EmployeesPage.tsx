@@ -21,6 +21,8 @@ import { FaceEnrollmentDialog } from '../components/FaceEnrollmentDialog';
 import { EmployeePhoto } from '../components/EmployeePhoto';
 import { playModalExit } from '../animations/motion';
 import { useModalMotion } from '../animations/useMotion';
+import { useAuth } from '../auth/AuthContext';
+import { roleForUser } from '../auth/permissions';
 import { apiClient } from '../services/api';
 import type {
   Employee,
@@ -93,6 +95,8 @@ function friendlyCaptureFeedback(instruction: string, reasons: string[]) {
 }
 
 export function EmployeesPage() {
+  const { user } = useAuth();
+  const canDeletePermanently = roleForUser(user) === 'SUPER_ADMIN';
   const [searchParams, setSearchParams] = useSearchParams();
   const presentationRegistration = searchParams.get('novo') === 'apresentacao';
   const presentationFormOpenedRef = useRef(false);
@@ -100,6 +104,7 @@ export function EmployeesPage() {
   const enrollmentModalRef = useRef<HTMLDivElement>(null);
   const enrollmentCloseButtonRef = useRef<HTMLButtonElement>(null);
   const detailCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const deleteConfirmButtonRef = useRef<HTMLButtonElement>(null);
   const enrollmentOpenerRef = useRef<HTMLElement | null>(null);
   const enrollmentClosingRef = useRef(false);
   const captureInFlightRef = useRef(false);
@@ -115,7 +120,7 @@ export function EmployeesPage() {
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [pendingDeactivation, setPendingDeactivation] = useState<Employee | null>(null);
+  const [pendingDeletion, setPendingDeletion] = useState<Employee | null>(null);
   const [enrolling, setEnrolling] = useState<Employee | null>(null);
   const [enrollmentSession, setEnrollmentSession] = useState<EnrollmentSessionResponse | null>(null);
   const [enrollmentReady, setEnrollmentReady] = useState(false);
@@ -144,6 +149,16 @@ export function EmployeesPage() {
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [detailEmployee]);
+
+  useEffect(() => {
+    if (!pendingDeletion) return undefined;
+    window.requestAnimationFrame(() => deleteConfirmButtonRef.current?.focus());
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) setPendingDeletion(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [pendingDeletion, saving]);
 
   const loadEmployees = useCallback(async () => {
     setLoadingEmployees(true);
@@ -249,17 +264,19 @@ export function EmployeesPage() {
     }
   };
 
-  const deactivateEmployee = async () => {
-    if (!pendingDeactivation) return;
+  const deleteEmployeePermanently = async () => {
+    if (!pendingDeletion || !canDeletePermanently) return;
+    const employee = pendingDeletion;
     setSaving(true);
     setMessage('');
     try {
-      await apiClient.updateEmployee(pendingDeactivation.id, { status: 'INACTIVE' });
-      setMessage(`${pendingDeactivation.name} foi inativado.`);
-      setPendingDeactivation(null);
-      await loadEmployees();
+      await apiClient.deleteEmployee(employee.id);
+      setEmployees((current) => current.filter((item) => item.id !== employee.id));
+      if (detailEmployee?.id === employee.id) setDetailEmployee(null);
+      setMessage(`${employee.name} e todos os dados associados foram excluídos permanentemente.`);
+      setPendingDeletion(null);
     } catch {
-      setMessage('Não foi possível inativar o funcionário.');
+      setMessage('Não foi possível excluir o cadastro. Nenhum dado foi removido; tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -492,10 +509,10 @@ export function EmployeesPage() {
         </div>
       )}
 
-      {pendingDeactivation && (
-        <section className="confirmation-strip" role="alertdialog" aria-labelledby="deactivate-title">
-          <div><strong id="deactivate-title">Inativar {pendingDeactivation.name}?</strong><span>O funcionário deixará de registrar ponto, mas o histórico será preservado.</span></div>
-          <div><button type="button" className="btn btn-secondary" onClick={() => setPendingDeactivation(null)}>Cancelar</button><button type="button" className="btn btn-danger" disabled={saving} onClick={() => void deactivateEmployee()}>Confirmar inativação</button></div>
+      {pendingDeletion && (
+        <section className="confirmation-strip" role="alertdialog" aria-labelledby="delete-title" aria-describedby="delete-description">
+          <div><strong id="delete-title">Excluir permanentemente {pendingDeletion.name}?</strong><span id="delete-description">Cadastro, foto, biometria, vínculos, pontos e tentativas associadas serão apagados. Esta ação não pode ser desfeita.</span></div>
+          <div><button type="button" className="btn btn-secondary" disabled={saving} onClick={() => setPendingDeletion(null)}>Cancelar</button><button ref={deleteConfirmButtonRef} type="button" className="btn btn-danger" disabled={saving} onClick={() => void deleteEmployeePermanently()}>{saving ? 'Excluindo…' : 'Excluir permanentemente'}</button></div>
         </section>
       )}
 
@@ -633,9 +650,9 @@ export function EmployeesPage() {
                 <button type="button" onClick={() => openEditForm(row)} className="icon-button" title="Editar" aria-label={`Editar ${row.name}`}>
                   <Edit3 size={16} />
                 </button>
-                <button type="button" onClick={() => setPendingDeactivation(row)} disabled={row.status === 'INACTIVE'} className="icon-button text-red-700 dark:text-red-300" title="Inativar" aria-label={`Inativar ${row.name}`}>
+                {canDeletePermanently && <button type="button" onClick={() => setPendingDeletion(row)} className="icon-button text-red-700 dark:text-red-300" title="Excluir permanentemente" aria-label={`Excluir permanentemente ${row.name}`}>
                   <Trash2 size={16} />
-                </button>
+                </button>}
               </div>
             ),
           },

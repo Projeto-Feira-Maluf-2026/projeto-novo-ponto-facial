@@ -32,6 +32,7 @@ from app.schemas.enrollment import (
 )
 from app.services.employees import EmployeeService
 from app.services.employee_photos import (
+    delete_employee_photo,
     EmployeePhotoError,
     normalize_employee_photo,
     prune_employee_photo_versions,
@@ -114,11 +115,23 @@ async def update_employee(
 @router.delete("/{employee_id}", status_code=204)
 async def delete_employee(
     employee_id: str,
-    _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
+    user: UserRead = Depends(require_scopes(Scope.EMPLOYEES_DELETE)),
     session: AsyncSession = Depends(get_session),
 ) -> None:
+    employee = await session.get(Employee, employee_id)
+    if not employee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcionario nao encontrado")
+    if employee.photo_url:
+        try:
+            await delete_employee_photo(employee_id, employee.photo_url)
+        except Exception as exc:
+            logger.warning("Falha ao excluir foto employee_id=%s", employee_id, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Nao foi possivel excluir a foto armazenada. Tente novamente.",
+            ) from exc
     try:
-        await EmployeeService(session).delete(employee_id)
+        await EmployeeService(session).delete(employee_id, actor_user_id=user.id)
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

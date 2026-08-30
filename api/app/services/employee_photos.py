@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -90,3 +91,25 @@ async def prune_employee_photo_versions(employee_id: str, keep_url: str) -> tupl
         if stale_urls:
             await client.delete(stale_urls)
     return len(stale_urls), reclaimed_bytes
+
+
+async def delete_employee_photo(employee_id: str, photo_url: str) -> None:
+    """Delete the employee photo from the configured private storage."""
+    if photo_url.startswith("https://"):
+        if not settings.BLOB_READ_WRITE_TOKEN:
+            raise EmployeePhotoError("Vercel Blob nao configurado para excluir a foto")
+        from vercel.blob import AsyncBlobClient
+
+        async with AsyncBlobClient(token=settings.BLOB_READ_WRITE_TOKEN) as client:
+            urls = {photo_url}
+            objects = await client.iter_objects(prefix=f"employees/{employee_id}")
+            async for blob in objects:
+                urls.add(blob.url)
+            await client.delete(list(urls))
+        return
+
+    upload_dir = Path("uploads/employees").resolve()
+    local_path = (upload_dir / f"{employee_id}.webp").resolve()
+    if local_path.parent != upload_dir:
+        raise EmployeePhotoError("Caminho de foto invalido")
+    local_path.unlink(missing_ok=True)

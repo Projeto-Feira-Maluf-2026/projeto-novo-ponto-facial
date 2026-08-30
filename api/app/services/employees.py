@@ -4,9 +4,17 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.crypto import field_cipher
-from app.models.entities import Employee, EmployeeWorksite
-from app.models.enums import EmployeeStatus
+from app.models.entities import (
+    AttendanceRecord,
+    AuditLog,
+    Employee,
+    EmployeeWorksite,
+    FaceEnrollmentSession,
+    FaceTemplate,
+    SuspiciousAttempt,
+)
 from app.schemas.employees import EmployeeCreate, EmployeeUpdate
+from app.services.audit import audit
 
 
 class EmployeeService:
@@ -59,12 +67,61 @@ class EmployeeService:
         await self.session.refresh(employee)
         return employee
 
-    async def delete(self, employee_id: str) -> None:
+    async def delete(self, employee_id: str, *, actor_user_id: str | None = None) -> None:
         employee = await self.session.get(Employee, employee_id)
         if not employee:
             raise LookupError("Funcionario nao encontrado")
-        employee.status = EmployeeStatus.INACTIVE
-        await self.session.commit()
+        try:
+            attendance_ids = list(
+                await self.session.scalars(
+                    select(AttendanceRecord.id).where(
+                        AttendanceRecord.employee_id == employee_id
+                    )
+                )
+            )
+            if attendance_ids:
+                await self.session.execute(
+                    delete(AuditLog).where(
+                        AuditLog.entity == "attendance_record",
+                        AuditLog.entity_id.in_(attendance_ids),
+                    )
+                )
+            await self.session.execute(
+                delete(AuditLog).where(
+                    AuditLog.entity == "employee",
+                    AuditLog.entity_id == employee_id,
+                )
+            )
+            await self.session.execute(
+                delete(FaceTemplate).where(FaceTemplate.employee_id == employee_id)
+            )
+            await self.session.execute(
+                delete(FaceEnrollmentSession).where(
+                    FaceEnrollmentSession.employee_id == employee_id
+                )
+            )
+            await self.session.execute(
+                delete(AttendanceRecord).where(AttendanceRecord.employee_id == employee_id)
+            )
+            await self.session.execute(
+                delete(SuspiciousAttempt).where(SuspiciousAttempt.employee_id == employee_id)
+            )
+            await self.session.execute(
+                delete(EmployeeWorksite).where(EmployeeWorksite.employee_id == employee_id)
+            )
+            await audit(
+                self.session,
+                "employee.permanently_deleted",
+                actor_user_id=actor_user_id,
+                entity="employee",
+                entity_id=employee_id,
+                metadata={"permanent": True},
+            )
+            await self.session.execute(delete(Employee).where(Employee.id == employee_id))
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
 
     async def _replace_worksites(self, employee_id: str, worksite_ids: list[str]) -> None:
         await self.session.execute(delete(EmployeeWorksite).where(EmployeeWorksite.employee_id == employee_id))
