@@ -16,12 +16,17 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import type { PunchType } from '../types/domain';
 import type { PresentationResult } from './presentationResult';
 import { openPresentationResultPage } from './presentationResultTransfer';
+
+const PresentationCinematicLayer = lazy(async () => {
+  const module = await import('./PresentationCinematicLayer');
+  return { default: module.PresentationCinematicLayer };
+});
 
 interface PresentationResultExperienceProps {
   result: PresentationResult;
@@ -152,6 +157,7 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
 
 export function PresentationResultSummary({ result, onClose }: PresentationResultExperienceProps) {
   const [motionPaused, setMotionPaused] = useState(false);
+  const storyRef = useRef<HTMLDivElement | null>(null);
   const summaryTitleId = useId();
   const participant = result.participants[0];
   const participantCount = result.participants.length;
@@ -163,10 +169,14 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
 
   return (
     <div
+      ref={storyRef}
       className="presentation-story"
       data-motion-paused={motionPaused || undefined}
       aria-labelledby={summaryTitleId}
     >
+      <Suspense fallback={null}>
+        <PresentationCinematicLayer rootRef={storyRef} paused={motionPaused} />
+      </Suspense>
       <header className="presentation-story-nav">
         <div className="presentation-story-brand">
           <span aria-hidden="true">CE</span>
@@ -189,17 +199,19 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
 
       <main>
         <section className="presentation-story-hero">
-          <div className="presentation-story-hero-copy">
+          <div className="presentation-story-hero-copy" data-story-hero-copy>
             <span className="presentation-story-index">00 / REGISTRO CONFIRMADO</span>
-            <h2 id={summaryTitleId}>
-              Você acabou de atravessar um sistema inteiro <em>em segundos.</em>
+            <h2 id={summaryTitleId} aria-label="Você acabou de atravessar um sistema inteiro em segundos.">
+              <span className="presentation-story-word-line"><span data-story-hero-word>Você acabou de</span></span>
+              <span className="presentation-story-word-line"><span data-story-hero-word>atravessar um sistema</span></span>
+              <span className="presentation-story-word-line"><em data-story-hero-word>inteiro em segundos.</em></span>
             </h2>
-            <p>
+            <p data-story-intro>
               {participantCount > 1
                 ? `${participantCount} pessoas foram reconhecidas na mesma leitura e transformadas em registros individuais, auditáveis e vinculados à obra.`
                 : `${participant.name} olhou para uma câmera. Por trás desse gesto simples, visão computacional, regras de jornada, banco de dados e notificação trabalharam juntos.`}
             </p>
-            <div className="presentation-story-proof">
+            <div className="presentation-story-proof" data-story-intro>
               <span><Check size={16} /> {participantCount} {participantCount === 1 ? 'registro aceito' : 'registros aceitos'}</span>
               <span><Clock3 size={16} /> <time dateTime={participant.occurredAt.toISOString()}>{formatTime(participant.occurredAt)}</time></span>
               <span><Building2 size={16} /> {result.worksiteCode ? `${result.worksiteCode} · ` : ''}{result.worksiteName}</span>
@@ -224,7 +236,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
                 ))}
               </ol>
             )}
-            <a href="#como-funciona" className="presentation-story-scroll">
+            <a href="#como-funciona" className="presentation-story-scroll" data-story-intro>
               Explorar o projeto <ArrowDown size={17} />
             </a>
           </div>
@@ -250,25 +262,25 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         </section>
 
         <section id="como-funciona" className="presentation-story-section presentation-story-journey">
-          <header className="presentation-story-section-heading">
+          <header className="presentation-story-section-heading" data-story-heading>
             <span className="presentation-story-index">01 / O CAMINHO</span>
             <h3>Quatro sistemas. Uma única ação.</h3>
             <p>Cada etapa só avança quando a anterior entrega uma evidência utilizável.</p>
           </header>
           <ol>
-            <li>
+            <li data-story-step>
               <span>01</span><ScanFace size={24} />
               <div><strong>O navegador encontra o rosto</strong><p>A câmera continua ao vivo enquanto um recorte interno preserva o instante mais útil para análise.</p></div>
             </li>
-            <li>
+            <li data-story-step>
               <span>02</span><Fingerprint size={24} />
               <div><strong>A IA compara identidades</strong><p>O backend facial separa cada pessoa, gera características numéricas e procura uma correspondência compatível.</p></div>
             </li>
-            <li>
+            <li data-story-step>
               <span>03</span><Database size={24} />
               <div><strong>A regra de jornada decide</strong><p>Entrada, intervalo, retorno ou saída são definidos pelo histórico e salvos como registros individuais.</p></div>
             </li>
-            <li>
+            <li data-story-step>
               <span>04</span><Mail size={24} />
               <div><strong>A confirmação chega</strong><p>{emailCount ? `${emailCount} ${emailCount === 1 ? 'e-mail foi confirmado' : 'e-mails foram confirmados'} nesta leitura.` : 'Quando o envio está disponível, o participante recebe a confirmação após o registro ser salvo.'}</p></div>
             </li>
@@ -276,7 +288,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         </section>
 
         <section className="presentation-story-section presentation-story-blueprint">
-          <div className="presentation-blueprint-copy">
+          <div className="presentation-blueprint-copy" data-story-heading>
             <span className="presentation-story-index">02 / A ARQUITETURA</span>
             <h3>Construído como uma obra: cada camada sustenta a próxima.</h3>
             <p>O projeto separa a interface, as regras operacionais e a inteligência facial. Assim, a câmera permanece rápida enquanto o processamento pesado acontece em um serviço próprio.</p>
@@ -296,7 +308,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         </section>
 
         <section className="presentation-story-section presentation-story-impact">
-          <header className="presentation-story-section-heading">
+          <header className="presentation-story-section-heading" data-story-heading>
             <span className="presentation-story-index">03 / POR QUE EXISTE</span>
             <h3>Menos fila na portaria. Mais clareza depois.</h3>
           </header>

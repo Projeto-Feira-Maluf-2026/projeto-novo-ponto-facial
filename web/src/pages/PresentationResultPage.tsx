@@ -9,8 +9,24 @@ import { receivePresentationResult } from '../presentation/presentationResultTra
 
 const RESULT_WAIT_TIMEOUT_MS = 45_000;
 
+function createDevelopmentPreview(): PresentationResult | null {
+  if (!import.meta.env.DEV || new URLSearchParams(window.location.search).get('preview') !== '1') return null;
+  return {
+    worksiteName: 'Feira de Tecnologia · Colégio Maluf',
+    worksiteCode: 'FEIRA-2026',
+    participants: [{
+      id: 'preview-participant',
+      name: 'Participante da feira',
+      registration: 'Demonstração local',
+      punchType: 'ENTRY',
+      occurredAt: new Date(),
+      emailSent: true,
+    }],
+  };
+}
+
 export function PresentationResultPage() {
-  const [result, setResult] = useState<PresentationResult | null>(null);
+  const [result, setResult] = useState<PresentationResult | null>(createDevelopmentPreview);
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {

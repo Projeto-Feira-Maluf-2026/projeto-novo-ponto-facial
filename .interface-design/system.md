@@ -62,4 +62,6 @@
 - O convite do resumo é sempre montado em portal diretamente no `body`, acima de cabeçalho, câmera e qualquer ancestral transformado. Ao aceitar, o resumo abre em uma página/aba própria; nunca é empilhado dentro do terminal.
 - A transferência para a página de resumo usa um canal efêmero entre abas e não coloca nome, matrícula, horário ou biometria na URL ou no armazenamento persistente.
 - O resumo usa a linguagem de “dossiê vivo da passagem”: estrutura espacial de obra, lente facial e fluxo captura → IA → regra → registro → e-mail. A intensidade 3D pertence somente a essa narrativa, nunca ao terminal normal.
-- Movimento contínuo da narrativa deve ter controle explícito de pausa, respeitar `prefers-reduced-motion` e usar revelações ligadas ao scroll quando houver suporte nativo.
+- Movimento contínuo da narrativa deve ter controle explícito de pausa e respeitar `prefers-reduced-motion` e economia de dados.
+- A página isolada de resumo usa Lenis + GSAP/ScrollTrigger para uma única linha do tempo ligada ao scroll e uma cena Three.js com shader autoral. Tudo é carregado sob demanda, fora do terminal, com DPR limitado, pausa fora da viewport e fallback CSS quando WebGL não estiver disponível.
+- O 3D deve explicar captura, comparação, registro e estrutura em camadas. Não copiar cenas, modelos ou identidade de referências externas; a assinatura visual continua sendo obra + lente facial + levantamento técnico.
