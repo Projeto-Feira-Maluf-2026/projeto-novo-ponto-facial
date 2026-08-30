@@ -42,76 +42,6 @@ function createSurveyGrid() {
   );
 }
 
-function createDataCore() {
-  const geometry = new THREE.SphereGeometry(1.72, 64, 64);
-  const positions = geometry.attributes.position;
-  for (let index = 0; index < positions.count; index += 1) {
-    const x = positions.getX(index);
-    const y = positions.getY(index);
-    const z = positions.getZ(index);
-    const jaw = y < -0.32 ? 1 - Math.min(0.28, (-y - 0.32) * 0.16) : 1;
-    const nose = z > 0
-      ? Math.exp(-((x / 0.27) ** 2) - (((y - 0.02) / 0.42) ** 2)) * 0.42
-      : 0;
-    const eyes = z > 0
-      ? Math.exp(-(((Math.abs(x) - 0.48) / 0.2) ** 2) - (((y - 0.34) / 0.17) ** 2)) * 0.12
-      : 0;
-    positions.setXYZ(index, x * 0.76 * jaw, y * 1.12, z * 0.7 + nose - eyes);
-  }
-  geometry.computeVertexNormals();
-  const material = new THREE.ShaderMaterial({
-    transparent: true,
-    uniforms: {
-      uTime: { value: 0 },
-      uProgress: { value: 0 },
-      uVisibility: { value: 1 },
-      uLeaf: { value: new THREE.Color('#a3b18a') },
-      uForest: { value: new THREE.Color('#3a5a40') },
-    },
-    vertexShader: `
-      uniform float uTime;
-      uniform float uProgress;
-      varying float vPulse;
-      varying vec3 vNormal;
-      void main() {
-        vNormal = normalize(normalMatrix * normal);
-        float wave = sin(position.y * 9.0 + uTime * 1.25 + uProgress * 5.0) * 0.018;
-        vPulse = wave + 0.5;
-        vec3 displaced = position + normal * wave * (1.0 + uProgress * 0.8);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 uLeaf;
-      uniform vec3 uForest;
-      uniform float uProgress;
-      uniform float uVisibility;
-      varying float vPulse;
-      varying vec3 vNormal;
-      void main() {
-        float fresnel = pow(1.0 - abs(vNormal.z), 2.2);
-        float scanGrid = smoothstep(0.94, 1.0, sin(vPulse * 13.0 + uProgress * 9.0));
-        vec3 color = mix(uForest, uLeaf, clamp(fresnel + vPulse * 0.26 + uProgress * 0.18 + scanGrid * 0.16, 0.0, 1.0));
-        gl_FragColor = vec4(color, (0.13 + fresnel * 0.58 + scanGrid * 0.08) * uVisibility);
-      }
-    `,
-  });
-  const surface = new THREE.Mesh(geometry, material);
-  const wire = new THREE.Mesh(
-    geometry.clone(),
-    new THREE.MeshBasicMaterial({ color: 0xdad7cd, wireframe: true, transparent: true, opacity: 0.11 }),
-  );
-  wire.scale.setScalar(1.012);
-  const points = new THREE.Points(
-    geometry.clone(),
-    new THREE.PointsMaterial({ color: 0xbad5b7, size: 0.018, transparent: true, opacity: 0.3 }),
-  );
-  points.scale.setScalar(1.02);
-  const group = new THREE.Group();
-  group.add(surface, wire, points);
-  return { group, material };
-}
-
 type FadableMaterial = THREE.Material & { opacity: number };
 
 function createConstructionBrandTexture() {
@@ -160,23 +90,33 @@ function createConstructionSite() {
     materials.push(value);
     return value;
   };
-  const concrete = material('#b8b8ad', 1, { roughness: 0.94 });
-  const concreteDark = material('#777f77', 1, { roughness: 0.96 });
-  const steel = material('#536158', 0.94, { metalness: 0.58, roughness: 0.44 });
-  const safety = material('#4b7754', 0.28, { roughness: 0.8 });
-  const timber = material('#806d50', 0.86, { roughness: 0.9 });
-  const groundMaterial = material('#2b3930', 0.82, { roughness: 1 });
+  const concrete = material('#b7c2b4', 0.52, { roughness: 0.72 });
+  const concreteDark = material('#718076', 0.58, { roughness: 0.78 });
+  const steel = material('#66806d', 0.38, { metalness: 0.42, roughness: 0.48 });
+  const safety = material('#588157', 0.09, { roughness: 0.8 });
+  const timber = material('#81907d', 0.48, { roughness: 0.84 });
+  const groundMaterial = material('#26372c', 0.32, { roughness: 1 });
+  const outline = new THREE.LineBasicMaterial({ color: '#91aa93', transparent: true, opacity: 0 });
+  outline.userData.baseOpacity = 0.5;
+  materials.push(outline);
   const addBox = (
     parent: THREE.Object3D,
     size: [number, number, number],
     position: [number, number, number],
     boxMaterial: THREE.Material,
+    outlined = false,
   ) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), boxMaterial);
     mesh.position.set(...position);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     parent.add(mesh);
+    if (outlined) {
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 24), outline);
+      edges.position.copy(mesh.position);
+      edges.rotation.copy(mesh.rotation);
+      parent.add(edges);
+    }
     return mesh;
   };
   const addStrut = (
@@ -199,39 +139,55 @@ function createConstructionSite() {
   };
 
   const frame = new THREE.Group();
-  const width = 6.8;
-  const depth = 3.3;
-  const baseY = -2.15;
-  const floorHeight = 1.02;
-  const floors = 5;
+  const width = 7.9;
+  const depth = 3.65;
+  const baseY = -2.45;
+  const floorHeight = 0.92;
+  const floors = 7;
   for (let floor = 0; floor <= floors; floor += 1) {
     const y = baseY + floor * floorHeight;
-    addBox(frame, [width, 0.14, depth], [0, y, 0], concrete);
+    const upperSetback = floor >= 6 ? 1.2 : floor >= 5 ? 0.55 : 0;
+    const slabWidth = width - upperSetback;
+    const slabOffset = -upperSetback * 0.28;
+    addBox(frame, [slabWidth, 0.12, depth], [slabOffset, y, 0], concrete, true);
     if (floor > 0) {
-      addBox(frame, [width, 0.2, 0.2], [0, y - 0.12, depth / 2], concreteDark);
-      addBox(frame, [width, 0.2, 0.2], [0, y - 0.12, -depth / 2], concreteDark);
+      addBox(frame, [slabWidth, 0.16, 0.16], [slabOffset, y - 0.1, depth / 2], concreteDark);
+      addBox(frame, [slabWidth, 0.16, 0.16], [slabOffset, y - 0.1, -depth / 2], concreteDark);
     }
   }
   const columnHeight = floors * floorHeight;
-  [-width / 2, -width / 6, width / 6, width / 2].forEach((x) => {
+  [-width / 2, -width / 4, 0, width / 4, width / 2].forEach((x) => {
     [-depth / 2, 0, depth / 2].forEach((z) => {
-      addBox(frame, [0.22, columnHeight, 0.22], [x, baseY + columnHeight / 2, z], concrete);
-      addBox(frame, [0.045, 0.72, 0.045], [x, baseY + columnHeight + 0.36, z], steel);
+      addBox(frame, [0.18, columnHeight, 0.18], [x, baseY + columnHeight / 2, z], concrete, true);
+      addBox(frame, [0.035, 0.8, 0.035], [x, baseY + columnHeight + 0.4, z], steel);
     });
   });
+  addBox(frame, [1.08, columnHeight * 0.88, 1.34], [-2.55, baseY + columnHeight * 0.44, -0.72], concreteDark, true);
+  for (let floor = 1; floor < 5; floor += 1) {
+    for (let bay = 0; bay < 3; bay += 1) {
+      const glazing = material('#a6b9aa', 0.11, { roughness: 0.18, metalness: 0.08 });
+      addBox(
+        frame,
+        [1.35, floorHeight * 0.66, 0.035],
+        [0.92 + bay * 1.42, baseY + floor * floorHeight + floorHeight * 0.42, depth / 2 + 0.012],
+        glazing,
+        true,
+      );
+    }
+  }
 
   const scaffolding = new THREE.Group();
-  const scaffoldZ = depth / 2 + 0.35;
-  for (let x = -width / 2; x <= width / 2 + 0.01; x += width / 6) {
+  const scaffoldZ = depth / 2 + 0.3;
+  for (let x = 0; x <= width / 2 + 0.01; x += width / 8) {
     addBox(scaffolding, [0.045, columnHeight + 0.45, 0.045], [x, baseY + columnHeight / 2, scaffoldZ], steel);
   }
   for (let floor = 0; floor <= floors; floor += 1) {
     const y = baseY + floor * floorHeight + 0.18;
-    addBox(scaffolding, [width + 0.2, 0.045, 0.045], [0, y, scaffoldZ], steel);
+    addBox(scaffolding, [width / 2 + 0.2, 0.045, 0.045], [width / 4, y, scaffoldZ], steel);
   }
-  for (let bay = 0; bay < 6; bay += 1) {
-    const x0 = -width / 2 + bay * (width / 6);
-    const x1 = x0 + width / 6;
+  for (let bay = 0; bay < 4; bay += 1) {
+    const x0 = bay * (width / 8);
+    const x1 = x0 + width / 8;
     for (let floor = 0; floor < floors; floor += 1) {
       const y0 = baseY + floor * floorHeight + 0.2;
       const y1 = y0 + floorHeight * 0.82;
@@ -244,14 +200,14 @@ function createConstructionSite() {
       );
     }
   }
-  const safetyMesh = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.12, columnHeight * 0.78), safety);
-  safetyMesh.position.set(0, baseY + columnHeight * 0.58, scaffoldZ + 0.03);
+  const safetyMesh = new THREE.Mesh(new THREE.PlaneGeometry(width * 0.47, columnHeight * 0.69), safety);
+  safetyMesh.position.set(width * 0.23, baseY + columnHeight * 0.57, scaffoldZ + 0.03);
   scaffolding.add(safetyMesh);
 
   const site = new THREE.Group();
   const crane = new THREE.Group();
-  const towerX = 4.25;
-  const towerHeight = 6.55;
+  const towerX = 4.75;
+  const towerHeight = 8.2;
   [-0.13, 0.13].forEach((offsetX) => {
     [-0.13, 0.13].forEach((offsetZ) => {
       addBox(crane, [0.07, towerHeight, 0.07], [towerX + offsetX, baseY + towerHeight / 2, offsetZ], steel);
@@ -271,8 +227,8 @@ function createConstructionSite() {
     }
   }
   const jibY = baseY + towerHeight;
-  addBox(crane, [7.8, 0.13, 0.13], [0.55, jibY, 0], steel);
-  addBox(crane, [1.25, 0.45, 0.55], [4.72, jibY - 0.18, 0], concreteDark);
+  addBox(crane, [9.4, 0.11, 0.11], [0.2, jibY, 0], steel);
+  addBox(crane, [1.35, 0.38, 0.5], [5.02, jibY - 0.16, 0], concreteDark, true);
   const cableMaterial = new THREE.LineBasicMaterial({ color: '#9fad9f', transparent: true, opacity: 0 });
   cableMaterial.userData.baseOpacity = 0.72;
   materials.push(cableMaterial);
@@ -327,9 +283,9 @@ function createConstructionSite() {
   sun.shadow.camera.top = 8;
   sun.shadow.camera.bottom = -6;
   group.add(hemisphere, sun);
-  group.position.set(0.25, -0.62, -1.4);
-  group.rotation.y = -0.32;
-  group.visible = false;
+  group.position.set(1.2, -0.62, -1.4);
+  group.rotation.y = -0.46;
+  group.visible = true;
 
   return {
     group,
@@ -466,9 +422,6 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
       gsap.fromTo('.presentation-trust-symbol',
         { scale: 0.15, rotate: -160, opacity: 0 },
         { scale: 1, rotate: 0, opacity: 1, ease: 'back.out(1.35)', scrollTrigger: { trigger: '.presentation-story-trust', start: 'top 88%', end: 'center 58%', scrub: 0.55, ...common } });
-      gsap.fromTo('.presentation-school-backdrop',
-        { scale: 1.34, yPercent: -8, filter: 'saturate(.55) contrast(1.08)' },
-        { scale: 1.04, yPercent: 8, filter: 'saturate(.88) contrast(1.02)', ease: 'none', scrollTrigger: { trigger: '.presentation-story-school', start: 'top bottom', end: 'bottom top', scrub: 0.8, ...common } });
       gsap.fromTo('.presentation-story-school > :not(.presentation-school-backdrop):not(.presentation-school-veil)', {
         x: (index) => index ? 180 : -180,
         y: 90,
@@ -570,32 +523,11 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 50);
-    camera.position.set(0, 0.3, 8.4);
+    camera.position.set(0, 0.18, 14.2);
     const grid = createSurveyGrid();
     scene.add(grid);
-    const { group: core, material } = createDataCore();
-    scene.add(core);
     const construction = createConstructionSite();
     scene.add(construction.group);
-    const coreSurface = core.children[0] as THREE.Mesh;
-    const ghostFaces = [-1, 1].map((direction) => {
-      const ghost = new THREE.Mesh(
-        coreSurface.geometry.clone(),
-        new THREE.MeshBasicMaterial({ color: 0x588157, wireframe: true, transparent: true, opacity: 0.065 }),
-      );
-      ghost.position.set(direction * 3.1, 0, -2.1);
-      ghost.rotation.y = direction * -0.48;
-      ghost.scale.setScalar(0.72);
-      scene.add(ghost);
-      return ghost;
-    });
-    const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xa3b18a, wireframe: true, transparent: true, opacity: 0.24 });
-    const rings = [2.35, 3.15, 4].map((radius, index) => {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.012, 8, 120), ringMaterial.clone());
-      ring.rotation.set(index * 0.62 + 0.28, index * 0.48, index * 0.18);
-      scene.add(ring);
-      return ring;
-    });
     const pointer = new THREE.Vector2();
     let targetProgress = 0;
     let progress = 0;
@@ -633,42 +565,22 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
       const delta = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
       progress = THREE.MathUtils.damp(progress, targetProgress, 4.5, delta);
-      const siteReveal = THREE.MathUtils.smoothstep(progress, 0.79, 0.965);
-      material.uniforms.uTime.value = now / 1000;
-      material.uniforms.uProgress.value = progress;
-      material.uniforms.uVisibility.value = 1 - siteReveal;
-      core.rotation.y = now * 0.00016 + progress * Math.PI * 2.2 + pointer.x * 0.09;
-      core.rotation.x = -0.12 + pointer.y * 0.07 + Math.sin(now * 0.00042) * 0.035;
-      core.position.x = Math.sin(progress * Math.PI * 2) * 1.5;
-      core.position.y = 0.15 + Math.sin(progress * Math.PI * 3.4) * 0.65;
-      core.scale.setScalar(1 - progress * 0.24);
-      rings.forEach((ring, index) => {
-        (ring.material as THREE.MeshBasicMaterial).opacity = 0.24 * (1 - siteReveal);
-        ring.rotation.z += delta * (0.055 + index * 0.025);
-        ring.rotation.y += delta * (0.035 + index * 0.018);
-        ring.position.x = core.position.x * (0.2 + index * 0.08);
-      });
-      ghostFaces.forEach((ghost, index) => {
-        (ghost.material as THREE.MeshBasicMaterial).opacity = 0.065 * (1 - siteReveal);
-        ghost.position.y = Math.sin(now * 0.00038 + index * 2.1) * 0.18;
-        ghost.rotation.y += delta * (index ? -0.018 : 0.018);
-      });
-      grid.position.z = (progress * 8) % 2;
-      (grid.material as THREE.LineBasicMaterial).opacity = 0.16 * (1 - siteReveal);
-      construction.group.visible = siteReveal > 0.002;
+      const sceneEmphasis = 0.72 + THREE.MathUtils.smoothstep(progress, 0.72, 1) * 0.28;
+      grid.position.z = (progress * 4) % 1.5;
+      (grid.material as THREE.LineBasicMaterial).opacity = 0.09 * sceneEmphasis;
       construction.materials.forEach((constructionMaterial) => {
-        constructionMaterial.opacity = constructionMaterial.userData.baseOpacity * siteReveal;
+        constructionMaterial.opacity = constructionMaterial.userData.baseOpacity * sceneEmphasis;
       });
-      construction.group.position.y = -0.62 + (1 - siteReveal) * 1.15;
-      construction.group.position.x = 0.25 + pointer.x * 0.08 * siteReveal;
-      construction.group.rotation.y = -0.32 + (1 - siteReveal) * 0.16 + pointer.x * 0.025;
-      construction.group.scale.setScalar(0.75 + siteReveal * 0.2);
+      construction.group.position.y = -0.62 + Math.sin(progress * Math.PI * 1.7) * 0.13 + pointer.y * 0.035;
+      construction.group.position.x = 1.2 + Math.sin(progress * Math.PI * 2) * 0.24 + pointer.x * 0.1;
+      construction.group.rotation.y = -0.46 + Math.sin(progress * Math.PI * 1.5) * 0.07 + pointer.x * 0.03;
+      construction.group.scale.setScalar(0.78 + Math.sin(progress * Math.PI) * 0.035);
       construction.hook.position.y = 0.3 + Math.sin(now * 0.0007) * 0.07;
       construction.cable.rotation.z = Math.sin(now * 0.00045) * 0.006;
-      camera.position.z = 8.4 - Math.sin(progress * Math.PI) * 1.5 + siteReveal * 5.15;
-      camera.position.x = pointer.x * 0.2 - siteReveal * 0.35;
-      camera.position.y = 0.3 + siteReveal * 0.22;
-      camera.lookAt(siteReveal * 0.2, -0.1, 0);
+      camera.position.z = 14.2 - Math.sin(progress * Math.PI) * 0.65;
+      camera.position.x = pointer.x * 0.16 + Math.sin(progress * Math.PI * 2) * 0.18;
+      camera.position.y = 0.18 + pointer.y * 0.08 + Math.cos(progress * Math.PI * 1.4) * 0.12;
+      camera.lookAt(0.55, -0.15, 0);
       renderer.render(scene, camera);
     };
     frame = window.requestAnimationFrame(render);

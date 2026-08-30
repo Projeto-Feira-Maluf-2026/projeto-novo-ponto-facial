@@ -713,10 +713,21 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         const right = Math.max(...points.map((point) => point.x));
         const bottom = Math.max(...points.map((point) => point.y));
         const canvasRect = context.canvas.getBoundingClientRect();
-        const guideLeft = clamp(left - 14, 8, Math.max(8, canvasRect.width - 32));
-        const guideTop = clamp(top - 16, 8, Math.max(8, canvasRect.height - 32));
-        const guideRight = clamp(right + 14, guideLeft + 32, Math.max(guideLeft + 32, canvasRect.width - 8));
-        const guideBottom = clamp(bottom + 18, guideTop + 40, Math.max(guideTop + 40, canvasRect.height - 8));
+        const rawWidth = Math.max(32, right - left);
+        const rawHeight = Math.max(40, bottom - top);
+        const centerX = (left + right) / 2;
+        const centerY = (top + bottom) / 2 - rawHeight * 0.015;
+        const availableWidth = Math.max(48, canvasRect.width - 16);
+        const availableHeight = Math.max(60, canvasRect.height - 16);
+        const desiredWidth = Math.min(availableWidth, Math.max(rawWidth * 1.08, rawHeight * 0.72));
+        const desiredHeight = Math.min(
+          availableHeight,
+          Math.max(rawHeight * 1.1, desiredWidth / 0.82),
+        );
+        const guideLeft = clamp(centerX - desiredWidth / 2, 8, canvasRect.width - desiredWidth - 8);
+        const guideTop = clamp(centerY - desiredHeight / 2, 8, canvasRect.height - desiredHeight - 8);
+        const guideRight = guideLeft + desiredWidth;
+        const guideBottom = guideTop + desiredHeight;
         const cornerLength = clamp(Math.min(guideRight - guideLeft, guideBottom - guideTop) * 0.20, 18, 40);
         const labelY = guideTop > 42 ? guideTop - 36 : guideTop + 10;
         const labelX = clamp(guideLeft, 10, Math.max(10, canvasRect.width - 242));
