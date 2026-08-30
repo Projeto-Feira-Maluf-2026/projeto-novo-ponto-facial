@@ -798,7 +798,6 @@ html[data-motion-mode="full"] .route-content > .app-view-transition > * {
   --dock-y: 2px;
   animation: page-piece-dock 560ms var(--motion-smooth) var(--assemble-delay) both !important;
   transform-origin: left top;
-  will-change: transform, opacity;
 }
 
 html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n + 2) {
@@ -852,7 +851,6 @@ html[data-motion-mode="full"] .route-content :is(
   --dock-y: -2px;
   animation: page-piece-dock 600ms var(--motion-smooth) var(--assemble-delay) both !important;
   transform-origin: left bottom;
-  will-change: transform, opacity;
 }
 
 html[data-motion-mode="full"] .route-content :is(
@@ -929,7 +927,6 @@ html[data-motion-mode="full"] .route-content :is(.table-shell, .form-panel, .too
   --dock-x: 0px;
   --dock-y: -3px;
   animation: page-piece-dock 580ms var(--motion-smooth) var(--assemble-delay) both !important;
-  will-change: transform, opacity;
 }
 
 html[data-motion-mode="full"] .form-panel > *,
@@ -1039,7 +1036,7 @@ html[data-motion-mode="full"] :is(
   86% {
     transform: translate3d(0, 0, 0) rotate(0) scale(.998);
   }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) rotate(0) scale(1); }
+  100% { opacity: 1; transform: none; }
 }
 
 @keyframes site-grid-calibrate {

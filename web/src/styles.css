@@ -12,7 +12,7 @@
 
 @layer components {
   /* Worksites */
-  .section-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: var(--color-accent); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; }
+  .section-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: var(--color-accent); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
   .worksite-ops-section { overflow: hidden; border-top: 2px solid var(--color-text); }
   .worksite-statline, .device-statline { display: grid; margin: 0; border-top: 2px solid var(--color-text); border-bottom: 1px solid var(--color-line); background: var(--color-surface); }
   .worksite-statline > div, .device-statline > div { display: grid; grid-template-columns: 1fr auto; align-items: center; border-bottom: 1px solid var(--color-line); padding: 13px 15px; }
@@ -399,6 +399,7 @@ body {
   color: var(--color-text);
   font-family: "Source Sans 3 Variable", Aptos, ui-sans-serif, sans-serif;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -649,7 +650,7 @@ input::placeholder, textarea::placeholder { color: var(--color-subtle); }
   .topbar-brand-mobile { display: none; }
   .topbar-brand-desktop { display: none; }
   .topbar-page-context { min-width: 0; }
-  .topbar-context { color: var(--color-accent); font-size: 0.65rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+  .topbar-context { color: var(--color-accent); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
   .topbar-title { display: block; overflow: hidden; margin-top: 1px; font-family: "Lexend Variable"; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
   .desktop-primary-nav { display: none; scrollbar-width: none; }
   .desktop-primary-nav::-webkit-scrollbar { display: none; }
@@ -659,7 +660,7 @@ input::placeholder, textarea::placeholder { color: var(--color-subtle); }
   .app-main { width: min(100%, 1540px); margin: 0 auto; padding: 20px 16px 104px; }
   .app-main-terminal { width: 100%; max-width: none; padding: 14px 14px 92px; }
   .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
-  .page-heading-kicker { color: var(--color-accent); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+  .page-heading-kicker { color: var(--color-accent); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
   .page-heading h1 { margin-top: 5px; font-size: clamp(1.55rem, 3vw, 2.25rem); }
   .page-heading p { max-width: 650px; margin-top: 6px; color: var(--color-muted); font-size: 0.95rem; }
   .page-status { display: none; align-items: center; gap: 7px; color: var(--color-muted); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
@@ -783,7 +784,7 @@ input::placeholder, textarea::placeholder { color: var(--color-subtle); }
 
   .table-shell { overflow: hidden; border-top: 2px solid var(--color-text); border-bottom: 1px solid var(--color-line); background: var(--color-surface); }
   .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-  .data-table th { height: 44px; border-bottom: 1px solid var(--color-line); background: var(--color-surface-muted); padding: 0 14px; color: var(--color-muted); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-align: left; text-transform: uppercase; }
+  .data-table th { height: 44px; border-bottom: 1px solid var(--color-line); background: var(--color-surface-muted); padding: 0 14px; color: var(--color-muted); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.07em; text-align: left; text-transform: uppercase; }
   .data-table td { height: 56px; border-bottom: 1px solid var(--color-line); padding: 8px 14px; }
   .data-table tbody tr:last-child td { border-bottom: 0; }
   .data-table tbody tr:hover { background: color-mix(in srgb, var(--color-accent-soft) 45%, transparent); }

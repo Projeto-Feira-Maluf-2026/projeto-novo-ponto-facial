@@ -19,6 +19,7 @@
 - Microinterações: 140–210 ms; entradas: 340–480 ms; eventos espaciais: até 1.2 s.
 - Spring oficial: `cubic-bezier(.34, 1.56, .64, 1)`.
 - Animar somente `transform` e `opacity` sempre que possível. Nunca usar `transition: all`.
+- Animações de entrada devem terminar com `transform: none` e não podem manter `will-change` em containers com texto; as camadas de composição são temporárias para preservar a nitidez após o encaixe.
 - Todo movimento deve explicar: foco, mudança de estado, detecção, confirmação ou fluxo de dados.
 - Modais entram com fade de fundo em 180 ms e superfície em 260 ms, deslocando no máximo 8 px.
 - Respeitar `prefers-reduced-motion`, touch, economia de dados e hardware limitado.
