@@ -1,4 +1,5 @@
 import Lenis from 'lenis';
+import 'lenis/dist/lenis.css';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -7,10 +8,13 @@ import * as THREE from 'three';
 interface PresentationCinematicLayerProps {
   rootRef: RefObject<HTMLDivElement>;
   paused: boolean;
+  allowReducedMotion?: boolean;
 }
 
-function shouldUseWebGL() {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+function shouldUseWebGL(allowReducedMotion = false) {
+  if (!allowReducedMotion
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
   const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
   if (saveData) return false;
   try {
@@ -94,11 +98,15 @@ function disposeScene(scene: THREE.Scene) {
   });
 }
 
-export function PresentationCinematicLayer({ rootRef, paused }: PresentationCinematicLayerProps) {
+export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion = false }: PresentationCinematicLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pausedRef = useRef(paused);
   const lenisRef = useRef<Lenis | null>(null);
-  const [webglEnabled] = useState(() => shouldUseWebGL());
+  const [webglEnabled, setWebglEnabled] = useState(() => shouldUseWebGL(allowReducedMotion));
+
+  useEffect(() => {
+    setWebglEnabled(shouldUseWebGL(allowReducedMotion));
+  }, [allowReducedMotion]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -110,11 +118,14 @@ export function PresentationCinematicLayer({ rootRef, paused }: PresentationCine
     const root = rootRef.current;
     const content = root?.querySelector<HTMLElement>('main');
     if (!root || !content) return undefined;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (!allowReducedMotion
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
 
     gsap.registerPlugin(ScrollTrigger);
     const lenis = new Lenis({ wrapper: root, content, duration: 1.05, smoothWheel: true });
     lenisRef.current = lenis;
+    root.dataset.motionEngine = 'gsap';
     const updateProgress = () => {
       const maximum = Math.max(1, content.scrollHeight - root.clientHeight);
       root.style.setProperty('--story-progress', String(root.scrollTop / maximum));
@@ -128,81 +139,125 @@ export function PresentationCinematicLayer({ rootRef, paused }: PresentationCine
     gsap.ticker.lagSmoothing(0);
 
     const context = gsap.context(() => {
-      const common = { scroller: root, toggleActions: 'play none none reverse' } as const;
+      const common = { scroller: root } as const;
       gsap.to('[data-story-hero-copy]', {
-        yPercent: -18,
-        opacity: 0.28,
+        yPercent: -34,
+        scale: 0.9,
+        opacity: 0.08,
         ease: 'none',
-        scrollTrigger: { trigger: '.presentation-story-hero', start: 'top top', end: 'bottom top', scrub: 0.7, scroller: root },
+        scrollTrigger: { trigger: '.presentation-story-hero', start: 'top top', end: 'bottom 22%', scrub: 0.65, scroller: root },
       });
       gsap.utils.toArray<HTMLElement>('[data-story-heading]').forEach((heading) => {
-        gsap.from(heading.children, {
-          y: 54,
-          opacity: 0,
-          duration: 0.9,
-          stagger: 0.09,
-          ease: 'power3.out',
-          scrollTrigger: { trigger: heading, start: 'top 82%', ...common },
-        });
+        gsap.fromTo(heading.children,
+          { y: 110, opacity: 0, rotateX: -18, transformOrigin: '50% 100%' },
+          {
+            y: 0,
+            opacity: 1,
+            rotateX: 0,
+            stagger: 0.08,
+            ease: 'power3.out',
+            scrollTrigger: { trigger: heading, start: 'top 94%', end: 'top 56%', scrub: 0.55, ...common },
+          });
       });
       gsap.utils.toArray<HTMLElement>('[data-story-step]').forEach((step, index) => {
         gsap.fromTo(step,
-          { x: index % 2 ? 46 : -46, opacity: 0.16 },
+          { x: index % 2 ? 180 : -180, y: 80, scale: 0.78, rotateZ: index % 2 ? 3 : -3, opacity: 0 },
           {
             x: 0,
+            y: 0,
+            scale: 1,
+            rotateZ: 0,
             opacity: 1,
-            duration: 0.72,
             ease: 'power3.out',
-            scrollTrigger: { trigger: step, start: 'top 84%', ...common },
+            scrollTrigger: { trigger: step, start: 'top 96%', end: 'center 62%', scrub: 0.72, ...common },
           });
       });
-      gsap.from('.presentation-blueprint-stack > div', {
-        y: 150,
-        z: -220,
-        rotateX: 78,
+      gsap.fromTo('.presentation-journey-beam span',
+        { scaleY: 0 },
+        {
+          scaleY: 1,
+          ease: 'none',
+          scrollTrigger: { trigger: '.presentation-story-journey', start: 'top 72%', end: 'bottom 70%', scrub: true, ...common },
+        });
+      gsap.fromTo('.presentation-blueprint-stack > div', {
+        y: (index) => 480 - index * 90,
+        x: (index) => index % 2 ? 240 : -240,
+        z: -420,
+        rotateX: 84,
+        rotateZ: (index) => index % 2 ? 14 : -14,
         opacity: 0,
-        stagger: 0.12,
-        duration: 1.1,
-        ease: 'power4.out',
-        scrollTrigger: { trigger: '.presentation-story-blueprint', start: 'top 68%', ...common },
+      }, {
+        y: 0,
+        x: 0,
+        z: 0,
+        rotateX: 0,
+        rotateZ: 0,
+        opacity: 1,
+        stagger: 0.08,
+        ease: 'power3.out',
+        scrollTrigger: { trigger: '.presentation-story-blueprint', start: 'top 88%', end: 'center 48%', scrub: 0.8, ...common },
       });
-      gsap.from('.presentation-impact-line article', {
+      gsap.fromTo('.presentation-impact-line article', {
+        y: 220,
+        rotateX: -48,
+        scale: 0.68,
+        opacity: 0,
+      }, {
+        y: 0,
+        rotateX: 0,
+        scale: 1,
+        opacity: 1,
+        stagger: 0.12,
+        ease: 'power3.out',
+        scrollTrigger: { trigger: '.presentation-impact-line', start: 'top 94%', end: 'center 55%', scrub: 0.65, ...common },
+      });
+      gsap.fromTo('.presentation-trust-symbol',
+        { scale: 0.15, rotate: -160, opacity: 0 },
+        { scale: 1, rotate: 0, opacity: 1, ease: 'back.out(1.35)', scrollTrigger: { trigger: '.presentation-story-trust', start: 'top 88%', end: 'center 58%', scrub: 0.55, ...common } });
+      gsap.fromTo('.presentation-school-backdrop',
+        { scale: 1.34, yPercent: -8, filter: 'saturate(.55) contrast(1.08)' },
+        { scale: 1.04, yPercent: 8, filter: 'saturate(.88) contrast(1.02)', ease: 'none', scrollTrigger: { trigger: '.presentation-story-school', start: 'top bottom', end: 'bottom top', scrub: 0.8, ...common } });
+      gsap.fromTo('.presentation-story-school > :not(.presentation-school-backdrop):not(.presentation-school-veil)', {
+        x: (index) => index ? 180 : -180,
         y: 90,
         opacity: 0,
+      }, {
+        x: 0,
+        y: 0,
+        opacity: 1,
         stagger: 0.12,
-        duration: 0.86,
         ease: 'power3.out',
-        scrollTrigger: { trigger: '.presentation-impact-line', start: 'top 80%', ...common },
+        scrollTrigger: { trigger: '.presentation-story-school', start: 'top 86%', end: 'center 52%', scrub: 0.7, ...common },
       });
-      gsap.from('.presentation-story-school > *', {
-        x: (index) => index ? 70 : -70,
+      gsap.fromTo('.presentation-story-final > *', {
+        y: 160,
+        scale: 0.72,
         opacity: 0,
-        stagger: 0.12,
-        duration: 1,
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.presentation-story-school', start: 'top 70%', ...common },
-      });
-      gsap.from('.presentation-story-final > *', {
-        y: 70,
-        opacity: 0,
+      }, {
+        y: 0,
+        scale: 1,
+        opacity: 1,
         stagger: 0.1,
-        duration: 0.9,
         ease: 'power4.out',
-        scrollTrigger: { trigger: '.presentation-story-final', start: 'top 67%', ...common },
+        scrollTrigger: { trigger: '.presentation-story-final', start: 'top 92%', end: 'center 55%', scrub: 0.68, ...common },
       });
     }, root);
 
     if (paused) lenis.stop();
     updateProgress();
-    ScrollTrigger.refresh();
+    const refresh = () => ScrollTrigger.refresh();
+    document.fonts?.ready.then(refresh).catch(() => undefined);
+    root.querySelectorAll('img').forEach((image) => image.addEventListener('load', refresh, { once: true }));
+    window.setTimeout(refresh, 80);
     return () => {
       context.revert();
       lenis.destroy();
       lenisRef.current = null;
       gsap.ticker.remove(tick);
       root.style.removeProperty('--story-progress');
+      delete root.dataset.motionEngine;
     };
-  }, [rootRef]);
+  }, [allowReducedMotion, rootRef]);
 
   useEffect(() => {
     const root = rootRef.current;

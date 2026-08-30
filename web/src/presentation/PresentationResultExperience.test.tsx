@@ -99,6 +99,22 @@ describe('PresentationResultExperience', () => {
     expect(screen.getByRole('button', { name: /Continuar movimento/i })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('offers an explicit full-motion recovery when the operating system reduces motion', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
+      matches: true,
+      media: '(prefers-reduced-motion: reduce)',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const { container } = render(<PresentationResultSummary result={result} onClose={() => undefined} />);
+
+    const enable = screen.getByRole('button', { name: /Ativar experiência completa/i });
+    expect(enable).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(enable);
+    expect(screen.getByRole('button', { name: /Pausar movimento/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(container.querySelector('.presentation-story')).toHaveAttribute('data-motion-override', 'true');
+  });
+
   it('closes from Escape without submitting another action', () => {
     const onClose = vi.fn();
     render(<PresentationResultExperience result={result} onClose={onClose} />);

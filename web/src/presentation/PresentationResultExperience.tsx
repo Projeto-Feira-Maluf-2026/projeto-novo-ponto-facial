@@ -156,7 +156,14 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
 }
 
 export function PresentationResultSummary({ result, onClose }: PresentationResultExperienceProps) {
-  const [motionPaused, setMotionPaused] = useState(false);
+  const systemPrefersReducedMotion = useMemo(
+    () => typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
+  const [motionPaused, setMotionPaused] = useState(systemPrefersReducedMotion);
+  const [motionOverride, setMotionOverride] = useState(false);
   const storyRef = useRef<HTMLDivElement | null>(null);
   const summaryTitleId = useId();
   const participant = result.participants[0];
@@ -172,10 +179,15 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
       ref={storyRef}
       className="presentation-story"
       data-motion-paused={motionPaused || undefined}
+      data-motion-override={motionOverride || undefined}
       aria-labelledby={summaryTitleId}
     >
       <Suspense fallback={null}>
-        <PresentationCinematicLayer rootRef={storyRef} paused={motionPaused} />
+        <PresentationCinematicLayer
+          rootRef={storyRef}
+          paused={motionPaused}
+          allowReducedMotion={motionOverride}
+        />
       </Suspense>
       <header className="presentation-story-nav">
         <div className="presentation-story-brand">
@@ -185,11 +197,20 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         <div className="presentation-story-nav-actions">
           <button
             type="button"
-            onClick={() => setMotionPaused((current) => !current)}
+            onClick={() => {
+              if (systemPrefersReducedMotion && !motionOverride) {
+                setMotionOverride(true);
+                setMotionPaused(false);
+                return;
+              }
+              setMotionPaused((current) => !current);
+            }}
             aria-pressed={motionPaused}
           >
             {motionPaused ? <Play size={16} /> : <Pause size={16} />}
-            {motionPaused ? 'Continuar movimento' : 'Pausar movimento'}
+            {systemPrefersReducedMotion && !motionOverride
+              ? 'Ativar experiência completa'
+              : motionPaused ? 'Continuar movimento' : 'Pausar movimento'}
           </button>
           <button type="button" onClick={onClose}>
             <ArrowLeft size={17} /> Fechar resumo
@@ -262,6 +283,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         </section>
 
         <section id="como-funciona" className="presentation-story-section presentation-story-journey">
+          <div className="presentation-journey-beam" aria-hidden="true"><span /></div>
           <header className="presentation-story-section-heading" data-story-heading>
             <span className="presentation-story-index">01 / O CAMINHO</span>
             <h3>Quatro sistemas. Uma única ação.</h3>
@@ -329,6 +351,14 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         </section>
 
         <section className="presentation-story-section presentation-story-school">
+          <img
+            className="presentation-school-backdrop"
+            src="/maluf-school-front.jpg"
+            alt="Estudantes em frente ao Colégio Estadual Alfredo Moisés Maluf, em Maringá"
+            loading="lazy"
+            decoding="async"
+          />
+          <div className="presentation-school-veil" aria-hidden="true" />
           <div className="presentation-school-heading">
             <span className="presentation-story-index">05 / A FEIRA</span>
             <h3>Tecnologia feita dentro da escola pública.</h3>
@@ -351,6 +381,9 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
               </a>
               <a href="https://manna.team/2023/09/11/oficina-de-jogos-no-c-e-alfredo-moises-maluf/" target="_blank" rel="noreferrer">
                 Atividade do curso técnico <ExternalLink size={14} />
+              </a>
+              <a href="https://youthjournalism.org/my-green-hometown-of-maringa-brazil/" target="_blank" rel="noreferrer">
+                Fotografia: Nicole Luna / YJI <ExternalLink size={14} />
               </a>
             </div>
           </div>

@@ -65,3 +65,5 @@
 - Movimento contínuo da narrativa deve ter controle explícito de pausa e respeitar `prefers-reduced-motion` e economia de dados.
 - A página isolada de resumo usa Lenis + GSAP/ScrollTrigger para uma única linha do tempo ligada ao scroll e uma cena Three.js com shader autoral. Tudo é carregado sob demanda, fora do terminal, com DPR limitado, pausa fora da viewport e fallback CSS quando WebGL não estiver disponível.
 - O 3D deve explicar captura, comparação, registro e estrutura em camadas. Não copiar cenas, modelos ou identidade de referências externas; a assinatura visual continua sendo obra + lente facial + levantamento técnico.
+- Os capítulos do resumo podem ocupar várias alturas de viewport e usar composição sticky, desde que o mobile volte ao fluxo linear. A escola é o único capítulo fotográfico: imagem real do Colégio Maluf em tela cheia, com véu de contraste, parallax e crédito visível da fonte.
+- Se o sistema operacional solicitar movimento reduzido, o resumo começa estático e oferece “Ativar experiência completa”. Somente essa ação explícita libera GSAP, scroll suave e WebGL; “Pausar movimento” continua disponível depois.
