@@ -67,6 +67,7 @@ type PunchCandidate = {
   employeeId?: string | null;
   recognizedName?: string | null;
   image: string;
+  images?: string[];
   faceBox?: FaceAnalyzeResponse['face_box'];
 };
 
@@ -75,6 +76,8 @@ const SINGLE_RESULT_HOLD_MS = 2_200;
 const GROUP_RESULT_HOLD_MS = 1_200;
 const PARTIAL_RESULT_HOLD_MS = 450;
 const MAX_FACES_PER_SCAN = 5;
+const TEMPORAL_SAMPLE_COUNT = 3;
+const TEMPORAL_SAMPLE_INTERVAL_MS = 48;
 
 const PresentationResultExperience = lazy(() => import('../presentation/PresentationResultExperience').then((module) => ({
   default: module.PresentationResultExperience,
@@ -124,7 +127,13 @@ function attendanceReasonMessage(reasons: string[]) {
     return 'O rosto foi detectado, mas a identidade não ficou clara. Olhe de frente.';
   }
   if (reasonSet.has('AMBIGUOUS_FACE')) {
-    return 'A identificação ficou ambígua. Permaneça de frente por mais um instante.';
+    return 'Dois cadastros ficaram parecidos nesta leitura. Olhe de frente para uma nova comparação.';
+  }
+  if (reasonSet.has('INSUFFICIENT_TEMPORAL_EVIDENCE')) {
+    return 'A imagem variou durante a leitura. A câmera tentará uma nova sequência automaticamente.';
+  }
+  if (reasonSet.has('TEMPORAL_IDENTITY_INCONSISTENT')) {
+    return 'As imagens da sequência não representam a mesma pessoa. Reposicione-se diante da câmera.';
   }
   if (reasonSet.has('NO_COMPATIBLE_TEMPLATES')) {
     return 'O cadastro facial deste funcionário precisa ser atualizado.';
@@ -158,7 +167,7 @@ export function FacialTerminalPage() {
   const [analysis, setAnalysis] = useState<FaceAnalyzeResponse | null>(null);
   const [recognition, setRecognition] = useState<LiveRecognition>(initialRecognition);
   const [decision, setDecision] = useState<AttendanceDecision | null>(null);
-  const [guidance, setGuidance] = useState('Iniciando a câmera...');
+  const [guidance, setGuidance] = useState('Iniciando a câmera…');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
   const [clock, setClock] = useState(new Date());
   const [fullscreen, setFullscreen] = useState(false);
@@ -232,8 +241,8 @@ export function FacialTerminalPage() {
     punchInFlightRef.current = true;
     setMode('submitting');
     setGuidance(validCandidates.length > 1
-      ? `Reconhecendo e registrando ${validCandidates.length} pessoas...`
-      : 'Reconhecendo e registrando o ponto...');
+      ? `Reconhecendo e registrando ${validCandidates.length} pessoas…`
+      : 'Reconhecendo e registrando o ponto…');
 
     try {
       const scanId = crypto.randomUUID();
@@ -242,7 +251,12 @@ export function FacialTerminalPage() {
         employee_id: candidate.employeeId || null,
         worksite_id: worksiteId,
         punch_type: null,
-        face: { image_base64: candidate.image },
+        face: {
+          image_base64: candidate.image,
+          images_base64: candidate.images?.length === TEMPORAL_SAMPLE_COUNT
+            ? candidate.images
+            : [],
+        },
         offline_batch_id: `terminal-${scanId}-${index + 1}`,
         occurred_at: occurredAt,
       })));
@@ -350,7 +364,7 @@ export function FacialTerminalPage() {
 
     if (!cameraReady) {
       setMode('starting');
-      setGuidance('Iniciando a câmera...');
+      setGuidance('Iniciando a câmera…');
       return () => controller.abort();
     }
     if (presentationExperienceOpen) {
@@ -402,7 +416,7 @@ export function FacialTerminalPage() {
           : [];
       if (!images.length) {
         setMode('starting');
-        setGuidance('Aguardando imagem da câmera...');
+        setGuidance('Aguardando imagem da câmera…');
         schedule();
         return;
       }
@@ -410,13 +424,28 @@ export function FacialTerminalPage() {
       requestInFlightRef.current = true;
       setMode('scanning');
       setGuidance(images.length > 1
-        ? `Reconhecendo ${images.length} pessoas ao mesmo tempo...`
-        : 'Reconhecendo o rosto...');
+        ? `Reconhecendo ${images.length} pessoas ao mesmo tempo…`
+        : 'Reconhecendo o rosto…');
 
       try {
         setAnalysis(null);
         setDecision(null);
-        await submitAutomaticPunches(images.map((image) => ({ image })));
+        const temporalFrames = [croppedFaceImages];
+        if (croppedFaceImages.length > 0) {
+          for (let sample = 1; sample < TEMPORAL_SAMPLE_COUNT; sample += 1) {
+            await new Promise((resolve) => window.setTimeout(resolve, TEMPORAL_SAMPLE_INTERVAL_MS));
+            if (cancelled) return;
+            const next = cameraRef.current?.captureFaces({ limit: MAX_FACES_PER_SCAN }) || [];
+            if (next.length !== croppedFaceImages.length) break;
+            temporalFrames.push(next);
+          }
+        }
+        await submitAutomaticPunches(images.map((image, index) => ({
+          image,
+          images: temporalFrames.length === TEMPORAL_SAMPLE_COUNT
+            ? temporalFrames.map((frame) => frame[index]).filter(Boolean)
+            : undefined,
+        })));
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {
           setMode('attention');

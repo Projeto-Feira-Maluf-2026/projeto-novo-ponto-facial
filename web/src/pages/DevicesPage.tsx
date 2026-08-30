@@ -385,7 +385,7 @@ export function DevicesPage() {
           {selectedCamera?.camera_type === 'WEBCAM' ? (
             <CameraCapture className="h-[520px] w-full" />
           ) : previewUrl ? (
-            <img src={previewUrl} alt={`Prévia ao vivo da câmera ${selected?.name || ''}`} className="h-[520px] w-full object-cover" />
+            <img src={previewUrl} alt={`Prévia ao vivo da câmera ${selected?.name || ''}`} width="1280" height="720" className="h-[520px] w-full object-cover" />
           ) : (
             <div className="text-center">
               <Camera size={46} className="mx-auto text-white/50" />

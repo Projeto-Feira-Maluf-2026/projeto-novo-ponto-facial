@@ -15,6 +15,7 @@ const FacialTerminalPage = lazy(() => import('./pages/FacialTerminalPage').then(
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
 const PresentationPage = lazy(() => import('./pages/PresentationPage').then((module) => ({ default: module.PresentationPage })));
 const PresentationResultPage = lazy(() => import('./pages/PresentationResultPage').then((module) => ({ default: module.PresentationResultPage })));
+const PresentationTeamPage = lazy(() => import('./pages/PresentationTeamPage').then((module) => ({ default: module.PresentationTeamPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then((module) => ({ default: module.ReportsPage })));
 const WorksitesPage = lazy(() => import('./pages/WorksitesPage').then((module) => ({ default: module.WorksitesPage })));
 
@@ -115,6 +116,12 @@ export default function App() {
         path="/apresentacao/resumo"
         element={session || allowDevelopmentPresentationPreview
           ? <PresentationResultPage />
+          : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/apresentacao/equipe"
+        element={session || allowDevelopmentPresentationPreview
+          ? <PresentationTeamPage />
           : <Navigate to="/login" replace />}
       />
       <Route

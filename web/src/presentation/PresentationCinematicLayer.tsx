@@ -43,7 +43,22 @@ function createSurveyGrid() {
 }
 
 function createDataCore() {
-  const geometry = new THREE.IcosahedronGeometry(1.6, 5);
+  const geometry = new THREE.SphereGeometry(1.72, 64, 64);
+  const positions = geometry.attributes.position;
+  for (let index = 0; index < positions.count; index += 1) {
+    const x = positions.getX(index);
+    const y = positions.getY(index);
+    const z = positions.getZ(index);
+    const jaw = y < -0.32 ? 1 - Math.min(0.28, (-y - 0.32) * 0.16) : 1;
+    const nose = z > 0
+      ? Math.exp(-((x / 0.27) ** 2) - (((y - 0.02) / 0.42) ** 2)) * 0.42
+      : 0;
+    const eyes = z > 0
+      ? Math.exp(-(((Math.abs(x) - 0.48) / 0.2) ** 2) - (((y - 0.34) / 0.17) ** 2)) * 0.12
+      : 0;
+    positions.setXYZ(index, x * 0.76 * jaw, y * 1.12, z * 0.7 + nose - eyes);
+  }
+  geometry.computeVertexNormals();
   const material = new THREE.ShaderMaterial({
     transparent: true,
     uniforms: {
@@ -59,7 +74,7 @@ function createDataCore() {
       varying vec3 vNormal;
       void main() {
         vNormal = normalize(normalMatrix * normal);
-        float wave = sin(position.y * 3.4 + uTime * 1.25 + uProgress * 5.0) * 0.045;
+        float wave = sin(position.y * 9.0 + uTime * 1.25 + uProgress * 5.0) * 0.018;
         vPulse = wave + 0.5;
         vec3 displaced = position + normal * wave * (1.0 + uProgress * 0.8);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
@@ -73,24 +88,31 @@ function createDataCore() {
       varying vec3 vNormal;
       void main() {
         float fresnel = pow(1.0 - abs(vNormal.z), 2.2);
-        vec3 color = mix(uForest, uLeaf, clamp(fresnel + vPulse * 0.32 + uProgress * 0.18, 0.0, 1.0));
-        gl_FragColor = vec4(color, 0.18 + fresnel * 0.58);
+        float scanGrid = smoothstep(0.94, 1.0, sin(vPulse * 13.0 + uProgress * 9.0));
+        vec3 color = mix(uForest, uLeaf, clamp(fresnel + vPulse * 0.26 + uProgress * 0.18 + scanGrid * 0.16, 0.0, 1.0));
+        gl_FragColor = vec4(color, 0.13 + fresnel * 0.58 + scanGrid * 0.08);
       }
     `,
   });
   const surface = new THREE.Mesh(geometry, material);
   const wire = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(1.62, 2),
-    new THREE.MeshBasicMaterial({ color: 0xdad7cd, wireframe: true, transparent: true, opacity: 0.18 }),
+    geometry.clone(),
+    new THREE.MeshBasicMaterial({ color: 0xdad7cd, wireframe: true, transparent: true, opacity: 0.11 }),
   );
+  wire.scale.setScalar(1.012);
+  const points = new THREE.Points(
+    geometry.clone(),
+    new THREE.PointsMaterial({ color: 0xbad5b7, size: 0.018, transparent: true, opacity: 0.3 }),
+  );
+  points.scale.setScalar(1.02);
   const group = new THREE.Group();
-  group.add(surface, wire);
+  group.add(surface, wire, points);
   return { group, material };
 }
 
 function disposeScene(scene: THREE.Scene) {
   scene.traverse((object) => {
-    if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
+    if (object instanceof THREE.Mesh || object instanceof THREE.Points || object instanceof THREE.LineSegments) {
       object.geometry.dispose();
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       materials.forEach((material) => material.dispose());
@@ -321,6 +343,18 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
     scene.add(grid);
     const { group: core, material } = createDataCore();
     scene.add(core);
+    const coreSurface = core.children[0] as THREE.Mesh;
+    const ghostFaces = [-1, 1].map((direction) => {
+      const ghost = new THREE.Mesh(
+        coreSurface.geometry.clone(),
+        new THREE.MeshBasicMaterial({ color: 0x588157, wireframe: true, transparent: true, opacity: 0.065 }),
+      );
+      ghost.position.set(direction * 3.1, 0, -2.1);
+      ghost.rotation.y = direction * -0.48;
+      ghost.scale.setScalar(0.72);
+      scene.add(ghost);
+      return ghost;
+    });
     const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xa3b18a, wireframe: true, transparent: true, opacity: 0.24 });
     const rings = [2.35, 3.15, 4].map((radius, index) => {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.012, 8, 120), ringMaterial.clone());
@@ -376,6 +410,10 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
         ring.rotation.z += delta * (0.055 + index * 0.025);
         ring.rotation.y += delta * (0.035 + index * 0.018);
         ring.position.x = core.position.x * (0.2 + index * 0.08);
+      });
+      ghostFaces.forEach((ghost, index) => {
+        ghost.position.y = Math.sin(now * 0.00038 + index * 2.1) * 0.18;
+        ghost.rotation.y += delta * (index ? -0.018 : 0.018);
       });
       grid.position.z = (progress * 8) % 2;
       camera.position.z = 8.4 - Math.sin(progress * Math.PI) * 1.5;

@@ -357,6 +357,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       if (
         !forceRestart
         && currentTrack?.readyState === 'live'
+        && !currentTrack.muted
         && (!requestedDeviceId || requestedDeviceId === currentDeviceId)
       ) {
         setError('');
@@ -465,6 +466,22 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
               if (mountedRef.current) restartCameraRef.current?.();
             }, 900);
           };
+          activeTrack.onmute = () => {
+            if (!mountedRef.current || requestId !== startRequestIdRef.current) return;
+            setReady(false);
+            onReadyChangeRef.current?.(false);
+            setError('A câmera parou de enviar imagem. O sistema tentará reconectá-la automaticamente.');
+            restartTimerRef.current = window.setTimeout(() => {
+              if (mountedRef.current) restartCameraRef.current?.();
+            }, 700);
+          };
+          activeTrack.onunmute = () => {
+            if (!mountedRef.current || requestId !== startRequestIdRef.current) return;
+            window.clearTimeout(restartTimerRef.current);
+            setError('');
+            setReady(true);
+            onReadyChangeRef.current?.(true);
+          };
         }
         try {
           await refreshDevices();
@@ -569,6 +586,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
 
       const handleDeviceChange = () => {
         void refreshDevices().then((cameras) => {
+          const currentTrack = streamRef.current?.getVideoTracks()[0];
+          const hasLiveCamera = currentTrack?.readyState === 'live';
           const selectedStillExists = cameras.some(
             (camera) => camera.deviceId === selectedDeviceIdRef.current,
           );
@@ -576,6 +595,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             selectedDeviceIdRef.current = '';
             setSelectedDeviceId('');
             void start('');
+          } else if (!hasLiveCamera && cameras.length > 0) {
+            const nextDeviceId = selectedStillExists ? selectedDeviceIdRef.current : cameras[0]?.deviceId || '';
+            void start(nextDeviceId, true);
           }
         }).catch(() => undefined);
       };
@@ -583,6 +605,22 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       mediaDevices.addEventListener('devicechange', handleDeviceChange);
       return () => mediaDevices.removeEventListener('devicechange', handleDeviceChange);
     }, [refreshDevices, start]);
+
+    useEffect(() => {
+      const resumeCamera = () => {
+        if (document.hidden || !mountedRef.current) return;
+        const track = streamRef.current?.getVideoTracks()[0];
+        if (!track || track.readyState !== 'live' || track.muted) {
+          void start(selectedDeviceIdRef.current, true);
+        }
+      };
+      document.addEventListener('visibilitychange', resumeCamera);
+      window.addEventListener('pageshow', resumeCamera);
+      return () => {
+        document.removeEventListener('visibilitychange', resumeCamera);
+        window.removeEventListener('pageshow', resumeCamera);
+      };
+    }, [start]);
 
     useEffect(() => {
       if (!ready) {

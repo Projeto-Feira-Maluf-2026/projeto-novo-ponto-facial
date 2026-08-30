@@ -115,19 +115,12 @@ describe('PresentationResultExperience', () => {
     expect(container.querySelector('.presentation-story')).toHaveAttribute('data-motion-override', 'true');
   });
 
-  it('opens accessible project credits and lists the complete team', () => {
+  it('links project credits to their own page', () => {
     render(<PresentationResultSummary result={result} onClose={() => undefined} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Equipe' }));
-    const dialog = screen.getByRole('dialog', { name: /Cinco pessoas/i });
-    expect(dialog).toHaveTextContent('Paulo Ricardo da Silva');
-    expect(dialog).toHaveTextContent('Alisson Cortati Pereira');
-    expect(dialog).toHaveTextContent('Murilo Pinheiro Cescon');
-    expect(dialog).toHaveTextContent('Allanis Cristina Lisboa Francisco');
-    expect(dialog).toHaveTextContent('Ana Clara Silva Pinheiro');
-    expect(screen.getByRole('button', { name: /Fechar créditos da equipe/i })).toHaveFocus();
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.queryByRole('dialog', { name: /Cinco pessoas/i })).not.toBeInTheDocument();
+    const credits = screen.getByRole('link', { name: 'Equipe' });
+    expect(credits).toHaveAttribute('href', '/apresentacao/equipe');
+    expect(credits).toHaveAttribute('target', '_blank');
   });
 
   it('closes from Escape without submitting another action', () => {

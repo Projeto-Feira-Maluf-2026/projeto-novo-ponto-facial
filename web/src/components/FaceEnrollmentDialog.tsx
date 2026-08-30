@@ -157,7 +157,7 @@ export function FaceEnrollmentDialog({
 
             <div className="enrollment-steps" aria-label="Foto do cadastro facial">
               <div className={`enrollment-step ${capturePreview ? 'is-complete' : 'is-active'}`}>
-                {capturePreview ? <img src={capturePreview} alt="Foto facial aprovada" /> : <Camera size={20} />}
+                {capturePreview ? <img src={capturePreview} alt="Foto facial aprovada" width="640" height="640" /> : <Camera size={20} />}
                 <div>
                   <strong>{capturePreview ? 'Foto selecionada' : 'Aguardando foto'}</strong>
                   <small>{capturePreview ? 'Qualidade aprovada' : 'Olhe de frente para a câmera'}</small>

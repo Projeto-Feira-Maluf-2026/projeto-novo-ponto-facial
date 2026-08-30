@@ -154,7 +154,7 @@ export function LoginPage() {
             {error && <div id="login-error" className="login-error" role="alert">{error}</div>}
 
             <button type="submit" className="login-submit" disabled={loading || !email.trim() || !password}>
-              <span>{loading ? 'Entrando...' : 'Entrar'}</span>
+              <span>{loading ? 'Entrando…' : 'Entrar'}</span>
               {loading ? <LoaderCircle className="login-spinner" size={18} /> : <ArrowRight size={18} />}
             </button>
 

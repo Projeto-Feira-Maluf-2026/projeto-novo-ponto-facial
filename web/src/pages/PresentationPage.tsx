@@ -44,6 +44,7 @@ const punchLabels: Record<AttendanceRecord['punch_type'], string> = {
 };
 
 type LoadState = 'loading' | 'ready' | 'partial' | 'error';
+type BrowserCameraState = 'checking' | 'ready' | 'prompt' | 'denied' | 'missing';
 
 export function PresentationPage() {
   const presentation = usePresentationMode();
@@ -60,6 +61,8 @@ export function PresentationPage() {
   const [sessionRecords, setSessionRecords] = useState(0);
   const [sessionEmails, setSessionEmails] = useState(0);
   const [online, setOnline] = useState(navigator.onLine);
+  const [browserCamera, setBrowserCamera] = useState<BrowserCameraState>('checking');
+  const [browserCameraCount, setBrowserCameraCount] = useState(0);
 
   const load = useCallback(async () => {
     const startedAt = performance.now();
@@ -109,6 +112,41 @@ export function PresentationPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const inspectCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
+        if (!cancelled) setBrowserCamera('missing');
+        return;
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const count = devices.filter((device) => device.kind === 'videoinput').length;
+        if (!cancelled) setBrowserCameraCount(count);
+        let permissionState: PermissionState | 'unknown' = 'unknown';
+        try {
+          const permission = await navigator.permissions?.query({ name: 'camera' as PermissionName });
+          permissionState = permission?.state || 'unknown';
+        } catch {
+          // Firefox e alguns navegadores não expõem consulta de permissão de câmera.
+        }
+        if (cancelled) return;
+        if (permissionState === 'denied') setBrowserCamera('denied');
+        else if (count > 0 && permissionState === 'granted') setBrowserCamera('ready');
+        else if (count > 0) setBrowserCamera('prompt');
+        else setBrowserCamera('missing');
+      } catch {
+        if (!cancelled) setBrowserCamera('missing');
+      }
+    };
+    void inspectCamera();
+    navigator.mediaDevices?.addEventListener?.('devicechange', inspectCamera);
+    return () => {
+      cancelled = true;
+      navigator.mediaDevices?.removeEventListener?.('devicechange', inspectCamera);
+    };
+  }, []);
+
+  useEffect(() => {
     const applyPulse = (pulse: ReturnType<typeof readAttendancePulse>) => {
       if (!pulse || !presentation.startedAt || pulse.at < presentation.startedAt) return;
       setSessionRecords((current) => current + pulse.count);
@@ -148,6 +186,9 @@ export function PresentationPage() {
             </Link>
             <Link to="/terminal-facial" className="btn presentation-secondary-action">
               <Camera size={17} /> Abrir câmera
+            </Link>
+            <Link to="/apresentacao/equipe" className="btn presentation-secondary-action">
+              <UsersRound size={17} /> Conhecer a equipe
             </Link>
           </div>
         </div>
@@ -192,6 +233,7 @@ export function PresentationPage() {
           <ul>
             <li data-ok={online}>{online ? <Wifi size={17} /> : <WifiOff size={17} />}<div><strong>Internet</strong><small>{online ? 'Navegador conectado' : 'Sem conexão; não inicie um cadastro'}</small></div></li>
             <li data-ok={capabilities?.provider_ready === true}><Cpu size={17} /><div><strong>IA facial</strong><small>{capabilities?.provider_ready ? `${capabilities.model_name || 'Modelo'} pronto` : 'Backend facial indisponível'}</small></div></li>
+            <li data-ok={browserCamera === 'ready' || browserCamera === 'prompt'}><Camera size={17} /><div><strong>Webcam deste computador</strong><small>{browserCamera === 'ready' ? `${browserCameraCount} câmera(s) pronta(s)` : browserCamera === 'prompt' ? `${browserCameraCount} detectada(s); a permissão será solicitada no terminal` : browserCamera === 'denied' ? 'Permissão bloqueada; libere a câmera no cadeado do navegador' : browserCamera === 'missing' ? 'Nenhuma webcam disponível neste navegador' : 'Verificando câmera…'}</small></div></li>
             <li data-ok={activeDevices.length > 0}><Camera size={17} /><div><strong>Dispositivos</strong><small>{activeDevices.length ? `${activeDevices.length} ativo(s) no sistema` : 'Nenhum dispositivo ativo'}</small></div></li>
             <li data-ok={Boolean(lastRefresh)}><Database size={17} /><div><strong>Dados</strong><small>{lastRefresh ? `Atualizados às ${lastRefresh.toLocaleTimeString('pt-BR')} em ${apiLatency ?? '—'} ms` : 'Aguardando resposta'}</small></div></li>
           </ul>

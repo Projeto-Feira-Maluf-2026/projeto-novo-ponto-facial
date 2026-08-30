@@ -19,7 +19,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import type { PunchType } from '../types/domain';
@@ -42,109 +42,6 @@ const punchLabels: Record<PunchType, string> = {
   LUNCH_IN: 'Retorno do intervalo',
   EXIT: 'Saída',
 };
-
-const projectTeam = [
-  { name: 'Paulo Ricardo da Silva', role: 'Líder + Dev', discipline: 'DESENVOLVIMENTO' },
-  { name: 'Alisson Cortati Pereira', role: 'Líder + Dev', discipline: 'DESENVOLVIMENTO' },
-  { name: 'Murilo Pinheiro Cescon', role: 'Organização, ideias e cartaz', discipline: 'CRIAÇÃO' },
-  { name: 'Allanis Cristina Lisboa Francisco', role: 'Organização, ideias e cartaz', discipline: 'CRIAÇÃO' },
-  { name: 'Ana Clara Silva Pinheiro', role: 'Organização, ideias e cartaz', discipline: 'CRIAÇÃO' },
-] as const;
-
-interface TeamCreditsDialogProps {
-  open: boolean;
-  motionEnabled: boolean;
-  onClose: () => void;
-}
-
-function TeamCreditsDialog({ open, motionEnabled, onClose }: TeamCreditsDialogProps) {
-  const titleId = useId();
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const closeRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button, a[href]') || []);
-      if (!controls.length) return;
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      if (returnFocus?.isConnected) returnFocus.focus();
-    };
-  }, [onClose, open]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <div
-      className="presentation-team-backdrop"
-      data-motion-enabled={motionEnabled || undefined}
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        ref={(node) => { dialogRef.current = node; }}
-        className="presentation-team-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <header className="presentation-team-dialog-heading">
-          <div>
-            <span>CRÉDITOS DO PROJETO · 2026</span>
-            <h2 id={titleId}>Cinco pessoas.<br />Uma construção coletiva.</h2>
-          </div>
-          <button ref={closeRef} type="button" onClick={onClose} aria-label="Fechar créditos da equipe">
-            <X size={22} />
-          </button>
-        </header>
-        <ol className="presentation-team-roster">
-          {projectTeam.map((member, index) => (
-            <li
-              key={member.name}
-              style={{ '--team-order': index, '--team-x': index % 2 ? '12vw' : '-12vw' } as CSSProperties}
-            >
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              <div className="presentation-team-monogram" aria-hidden="true">
-                {member.name.split(' ').slice(0, 2).map((part) => part[0]).join('')}
-              </div>
-              <div>
-                <small>{member.discipline}</small>
-                <strong>{member.name}</strong>
-              </div>
-              <p>{member.role}</p>
-            </li>
-          ))}
-        </ol>
-        <footer>
-          <span>Colégio Estadual Alfredo Moisés Maluf</span>
-          <strong>Feira de Tecnologia</strong>
-        </footer>
-      </section>
-    </div>,
-    document.body,
-  );
-}
 
 function formatTime(value: Date) {
   return value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -270,7 +167,6 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
   );
   const [motionPaused, setMotionPaused] = useState(systemPrefersReducedMotion);
   const [motionOverride, setMotionOverride] = useState(false);
-  const [teamOpen, setTeamOpen] = useState(false);
   const storyRef = useRef<HTMLDivElement | null>(null);
   const summaryTitleId = useId();
   const participant = result.participants[0];
@@ -302,9 +198,9 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           <div><strong>Curitiba Empreiteira</strong><small>Feira de Tecnologia · Colégio Maluf</small></div>
         </div>
         <div className="presentation-story-nav-actions">
-          <button type="button" onClick={() => setTeamOpen(true)}>
+          <a href="/apresentacao/equipe" target="_blank" rel="noreferrer" className="presentation-story-team-link">
             <Users size={16} /> Equipe
-          </button>
+          </a>
           <button
             type="button"
             onClick={() => {
@@ -476,6 +372,8 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
             className="presentation-school-backdrop"
             src="/maluf-school-front.jpg"
             alt="Estudantes em frente ao Colégio Estadual Alfredo Moisés Maluf, em Maringá"
+            width="2048"
+            height="1152"
             loading="lazy"
             decoding="async"
           />
@@ -519,9 +417,9 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
               Desenvolvimento, organização, pesquisa e comunicação foram construídos em conjunto
               por cinco estudantes. Conheça quem transformou a ideia em uma demonstração real.
             </p>
-            <button type="button" onClick={() => setTeamOpen(true)}>
+            <a href="/apresentacao/equipe" target="_blank" rel="noreferrer">
               <Users size={18} /> Abrir créditos da equipe
-            </button>
+            </a>
           </div>
           <div className="presentation-team-disciplines" data-story-team-disciplines>
             <span><Code2 size={18} /> Desenvolvimento</span>
@@ -544,11 +442,6 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
       <button type="button" className="presentation-story-close" onClick={onClose} aria-label="Fechar resumo">
         <X size={19} />
       </button>
-      <TeamCreditsDialog
-        open={teamOpen}
-        motionEnabled={motionOverride || !systemPrefersReducedMotion}
-        onClose={() => setTeamOpen(false)}
-      />
     </div>
   );
 }
