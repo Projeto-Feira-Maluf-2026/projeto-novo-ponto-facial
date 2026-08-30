@@ -5,18 +5,21 @@ import {
   Building2,
   Check,
   Clock3,
+  Code2,
   Database,
   ExternalLink,
   Fingerprint,
+  Lightbulb,
   Mail,
   Pause,
   Play,
   ScanFace,
   ShieldCheck,
   Sparkles,
+  Users,
   X,
 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 
 import type { PunchType } from '../types/domain';
@@ -39,6 +42,109 @@ const punchLabels: Record<PunchType, string> = {
   LUNCH_IN: 'Retorno do intervalo',
   EXIT: 'Saída',
 };
+
+const projectTeam = [
+  { name: 'Paulo Ricardo da Silva', role: 'Líder + Dev', discipline: 'DESENVOLVIMENTO' },
+  { name: 'Alisson Cortati Pereira', role: 'Líder + Dev', discipline: 'DESENVOLVIMENTO' },
+  { name: 'Murilo Pinheiro Cescon', role: 'Organização, ideias e cartaz', discipline: 'CRIAÇÃO' },
+  { name: 'Allanis Cristina Lisboa Francisco', role: 'Organização, ideias e cartaz', discipline: 'CRIAÇÃO' },
+  { name: 'Ana Clara Silva Pinheiro', role: 'Organização, ideias e cartaz', discipline: 'CRIAÇÃO' },
+] as const;
+
+interface TeamCreditsDialogProps {
+  open: boolean;
+  motionEnabled: boolean;
+  onClose: () => void;
+}
+
+function TeamCreditsDialog({ open, motionEnabled, onClose }: TeamCreditsDialogProps) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button, a[href]') || []);
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      if (returnFocus?.isConnected) returnFocus.focus();
+    };
+  }, [onClose, open]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="presentation-team-backdrop"
+      data-motion-enabled={motionEnabled || undefined}
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        ref={(node) => { dialogRef.current = node; }}
+        className="presentation-team-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <header className="presentation-team-dialog-heading">
+          <div>
+            <span>CRÉDITOS DO PROJETO · 2026</span>
+            <h2 id={titleId}>Cinco pessoas.<br />Uma construção coletiva.</h2>
+          </div>
+          <button ref={closeRef} type="button" onClick={onClose} aria-label="Fechar créditos da equipe">
+            <X size={22} />
+          </button>
+        </header>
+        <ol className="presentation-team-roster">
+          {projectTeam.map((member, index) => (
+            <li
+              key={member.name}
+              style={{ '--team-order': index, '--team-x': index % 2 ? '12vw' : '-12vw' } as CSSProperties}
+            >
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <div className="presentation-team-monogram" aria-hidden="true">
+                {member.name.split(' ').slice(0, 2).map((part) => part[0]).join('')}
+              </div>
+              <div>
+                <small>{member.discipline}</small>
+                <strong>{member.name}</strong>
+              </div>
+              <p>{member.role}</p>
+            </li>
+          ))}
+        </ol>
+        <footer>
+          <span>Colégio Estadual Alfredo Moisés Maluf</span>
+          <strong>Feira de Tecnologia</strong>
+        </footer>
+      </section>
+    </div>,
+    document.body,
+  );
+}
 
 function formatTime(value: Date) {
   return value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -164,6 +270,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
   );
   const [motionPaused, setMotionPaused] = useState(systemPrefersReducedMotion);
   const [motionOverride, setMotionOverride] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(false);
   const storyRef = useRef<HTMLDivElement | null>(null);
   const summaryTitleId = useId();
   const participant = result.participants[0];
@@ -195,6 +302,9 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           <div><strong>Curitiba Empreiteira</strong><small>Feira de Tecnologia · Colégio Maluf</small></div>
         </div>
         <div className="presentation-story-nav-actions">
+          <button type="button" onClick={() => setTeamOpen(true)}>
+            <Users size={16} /> Equipe
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -218,8 +328,19 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         </div>
       </header>
 
+      <aside className="presentation-chapter-rail" aria-label="Navegação pelos capítulos">
+        <span className="presentation-chapter-progress" aria-hidden="true"><i /></span>
+        <a href="#registro"><span>00</span><b>Registro</b></a>
+        <a href="#como-funciona"><span>01</span><b>Caminho</b></a>
+        <a href="#arquitetura"><span>02</span><b>Arquitetura</b></a>
+        <a href="#impacto"><span>03</span><b>Impacto</b></a>
+        <a href="#responsabilidade"><span>04</span><b>Proteção</b></a>
+        <a href="#maluf"><span>05</span><b>Maluf</b></a>
+        <a href="#equipe"><span>06</span><b>Equipe</b></a>
+      </aside>
+
       <main>
-        <section className="presentation-story-hero">
+        <section id="registro" className="presentation-story-hero">
           <div className="presentation-story-hero-copy" data-story-hero-copy>
             <span className="presentation-story-index">00 / REGISTRO CONFIRMADO</span>
             <h2 id={summaryTitleId} aria-label="Você acabou de atravessar um sistema inteiro em segundos.">
@@ -309,7 +430,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           </ol>
         </section>
 
-        <section className="presentation-story-section presentation-story-blueprint">
+        <section id="arquitetura" className="presentation-story-section presentation-story-blueprint">
           <div className="presentation-blueprint-copy" data-story-heading>
             <span className="presentation-story-index">02 / A ARQUITETURA</span>
             <h3>Construído como uma obra: cada camada sustenta a próxima.</h3>
@@ -329,7 +450,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           </div>
         </section>
 
-        <section className="presentation-story-section presentation-story-impact">
+        <section id="impacto" className="presentation-story-section presentation-story-impact">
           <header className="presentation-story-section-heading" data-story-heading>
             <span className="presentation-story-index">03 / POR QUE EXISTE</span>
             <h3>Menos fila na portaria. Mais clareza depois.</h3>
@@ -341,7 +462,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           </div>
         </section>
 
-        <section className="presentation-story-section presentation-story-trust">
+        <section id="responsabilidade" className="presentation-story-section presentation-story-trust">
           <div className="presentation-trust-symbol" aria-hidden="true"><ShieldCheck size={42} /></div>
           <div>
             <span className="presentation-story-index">04 / RESPONSABILIDADE</span>
@@ -350,7 +471,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           </div>
         </section>
 
-        <section className="presentation-story-section presentation-story-school">
+        <section id="maluf" className="presentation-story-section presentation-story-school">
           <img
             className="presentation-school-backdrop"
             src="/maluf-school-front.jpg"
@@ -389,6 +510,26 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           </div>
         </section>
 
+        <section id="equipe" className="presentation-story-section presentation-story-team-teaser">
+          <div className="presentation-team-giant-number" aria-hidden="true">05</div>
+          <div className="presentation-team-teaser-copy" data-story-team-copy>
+            <span className="presentation-story-index">06 / QUEM CONSTRUIU</span>
+            <h3>O sistema é técnico.<br />A autoria é humana.</h3>
+            <p>
+              Desenvolvimento, organização, pesquisa e comunicação foram construídos em conjunto
+              por cinco estudantes. Conheça quem transformou a ideia em uma demonstração real.
+            </p>
+            <button type="button" onClick={() => setTeamOpen(true)}>
+              <Users size={18} /> Abrir créditos da equipe
+            </button>
+          </div>
+          <div className="presentation-team-disciplines" data-story-team-disciplines>
+            <span><Code2 size={18} /> Desenvolvimento</span>
+            <span><Lightbulb size={18} /> Ideias e organização</span>
+            <span><Sparkles size={18} /> Identidade da feira</span>
+          </div>
+        </section>
+
         <section className="presentation-story-final">
           <Sparkles size={24} aria-hidden="true" />
           <span>Feira de Tecnologia · Colégio Estadual Alfredo Moisés Maluf</span>
@@ -403,6 +544,11 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
       <button type="button" className="presentation-story-close" onClick={onClose} aria-label="Fechar resumo">
         <X size={19} />
       </button>
+      <TeamCreditsDialog
+        open={teamOpen}
+        motionEnabled={motionOverride || !systemPrefersReducedMotion}
+        onClose={() => setTeamOpen(false)}
+      />
     </div>
   );
 }

@@ -104,13 +104,18 @@ export default function App() {
     );
   }
 
+  const allowDevelopmentPresentationPreview = import.meta.env.DEV
+    && new URLSearchParams(window.location.search).get('preview') === '1';
+
   return (
     <Suspense fallback={<RouteLoading />}>
       <Routes>
       <Route path="/login" element={session ? <Navigate to={initialPath} replace /> : <LoginPage />} />
       <Route
         path="/apresentacao/resumo"
-        element={session ? <PresentationResultPage /> : <Navigate to="/login" replace />}
+        element={session || allowDevelopmentPresentationPreview
+          ? <PresentationResultPage />
+          : <Navigate to="/login" replace />}
       />
       <Route
         path="/*"

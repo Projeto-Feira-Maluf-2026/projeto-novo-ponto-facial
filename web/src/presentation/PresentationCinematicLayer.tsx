@@ -229,6 +229,45 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
         ease: 'power3.out',
         scrollTrigger: { trigger: '.presentation-story-school', start: 'top 86%', end: 'center 52%', scrub: 0.7, ...common },
       });
+      gsap.fromTo('.presentation-team-giant-number', {
+        xPercent: 68,
+        scale: 1.6,
+        rotate: 16,
+        opacity: 0,
+      }, {
+        xPercent: 0,
+        scale: 1,
+        rotate: 0,
+        opacity: 1,
+        ease: 'power3.out',
+        scrollTrigger: { trigger: '.presentation-story-team-teaser', start: 'top 96%', end: 'center 48%', scrub: 0.75, ...common },
+      });
+      gsap.fromTo('[data-story-team-copy] > *', {
+        x: -190,
+        y: 90,
+        rotateY: -18,
+        opacity: 0,
+      }, {
+        x: 0,
+        y: 0,
+        rotateY: 0,
+        opacity: 1,
+        stagger: 0.1,
+        ease: 'power4.out',
+        scrollTrigger: { trigger: '.presentation-story-team-teaser', start: 'top 90%', end: 'center 57%', scrub: 0.65, ...common },
+      });
+      gsap.fromTo('[data-story-team-disciplines] > *', {
+        x: 220,
+        scale: 0.72,
+        opacity: 0,
+      }, {
+        x: 0,
+        scale: 1,
+        opacity: 1,
+        stagger: 0.12,
+        ease: 'power3.out',
+        scrollTrigger: { trigger: '.presentation-story-team-teaser', start: 'top 80%', end: 'center 52%', scrub: 0.6, ...common },
+      });
       gsap.fromTo('.presentation-story-final > *', {
         y: 160,
         scale: 0.72,
