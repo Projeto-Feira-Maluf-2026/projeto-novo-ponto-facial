@@ -6,6 +6,7 @@ import {
   Check,
   Clock3,
   Database,
+  ExternalLink,
   Fingerprint,
   Mail,
   Pause,
@@ -16,9 +17,11 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { PunchType } from '../types/domain';
 import type { PresentationResult } from './presentationResult';
+import { openPresentationResultPage } from './presentationResultTransfer';
 
 interface PresentationResultExperienceProps {
   result: PresentationResult;
@@ -41,19 +44,13 @@ function formatDate(value: Date) {
 }
 
 export function PresentationResultExperience({ result, onClose }: PresentationResultExperienceProps) {
-  const [stage, setStage] = useState<'prompt' | 'summary'>('prompt');
-  const [motionPaused, setMotionPaused] = useState(false);
+  const [openError, setOpenError] = useState(false);
   const titleId = useId();
-  const summaryTitleId = useId();
   const primaryActionRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const participant = result.participants[0];
   const participantCount = result.participants.length;
-  const emailCount = useMemo(
-    () => result.participants.filter((item) => item.emailSent).length,
-    [result.participants],
-  );
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -94,15 +91,19 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
     };
   }, [onClose]);
 
-  useEffect(() => {
-    primaryActionRef.current?.focus();
-  }, [stage]);
-
   if (!participant) return null;
 
-  if (stage === 'prompt') {
-    return (
-      <div className="presentation-result-backdrop" role="presentation">
+  const openSummary = () => {
+    setOpenError(false);
+    if (openPresentationResultPage(result)) {
+      onClose();
+      return;
+    }
+    setOpenError(true);
+  };
+
+  return createPortal(
+    <div className="presentation-result-backdrop" role="presentation">
         <section
           ref={(node) => { dialogRef.current = node; }}
           className="presentation-result-prompt"
@@ -120,7 +121,7 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
               : `${participant.name}, seu ponto foi registrado.`}
           </h2>
           <p>
-            Quer ver, em menos de um minuto, o caminho que esse registro percorreu e como o projeto foi construído?
+            Quer abrir uma página separada e ver, em menos de um minuto, o caminho que esse registro percorreu?
           </p>
           <dl className="presentation-result-receipt">
             <div><dt>Movimento</dt><dd>{participant.punchType ? punchLabels[participant.punchType] : 'Ponto'}</dd></div>
@@ -133,29 +134,43 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
               ref={primaryActionRef}
               type="button"
               className="btn presentation-result-primary"
-              onClick={() => setStage('summary')}
+              onClick={openSummary}
             >
-              Ver meu resumo <ArrowRight size={17} />
+              Abrir meu resumo <ExternalLink size={17} />
             </button>
           </div>
+          {openError && (
+            <p className="presentation-result-open-error" role="alert">
+              O navegador bloqueou a nova página. Permita pop-ups para este site e tente novamente.
+            </p>
+          )}
         </section>
-      </div>
-    );
-  }
+      </div>,
+    document.body,
+  );
+}
+
+export function PresentationResultSummary({ result, onClose }: PresentationResultExperienceProps) {
+  const [motionPaused, setMotionPaused] = useState(false);
+  const summaryTitleId = useId();
+  const participant = result.participants[0];
+  const participantCount = result.participants.length;
+  const emailCount = useMemo(
+    () => result.participants.filter((item) => item.emailSent).length,
+    [result.participants],
+  );
+  if (!participant) return null;
 
   return (
     <div
-      ref={(node) => { dialogRef.current = node; }}
       className="presentation-story"
       data-motion-paused={motionPaused || undefined}
-      role="dialog"
-      aria-modal="true"
       aria-labelledby={summaryTitleId}
     >
       <header className="presentation-story-nav">
         <div className="presentation-story-brand">
           <span aria-hidden="true">CE</span>
-          <div><strong>Curitiba Empreiteira</strong><small>Projeto de ponto facial</small></div>
+          <div><strong>Curitiba Empreiteira</strong><small>Feira de Tecnologia · Colégio Maluf</small></div>
         </div>
         <div className="presentation-story-nav-actions">
           <button
@@ -166,8 +181,8 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
             {motionPaused ? <Play size={16} /> : <Pause size={16} />}
             {motionPaused ? 'Continuar movimento' : 'Pausar movimento'}
           </button>
-          <button ref={primaryActionRef} type="button" onClick={onClose}>
-            <ArrowLeft size={17} /> Voltar ao terminal
+          <button type="button" onClick={onClose}>
+            <ArrowLeft size={17} /> Fechar resumo
           </button>
         </div>
       </header>
@@ -301,13 +316,41 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
           </div>
         </section>
 
+        <section className="presentation-story-section presentation-story-school">
+          <div className="presentation-school-heading">
+            <span className="presentation-story-index">05 / A FEIRA</span>
+            <h3>Tecnologia feita dentro da escola pública.</h3>
+          </div>
+          <div className="presentation-school-body">
+            <p>
+              Este projeto será apresentado na Feira de Tecnologia do Colégio Estadual Alfredo
+              Moisés Maluf, em Maringá–PR. A instituição pertence à rede estadual e reúne Ensino
+              Fundamental, Médio e Profissional.
+            </p>
+            <dl>
+              <div><dt>Instituição</dt><dd>Colégio Estadual Alfredo Moisés Maluf</dd></div>
+              <div><dt>Local</dt><dd>Maringá, Paraná</dd></div>
+              <div><dt>Formação ligada ao projeto</dt><dd>Técnico em Desenvolvimento de Sistemas</dd></div>
+            </dl>
+            <div className="presentation-school-sources">
+              <span>Informações verificadas em fontes públicas</span>
+              <a href="https://www.consultaescolas.pr.gov.br/consultaescolas/pages/templates/initial2.xhtml?codigoEstab=603&codigoMunicipio=1530" target="_blank" rel="noreferrer">
+                Consulta Escolas · Seed-PR <ExternalLink size={14} />
+              </a>
+              <a href="https://manna.team/2023/09/11/oficina-de-jogos-no-c-e-alfredo-moises-maluf/" target="_blank" rel="noreferrer">
+                Atividade do curso técnico <ExternalLink size={14} />
+              </a>
+            </div>
+          </div>
+        </section>
+
         <section className="presentation-story-final">
           <Sparkles size={24} aria-hidden="true" />
-          <span>Seu registro foi a demonstração.</span>
-          <h3>O projeto é tudo o que aconteceu sem você precisar pensar.</h3>
+          <span>Feira de Tecnologia · Colégio Estadual Alfredo Moisés Maluf</span>
+          <h3>Seu registro transformou o projeto em uma demonstração real.</h3>
           <p><time dateTime={participant.occurredAt.toISOString()}>{formatDate(participant.occurredAt)} · {formatTime(participant.occurredAt)}</time> · {result.worksiteName}</p>
           <button type="button" onClick={onClose} className="presentation-story-final-action">
-            Voltar e registrar outra pessoa <ArrowRight size={18} />
+            Fechar e voltar ao terminal <ArrowRight size={18} />
           </button>
         </section>
       </main>
