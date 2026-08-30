@@ -195,7 +195,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
       <header className="presentation-story-nav">
         <div className="presentation-story-brand">
           <span aria-hidden="true">CE</span>
-          <div><strong>Curitiba Empreiteira</strong><small>Feira de Tecnologia · Colégio Maluf</small></div>
+          <div><strong>Curitiba Empreiteira</strong><small>Construção e tecnologia</small></div>
         </div>
         <div className="presentation-story-nav-actions">
           <a href="/apresentacao/equipe" target="_blank" rel="noreferrer" className="presentation-story-team-link">
@@ -430,7 +430,7 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
 
         <section className="presentation-story-final">
           <Sparkles size={24} aria-hidden="true" />
-          <span>Feira de Tecnologia · Colégio Estadual Alfredo Moisés Maluf</span>
+          <span>Curitiba Empreiteira · Construção e tecnologia</span>
           <h3>Seu registro transformou o projeto em uma demonstração real.</h3>
           <p><time dateTime={participant.occurredAt.toISOString()}>{formatDate(participant.occurredAt)} · {formatTime(participant.occurredAt)}</time> · {result.worksiteName}</p>
           <button type="button" onClick={onClose} className="presentation-story-final-action">

@@ -438,7 +438,7 @@
 .presentation-team-disciplines span { display: grid; min-height: 76px; grid-template-columns: 32px 1fr; align-items: center; gap: 12px; border-bottom: 1px solid rgb(163 177 138 / .22); color: #c7d3c5; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
 .presentation-team-disciplines svg { color: #86a686; }
 
-.presentation-story-final { display: grid; min-height: 92vh; place-items: center; align-content: center; padding: 80px 22px; color: #eef4eb; background: rgb(16 24 18 / .54); text-align: center; }
+.presentation-story-final { display: grid; min-height: 100vh; place-items: center; align-content: center; padding: 80px 22px; color: #eef4eb; background: linear-gradient(90deg, rgb(9 17 12 / .64), rgb(9 17 12 / .28) 48%, rgb(9 17 12 / .48)), linear-gradient(0deg, rgb(8 15 10 / .76), transparent 34% 70%, rgb(8 15 10 / .58)); text-align: center; }
 .presentation-story-final > svg { color: #a9c4a5; }
 .presentation-story-final > span { margin-top: 22px; color: #94aa95; font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
 .presentation-story-final h3 { max-width: 950px; margin: 17px auto; font-size: clamp(38px, 6vw, 86px); font-weight: 500; line-height: .96; letter-spacing: -.065em; }
