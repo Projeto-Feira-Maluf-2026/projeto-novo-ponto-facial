@@ -11,7 +11,7 @@ import {
   WifiOff,
   XCircle,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   CameraCapture,
@@ -20,6 +20,11 @@ import {
   type FaceSourceBox,
 } from '../components/CameraCapture';
 import { apiClient } from '../services/api';
+import { usePresentationMode } from '../presentation/PresentationContext';
+import {
+  shouldOfferPresentationResult,
+  type PresentationResult,
+} from '../presentation/presentationResult';
 import type {
   AttendanceDecision,
   Employee,
@@ -70,6 +75,10 @@ const SINGLE_RESULT_HOLD_MS = 2_200;
 const GROUP_RESULT_HOLD_MS = 1_200;
 const PARTIAL_RESULT_HOLD_MS = 450;
 const MAX_FACES_PER_SCAN = 5;
+
+const PresentationResultExperience = lazy(() => import('../presentation/PresentationResultExperience').then((module) => ({
+  default: module.PresentationResultExperience,
+})));
 
 const punchLabels: Record<PunchType, string> = {
   ENTRY: 'Entrada',
@@ -130,6 +139,7 @@ function attendanceReasonMessage(reasons: string[]) {
 }
 
 export function FacialTerminalPage() {
+  const presentation = usePresentationMode();
   const cameraRef = useRef<CameraCaptureHandle | null>(null);
   const requestInFlightRef = useRef(false);
   const punchInFlightRef = useRef(false);
@@ -152,6 +162,12 @@ export function FacialTerminalPage() {
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
   const [clock, setClock] = useState(new Date());
   const [fullscreen, setFullscreen] = useState(false);
+  const [presentationResult, setPresentationResult] = useState<PresentationResult | null>(null);
+  const presentationExperienceOpen = presentation.active && presentationResult !== null;
+
+  useEffect(() => {
+    if (!presentation.active) setPresentationResult(null);
+  }, [presentation.active]);
 
   useEffect(() => {
     // Aquece o container e os modelos antes de o primeiro funcionário aparecer.
@@ -202,6 +218,7 @@ export function FacialTerminalPage() {
     if (count === 0) awaitingFaceExitRef.current = false;
     if (!wasPresent && count > 0) triggerScanRef.current?.();
   }, []);
+  const closePresentationResult = useCallback(() => setPresentationResult(null), []);
 
   const submitAutomaticPunches = useCallback(async (candidates: PunchCandidate[]) => {
     if (!worksiteId || punchInFlightRef.current || !candidates.length) return 0;
@@ -283,6 +300,22 @@ export function FacialTerminalPage() {
             : PARTIAL_RESULT_HOLD_MS
         );
         setMode(batch.manual_review > 0 ? 'review' : allCompleted ? 'accepted' : 'attention');
+        const acceptedForPresentation = completedRecords.filter((record) => record.status === 'ACCEPTED');
+        const presentationParticipants = acceptedForPresentation.map((record) => ({
+          id: record.id,
+          name: record.employee,
+          registration: record.registration,
+          punchType: record.punchType,
+          occurredAt: record.occurredAt,
+          emailSent: record.emailSent,
+        }));
+        if (shouldOfferPresentationResult(presentation.active, presentationParticipants)) {
+          setPresentationResult({
+            worksiteName: selectedWorksite?.name || 'Obra selecionada',
+            worksiteCode: selectedWorksite?.code,
+            participants: presentationParticipants,
+          });
+        }
         if (validCandidates.length > 1) {
           setGuidance(allCompleted
             ? `${completed} pontos registrados nesta leitura.`
@@ -308,7 +341,7 @@ export function FacialTerminalPage() {
     } finally {
       punchInFlightRef.current = false;
     }
-  }, [employees, worksiteId]);
+  }, [employees, presentation.active, selectedWorksite?.code, selectedWorksite?.name, worksiteId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -318,6 +351,9 @@ export function FacialTerminalPage() {
     if (!cameraReady) {
       setMode('starting');
       setGuidance('Iniciando a câmera...');
+      return () => controller.abort();
+    }
+    if (presentationExperienceOpen) {
       return () => controller.abort();
     }
     if (!autoEnabled) {
@@ -405,7 +441,7 @@ export function FacialTerminalPage() {
       controller.abort();
       requestInFlightRef.current = false;
     };
-  }, [autoEnabled, cameraReady, submitAutomaticPunches, worksiteId]);
+  }, [autoEnabled, cameraReady, presentationExperienceOpen, submitAutomaticPunches, worksiteId]);
 
   const faceOverlay = useMemo<FaceOverlayState>(() => ({
     label: mode === 'confirming'
@@ -604,7 +640,17 @@ export function FacialTerminalPage() {
     </div>
   );
 
-  return fullscreen
-    ? <div className="facial-terminal-fullscreen">{content}</div>
-    : content;
+  return (
+    <>
+      {fullscreen ? <div className="facial-terminal-fullscreen">{content}</div> : content}
+      {presentationExperienceOpen && presentationResult && (
+        <Suspense fallback={null}>
+          <PresentationResultExperience
+            result={presentationResult}
+            onClose={closePresentationResult}
+          />
+        </Suspense>
+      )}
+    </>
+  );
 }

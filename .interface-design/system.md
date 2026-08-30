@@ -58,3 +58,6 @@
 - Cadastro rápido gera uma matrícula de feira, exige e-mail e abre a matrícula facial automaticamente após salvar.
 - Contadores da sessão reagem somente a confirmações emitidas pelo terminal. E-mail aparece como enviado somente quando o backend recebe sucesso do SMTP.
 - O painel usa composição de console/roteiro, sem hero promocional genérico, depoimentos, números falsos, brilho decorativo ou excesso de cards.
+- Após um ponto realmente aceito, o modo apresentação oferece um resumo opcional e imersivo; os dados do participante ficam somente em memória e a análise da câmera pausa enquanto a história estiver aberta.
+- O resumo usa a linguagem de “dossiê vivo da passagem”: estrutura espacial de obra, lente facial e fluxo captura → IA → regra → registro → e-mail. A intensidade 3D pertence somente a essa narrativa, nunca ao terminal normal.
+- Movimento contínuo da narrativa deve ter controle explícito de pausa, respeitar `prefers-reduced-motion` e usar revelações ligadas ao scroll quando houver suporte nativo.
