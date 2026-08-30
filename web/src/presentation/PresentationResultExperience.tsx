@@ -47,6 +47,7 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
   const summaryTitleId = useId();
   const primaryActionRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const participant = result.participants[0];
   const participantCount = result.participants.length;
   const emailCount = useMemo(
@@ -56,6 +57,9 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     document.body.style.overflow = 'hidden';
     primaryActionRef.current?.focus();
 
@@ -86,6 +90,7 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKeyDown);
+      if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
     };
   }, [onClose]);
 
@@ -119,7 +124,7 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
           </p>
           <dl className="presentation-result-receipt">
             <div><dt>Movimento</dt><dd>{participant.punchType ? punchLabels[participant.punchType] : 'Ponto'}</dd></div>
-            <div><dt>Horário</dt><dd>{formatTime(participant.occurredAt)}</dd></div>
+            <div><dt>Horário</dt><dd><time dateTime={participant.occurredAt.toISOString()}>{formatTime(participant.occurredAt)}</time></dd></div>
             <div><dt>Local</dt><dd>{result.worksiteName}</dd></div>
           </dl>
           <div className="presentation-result-actions">
@@ -181,9 +186,29 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
             </p>
             <div className="presentation-story-proof">
               <span><Check size={16} /> {participantCount} {participantCount === 1 ? 'registro aceito' : 'registros aceitos'}</span>
-              <span><Clock3 size={16} /> {formatTime(participant.occurredAt)}</span>
+              <span><Clock3 size={16} /> <time dateTime={participant.occurredAt.toISOString()}>{formatTime(participant.occurredAt)}</time></span>
               <span><Building2 size={16} /> {result.worksiteCode ? `${result.worksiteCode} · ` : ''}{result.worksiteName}</span>
             </div>
+            {participantCount > 1 && (
+              <ol className="presentation-story-participants" aria-label="Participantes confirmados nesta leitura">
+                {result.participants.map((item, index) => (
+                  <li key={item.id}>
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <small>{item.registration || 'Participante da feira'}</small>
+                    </div>
+                    <div>
+                      <strong>{item.punchType ? punchLabels[item.punchType] : 'Ponto'}</strong>
+                      <small>
+                        <time dateTime={item.occurredAt.toISOString()}>{formatTime(item.occurredAt)}</time>
+                        {' · '}{item.emailSent ? 'E-mail enviado' : 'Registro confirmado'}
+                      </small>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
             <a href="#como-funciona" className="presentation-story-scroll">
               Explorar o projeto <ArrowDown size={17} />
             </a>
@@ -247,7 +272,7 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
               <div><dt>Confirmação</dt><dd>SMTP transacional</dd></div>
             </dl>
           </div>
-          <div className="presentation-blueprint-stack" aria-label="Arquitetura em quatro camadas">
+          <div className="presentation-blueprint-stack" role="img" aria-label="Arquitetura em quatro camadas">
             <div><span>04</span><Mail size={21} /><strong>Mensagem</strong><small>e-mail confirmado</small></div>
             <div><span>03</span><Database size={21} /><strong>Registro</strong><small>histórico auditável</small></div>
             <div><span>02</span><Fingerprint size={21} /><strong>Identidade</strong><small>comparação facial</small></div>
@@ -280,7 +305,7 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
           <Sparkles size={24} aria-hidden="true" />
           <span>Seu registro foi a demonstração.</span>
           <h3>O projeto é tudo o que aconteceu sem você precisar pensar.</h3>
-          <p>{formatDate(participant.occurredAt)} · {formatTime(participant.occurredAt)} · {result.worksiteName}</p>
+          <p><time dateTime={participant.occurredAt.toISOString()}>{formatDate(participant.occurredAt)} · {formatTime(participant.occurredAt)}</time> · {result.worksiteName}</p>
           <button type="button" onClick={onClose} className="presentation-story-final-action">
             Voltar e registrar outra pessoa <ArrowRight size={18} />
           </button>

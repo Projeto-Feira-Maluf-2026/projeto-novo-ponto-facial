@@ -295,6 +295,14 @@
 .presentation-story-proof { display: flex; flex-wrap: wrap; gap: 9px 18px; margin-top: 30px; }
 .presentation-story-proof span { display: inline-flex; align-items: center; gap: 7px; color: #dce4da; font-size: 12px; }
 .presentation-story-proof svg { color: #8fca99; }
+.presentation-story-participants { width: min(700px, 100%); margin: 24px 0 0; padding: 0; border-top: 1px solid rgb(163 177 138 / .28); list-style: none; }
+.presentation-story-participants li { display: grid; grid-template-columns: 28px minmax(0, 1fr) minmax(150px, auto); align-items: center; gap: 13px; border-bottom: 1px solid rgb(163 177 138 / .2); padding: 11px 0; }
+.presentation-story-participants li > span { color: #8fa88f; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }
+.presentation-story-participants li > div { display: grid; min-width: 0; gap: 2px; }
+.presentation-story-participants li > div:last-child { text-align: right; }
+.presentation-story-participants strong, .presentation-story-participants small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.presentation-story-participants strong { color: #e8eee5; font-size: 12px; }
+.presentation-story-participants small { color: #93a397; font-size: 10px; }
 .presentation-story-scroll { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; margin-top: 38px; border-bottom: 1px solid #779178; color: #eaf0e7; font-size: 13px; font-weight: 700; transition: color 160ms ease, border-color 160ms ease; }
 .presentation-story-scroll:hover { border-color: #b7cab2; color: #fff; }
 
@@ -371,6 +379,7 @@
 .presentation-story[data-motion-paused="true"] *,
 .presentation-story[data-motion-paused="true"] *::before,
 .presentation-story[data-motion-paused="true"] *::after { animation-play-state: paused !important; }
+.presentation-story[data-motion-paused="true"] { scroll-behavior: auto; }
 
 @supports (animation-timeline: view()) {
   .presentation-story-section-heading,
@@ -422,6 +431,8 @@
   .presentation-story-section { padding-right: 20px; padding-left: 20px; }
   .presentation-story-journey li { grid-template-columns: 34px 34px minmax(0, 1fr); gap: 10px; }
   .presentation-story-journey li div { grid-template-columns: 1fr; gap: 8px; }
+  .presentation-story-participants li { grid-template-columns: 24px minmax(0, 1fr); }
+  .presentation-story-participants li > div:last-child { grid-column: 2; text-align: left; }
   .presentation-blueprint-copy dl { grid-template-columns: 1fr; }
   .presentation-blueprint-stack > div { grid-template-columns: 24px 26px 1fr; transform: rotateX(42deg) rotateZ(-5deg) translateZ(calc(var(--stack-index, 0) * 10px)); }
   .presentation-blueprint-stack small { display: none; }

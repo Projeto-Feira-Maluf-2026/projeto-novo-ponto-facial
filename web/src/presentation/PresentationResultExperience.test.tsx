@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -67,5 +68,52 @@ describe('PresentationResultExperience', () => {
     expect(primaryAction).toHaveFocus();
     fireEvent.keyDown(window, { key: 'Tab' });
     expect(secondaryAction).toHaveFocus();
+  });
+
+  it('restores focus to the terminal control after closing', () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Abrir experiência</button>
+          {open && <PresentationResultExperience result={result} onClose={() => setOpen(false)} />}
+        </>
+      );
+    }
+
+    render(<Harness />);
+    const trigger = screen.getByRole('button', { name: 'Abrir experiência' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Agora não' }));
+    expect(trigger).toHaveFocus();
+  });
+
+  it('lists every confirmed participant from a collective reading', () => {
+    render(
+      <PresentationResultExperience
+        result={{
+          ...result,
+          participants: [
+            participant,
+            {
+              ...participant,
+              id: 'record-2',
+              name: 'Bruno Participante',
+              registration: 'FEIRA-002',
+              emailSent: false,
+            },
+          ],
+        }}
+        onClose={() => undefined}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Ver meu resumo/i }));
+
+    const participantList = screen.getByRole('list', { name: /Participantes confirmados/i });
+    expect(participantList).toHaveTextContent('Ana Participante');
+    expect(participantList).toHaveTextContent('Bruno Participante');
+    expect(participantList).toHaveTextContent('E-mail enviado');
+    expect(participantList).toHaveTextContent('Registro confirmado');
   });
 });
