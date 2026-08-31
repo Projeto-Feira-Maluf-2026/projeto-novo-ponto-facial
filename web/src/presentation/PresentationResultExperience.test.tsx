@@ -3,6 +3,10 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('./PresentationCinematicLayer', () => ({
+  PresentationCinematicLayer: () => <div className="presentation-cinematic-layer" data-webgl="true" />,
+}));
+
 import {
   PresentationResultExperience,
   PresentationResultSummary,
@@ -81,6 +85,17 @@ describe('PresentationResultExperience', () => {
     expect(team).toHaveTextContent('Ana Clara Silva Pinheiro');
     expect(screen.queryByRole('link', { name: 'Equipe' })).not.toBeInTheDocument();
     expect(document.querySelector('.presentation-chapter-rail')).toBeNull();
+  });
+
+  it('keeps the first frame focused on the left copy and the persistent 3D layer', async () => {
+    const { container } = render(<PresentationResultSummary result={result} onClose={() => undefined} />);
+
+    expect(container.querySelector('.presentation-story-hero-copy')).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector('.presentation-cinematic-layer')).toBeInTheDocument());
+    expect(container.querySelector('.presentation-data-sculpture')).not.toBeInTheDocument();
+    expect(screen.queryByText('CAPTURA')).not.toBeInTheDocument();
+    expect(screen.queryByText('MATCH')).not.toBeInTheDocument();
+    expect(screen.queryByText('REGISTRO')).not.toBeInTheDocument();
   });
 
   it('lists every confirmed participant from a collective reading', () => {

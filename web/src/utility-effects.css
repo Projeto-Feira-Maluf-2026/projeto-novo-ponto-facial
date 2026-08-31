@@ -268,9 +268,12 @@
 }
 
 .presentation-cinematic-layer {
-  position: fixed;
+  position: sticky;
   z-index: 0;
-  inset: 0;
+  top: 0;
+  width: 100%;
+  height: 100vh;
+  margin-bottom: -100vh;
   overflow: hidden;
   background:
     linear-gradient(90deg, #101812 0 30%, rgb(29 44 34 / .92) 58%, rgb(168 178 163 / .78) 100%),
@@ -336,28 +339,6 @@
 .presentation-story-participants small { color: #93a397; font-size: 10px; }
 .presentation-story-scroll { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; margin-top: 38px; border-bottom: 1px solid #779178; color: #eaf0e7; font-size: 13px; font-weight: 700; transition: color 160ms ease, border-color 160ms ease; }
 .presentation-story-scroll:hover { border-color: #b7cab2; color: #fff; }
-
-.presentation-data-sculpture { position: relative; z-index: 1; min-height: min(48vw, 620px); perspective: 1100px; transform-style: preserve-3d; animation: presentation-sculpture-arrive 1.1s cubic-bezier(.16, 1, .3, 1) 160ms both; }
-.presentation-story:has(.presentation-cinematic-layer[data-webgl]) .presentation-data-sculpture { opacity: 0; }
-.presentation-sculpture-grid { position: absolute; inset: 16% 5% 4%; border: 1px solid rgb(163 177 138 / .24); background: repeating-linear-gradient(90deg, transparent 0 39px, rgb(163 177 138 / .09) 40px), repeating-linear-gradient(0deg, transparent 0 39px, rgb(163 177 138 / .09) 40px); transform: rotateX(68deg) rotateZ(-16deg) translateZ(-80px); transform-origin: center bottom; }
-.presentation-sculpture-ring { position: absolute; top: 50%; left: 50%; border: 1px solid rgb(163 177 138 / .48); border-radius: 50%; transform-style: preserve-3d; }
-.ring-one { width: 56%; aspect-ratio: 1; animation: presentation-ring-one 12s linear infinite; }
-.ring-two { width: 72%; aspect-ratio: 1; border-style: dashed; animation: presentation-ring-two 17s linear infinite reverse; }
-.ring-three { width: 88%; aspect-ratio: 1; opacity: .42; animation: presentation-ring-three 22s linear infinite; }
-.presentation-sculpture-core { position: absolute; top: 50%; left: 50%; width: clamp(150px, 22vw, 270px); aspect-ratio: 1; transform: translate(-50%, -50%) rotateX(-12deg) rotateY(24deg); transform-style: preserve-3d; animation: presentation-core-float 5.4s ease-in-out infinite; }
-.core-face { position: absolute; z-index: 3; inset: 18%; display: grid; place-items: center; border: 1px solid rgb(207 229 205 / .82); color: #e5f2e2; background: rgb(58 90 64 / .38); box-shadow: inset 0 0 45px rgb(163 177 138 / .16), 0 0 60px rgb(88 129 87 / .18); backdrop-filter: blur(4px); transform: translateZ(74px); }
-.core-plane { position: absolute; inset: 12%; border: 1px solid rgb(163 177 138 / .4); background: rgb(52 78 65 / .15); }
-.plane-front { transform: translateZ(54px); }
-.plane-back { transform: translateZ(-54px); }
-.plane-left { transform: rotateY(90deg) translateZ(54px); }
-.plane-right { transform: rotateX(90deg) translateZ(54px); }
-.presentation-orbit-label { position: absolute; z-index: 4; border: 1px solid rgb(163 177 138 / .35); border-radius: 4px; padding: 6px 8px; color: #c6d3c4; background: rgb(16 24 18 / .7); font-size: 9px; font-weight: 800; letter-spacing: .15em; backdrop-filter: blur(5px); }
-.orbit-capture { top: 27%; left: 11%; animation: presentation-label-drift 4.8s ease-in-out infinite; }
-.orbit-match { top: 19%; right: 15%; animation: presentation-label-drift 5.6s ease-in-out -1.4s infinite; }
-.orbit-record { right: 8%; bottom: 22%; animation: presentation-label-drift 4.2s ease-in-out -2.1s infinite; }
-.presentation-sculpture-coordinate { position: absolute; color: rgb(189 207 185 / .44); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9px; letter-spacing: .12em; }
-.coordinate-x { right: 5%; bottom: 11%; }
-.coordinate-y { bottom: 7%; left: 9%; writing-mode: vertical-rl; }
 
 .presentation-story-section { position: relative; overflow: clip; padding: clamp(72px, 10vw, 150px) clamp(22px, 8vw, 130px); }
 .presentation-story-section-heading { display: grid; max-width: 760px; gap: 14px; }
@@ -436,7 +417,9 @@
 .presentation-team-disciplines span { display: grid; min-height: 76px; grid-template-columns: 32px 1fr; align-items: center; gap: 12px; border-bottom: 1px solid rgb(163 177 138 / .22); color: #c7d3c5; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
 .presentation-team-disciplines svg { color: #86a686; }
 
-.presentation-story-final { display: grid; min-height: 100vh; place-items: center; align-content: center; padding: 80px 22px; color: #eef4eb; background: linear-gradient(90deg, rgb(9 17 12 / .64), rgb(9 17 12 / .28) 48%, rgb(9 17 12 / .48)), linear-gradient(0deg, rgb(8 15 10 / .76), transparent 34% 70%, rgb(8 15 10 / .58)); text-align: center; }
+.presentation-story-final { position: relative; display: grid; min-height: 100vh; place-items: center; align-content: center; padding: 80px 22px; color: #eef4eb; background: transparent; text-align: center; isolation: isolate; }
+.presentation-story-final::before { position: absolute; z-index: 0; inset: 0; background: radial-gradient(circle at 52% 48%, transparent 0 30%, rgb(8 15 10 / .2) 78%, rgb(8 15 10 / .38)); content: ""; pointer-events: none; }
+.presentation-story-final > * { position: relative; z-index: 1; }
 .presentation-story-final > svg { color: #a9c4a5; }
 .presentation-story-final > span { margin-top: 22px; color: #94aa95; font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
 .presentation-story-final h3 { max-width: 950px; margin: 17px auto; font-size: clamp(38px, 6vw, 86px); font-weight: 500; line-height: .96; letter-spacing: -.065em; }
@@ -472,12 +455,6 @@
 @keyframes presentation-story-copy-in { from { opacity: 0; transform: translate3d(-54px, 20px, 0); } to { opacity: 1; transform: none; } }
 @keyframes presentation-hero-word-in { from { opacity: 0; transform: translateY(118%) rotate(2.5deg); } to { opacity: 1; transform: none; } }
 @keyframes presentation-hero-detail-in { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
-@keyframes presentation-sculpture-arrive { from { opacity: 0; transform: translate3d(90px, 42px, 0) rotateY(-10deg) scale(.88); } to { opacity: 1; transform: none; } }
-@keyframes presentation-ring-one { from { transform: translate(-50%, -50%) rotateX(66deg) rotateZ(0); } to { transform: translate(-50%, -50%) rotateX(66deg) rotateZ(360deg); } }
-@keyframes presentation-ring-two { from { transform: translate(-50%, -50%) rotateY(72deg) rotateZ(0); } to { transform: translate(-50%, -50%) rotateY(72deg) rotateZ(360deg); } }
-@keyframes presentation-ring-three { from { transform: translate(-50%, -50%) rotateX(54deg) rotateY(28deg) rotateZ(0); } to { transform: translate(-50%, -50%) rotateX(54deg) rotateY(28deg) rotateZ(360deg); } }
-@keyframes presentation-core-float { 0%, 100% { transform: translate(-50%, -50%) rotateX(-12deg) rotateY(24deg) translateY(-6px); } 50% { transform: translate(-50%, -50%) rotateX(-7deg) rotateY(31deg) translateY(7px); } }
-@keyframes presentation-label-drift { 0%, 100% { transform: translateY(-5px); } 50% { transform: translateY(7px); } }
 @keyframes presentation-scroll-reveal { from { opacity: .12; transform: translate3d(-38px, 26px, 0) scale(.985); } to { opacity: 1; transform: none; } }
 @keyframes presentation-scroll-reveal-reverse { from { opacity: .12; transform: translate3d(38px, 26px, 0) scale(.985); } to { opacity: 1; transform: none; } }
 @keyframes presentation-cinematic-fallback { from { opacity: 0; transform: translate3d(0, 18vh, 0) scale(.78) rotateX(-18deg); } to { opacity: 1; transform: none; } }
@@ -485,7 +462,6 @@
 
 @media (max-width: 980px) {
   .presentation-story-hero { min-height: auto; grid-template-columns: 1fr; padding-top: 74px; }
-  .presentation-data-sculpture { min-height: 560px; }
   .presentation-story-journey { min-height: auto; }
   .presentation-story-journey > .presentation-story-section-heading { position: relative; top: auto; width: 100%; }
   .presentation-story-journey ol { width: 100%; margin: clamp(44px, 7vw, 88px) 0 0; }
@@ -507,7 +483,6 @@
   .presentation-story-nav-actions button { width: 44px; justify-content: center; padding: 0; font-size: 0; }
   .presentation-story-hero { padding-right: 20px; padding-left: 20px; }
   .presentation-story-hero h2 { font-size: clamp(42px, 15vw, 68px); }
-  .presentation-data-sculpture { min-height: 430px; }
   .presentation-story-section { padding-right: 20px; padding-left: 20px; }
   .presentation-story-journey li { grid-template-columns: 34px 34px minmax(0, 1fr); gap: 10px; }
   .presentation-story-journey li div { grid-template-columns: 1fr; gap: 8px; }

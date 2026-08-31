@@ -139,25 +139,6 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
               Explorar o projeto <ArrowDown size={17} />
             </a>
           </div>
-
-          <div className="presentation-data-sculpture" aria-hidden="true">
-            <div className="presentation-sculpture-grid" />
-            <div className="presentation-sculpture-ring ring-one" />
-            <div className="presentation-sculpture-ring ring-two" />
-            <div className="presentation-sculpture-ring ring-three" />
-            <div className="presentation-sculpture-core">
-              <span className="core-face"><ScanFace size={42} /></span>
-              <span className="core-plane plane-front" />
-              <span className="core-plane plane-back" />
-              <span className="core-plane plane-left" />
-              <span className="core-plane plane-right" />
-            </div>
-            <span className="presentation-orbit-label orbit-capture">CAPTURA</span>
-            <span className="presentation-orbit-label orbit-match">MATCH</span>
-            <span className="presentation-orbit-label orbit-record">REGISTRO</span>
-            <span className="presentation-sculpture-coordinate coordinate-x">X 25°26′</span>
-            <span className="presentation-sculpture-coordinate coordinate-y">Y 49°16′</span>
-          </div>
         </section>
 
         <section id="como-funciona" className="presentation-story-section presentation-story-journey">

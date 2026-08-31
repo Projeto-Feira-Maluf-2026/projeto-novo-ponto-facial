@@ -503,8 +503,8 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
     let targetProgress = 0;
     let progress = 0;
     let frame = 0;
-    let visible = true;
     let lastTime = performance.now();
+    const sceneStartedAt = lastTime;
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -521,8 +521,6 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
       pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
       pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
     };
-    const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }, { threshold: 0.01 });
-    observer.observe(canvas);
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(canvas);
     root.addEventListener('scroll', updateTarget, { passive: true });
@@ -532,26 +530,32 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
 
     const render = (now: number) => {
       frame = window.requestAnimationFrame(render);
-      if (!visible || document.hidden) return;
+      if (document.hidden) return;
       const delta = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
       progress = THREE.MathUtils.damp(progress, targetProgress, 4.5, delta);
+      const introduction = THREE.MathUtils.smoothstep(now - sceneStartedAt, 0, 1_250);
       const sceneEmphasis = 0.72 + THREE.MathUtils.smoothstep(progress, 0.72, 1) * 0.28;
+      const finalEmphasis = THREE.MathUtils.smoothstep(progress, 0.84, 0.98);
       grid.position.z = (progress * 4) % 1.5;
-      (grid.material as THREE.LineBasicMaterial).opacity = 0.09 * sceneEmphasis;
+      (grid.material as THREE.LineBasicMaterial).opacity = introduction * (0.09 * sceneEmphasis + finalEmphasis * 0.055);
       construction.materials.forEach((constructionMaterial) => {
-        constructionMaterial.opacity = constructionMaterial.userData.baseOpacity * sceneEmphasis;
+        constructionMaterial.opacity = Math.min(
+          1,
+          introduction * constructionMaterial.userData.baseOpacity * (sceneEmphasis + finalEmphasis * 1.45),
+        );
       });
-      construction.group.position.y = -0.62 + Math.sin(progress * Math.PI * 1.7) * 0.13 + pointer.y * 0.035;
-      construction.group.position.x = 1.2 + Math.sin(progress * Math.PI * 2) * 0.24 + pointer.x * 0.1;
-      construction.group.rotation.y = -0.46 + Math.sin(progress * Math.PI * 1.5) * 0.07 + pointer.x * 0.03;
-      construction.group.scale.setScalar(0.78 + Math.sin(progress * Math.PI) * 0.035);
+      construction.group.position.y = -0.62 - (1 - introduction) * 0.34 + finalEmphasis * 0.1 + Math.sin(progress * Math.PI * 1.7) * 0.13 + pointer.y * 0.035;
+      construction.group.position.x = 1.2 - finalEmphasis * 0.55 + Math.sin(progress * Math.PI * 2) * 0.24 + pointer.x * 0.1;
+      construction.group.rotation.y = -0.46 + finalEmphasis * 0.08 + Math.sin(progress * Math.PI * 1.5) * 0.07 + pointer.x * 0.03;
+      construction.group.scale.setScalar((0.88 + introduction * 0.12) * (0.78 + finalEmphasis * 0.13 + Math.sin(progress * Math.PI) * 0.035));
       construction.hook.position.y = 0.3 + Math.sin(now * 0.0007) * 0.07;
       construction.cable.rotation.z = Math.sin(now * 0.00045) * 0.006;
       camera.position.z = 14.2 - Math.sin(progress * Math.PI) * 0.65;
       camera.position.x = pointer.x * 0.16 + Math.sin(progress * Math.PI * 2) * 0.18;
       camera.position.y = 0.18 + pointer.y * 0.08 + Math.cos(progress * Math.PI * 1.4) * 0.12;
       camera.lookAt(0.55, -0.15, 0);
+      renderer.setClearColor(0x101812, finalEmphasis * 0.76);
       renderer.render(scene, camera);
     };
     frame = window.requestAnimationFrame(render);
@@ -559,7 +563,6 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
       window.cancelAnimationFrame(frame);
       root.removeEventListener('scroll', updateTarget);
       window.removeEventListener('pointermove', onPointerMove);
-      observer.disconnect();
       resizeObserver.disconnect();
       construction.dispose();
       disposeScene(scene);
