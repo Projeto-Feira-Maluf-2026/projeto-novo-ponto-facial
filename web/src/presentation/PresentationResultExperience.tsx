@@ -5,26 +5,24 @@ import {
   Building2,
   Check,
   Clock3,
-  Code2,
   Database,
   ExternalLink,
   Fingerprint,
-  Lightbulb,
   Mail,
   Pause,
   Play,
   ScanFace,
   ShieldCheck,
   Sparkles,
-  Users,
   X,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 
 import type { PunchType } from '../types/domain';
 import type { PresentationResult } from './presentationResult';
-import { openPresentationResultPage } from './presentationResultTransfer';
+import { queuePresentationResultForNavigation } from './presentationResultTransfer';
+import { projectTeam } from './presentationTeam';
 
 const PresentationCinematicLayer = lazy(async () => {
   const module = await import('./PresentationCinematicLayer');
@@ -52,121 +50,22 @@ function formatDate(value: Date) {
 }
 
 export function PresentationResultExperience({ result, onClose }: PresentationResultExperienceProps) {
-  const [openError, setOpenError] = useState(false);
-  const titleId = useId();
-  const primaryActionRef = useRef<HTMLButtonElement | null>(null);
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-  const participant = result.participants[0];
-  const participantCount = result.participants.length;
+  const navigate = useNavigate();
+  const startedRef = useRef(false);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    returnFocusRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    document.body.style.overflow = 'hidden';
-    primaryActionRef.current?.focus();
+    if (startedRef.current || !result.participants.length) return;
+    startedRef.current = true;
+    queuePresentationResultForNavigation(result);
+    navigate('/apresentacao/resumo');
+    onClose();
+  }, [navigate, onClose, result]);
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ) || []).filter((element) => !element.hasAttribute('hidden'));
-      if (!focusable.length) {
-        event.preventDefault();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
-      if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
-    };
-  }, [onClose]);
-
-  if (!participant) return null;
-
-  const openSummary = () => {
-    setOpenError(false);
-    if (openPresentationResultPage(result)) {
-      onClose();
-      return;
-    }
-    setOpenError(true);
-  };
-
-  return createPortal(
-    <div className="presentation-result-backdrop" role="presentation">
-        <section
-          ref={(node) => { dialogRef.current = node; }}
-          className="presentation-result-prompt"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-        >
-          <div className="presentation-result-stamp" aria-hidden="true">
-            <Check size={28} strokeWidth={2.4} />
-          </div>
-          <span className="presentation-result-kicker">Experiência concluída</span>
-          <h2 id={titleId}>
-            {participantCount > 1
-              ? `${participantCount} participantes foram registrados.`
-              : `${participant.name}, seu ponto foi registrado.`}
-          </h2>
-          <p>
-            Quer abrir uma página separada e ver, em menos de um minuto, o caminho que esse registro percorreu?
-          </p>
-          <dl className="presentation-result-receipt">
-            <div><dt>Movimento</dt><dd>{participant.punchType ? punchLabels[participant.punchType] : 'Ponto'}</dd></div>
-            <div><dt>Horário</dt><dd><time dateTime={participant.occurredAt.toISOString()}>{formatTime(participant.occurredAt)}</time></dd></div>
-            <div><dt>Local</dt><dd>{result.worksiteName}</dd></div>
-          </dl>
-          <div className="presentation-result-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Agora não</button>
-            <button
-              ref={primaryActionRef}
-              type="button"
-              className="btn presentation-result-primary"
-              onClick={openSummary}
-            >
-              Abrir meu resumo <ExternalLink size={17} />
-            </button>
-          </div>
-          {openError && (
-            <p className="presentation-result-open-error" role="alert">
-              O navegador bloqueou a nova página. Permita pop-ups para este site e tente novamente.
-            </p>
-          )}
-        </section>
-      </div>,
-    document.body,
-  );
+  return null;
 }
 
 export function PresentationResultSummary({ result, onClose }: PresentationResultExperienceProps) {
-  const systemPrefersReducedMotion = useMemo(
-    () => typeof window !== 'undefined'
-      && typeof window.matchMedia === 'function'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    [],
-  );
-  const [motionPaused, setMotionPaused] = useState(systemPrefersReducedMotion);
-  const [motionOverride, setMotionOverride] = useState(false);
+  const [motionPaused, setMotionPaused] = useState(false);
   const storyRef = useRef<HTMLDivElement | null>(null);
   const summaryTitleId = useId();
   const participant = result.participants[0];
@@ -182,14 +81,12 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
       ref={storyRef}
       className="presentation-story"
       data-motion-paused={motionPaused || undefined}
-      data-motion-override={motionOverride || undefined}
       aria-labelledby={summaryTitleId}
     >
       <Suspense fallback={null}>
         <PresentationCinematicLayer
           rootRef={storyRef}
           paused={motionPaused}
-          allowReducedMotion={motionOverride}
         />
       </Suspense>
       <header className="presentation-story-nav">
@@ -198,42 +95,19 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           <div><strong>Curitiba Empreiteira</strong><small>Construção e tecnologia</small></div>
         </div>
         <div className="presentation-story-nav-actions">
-          <a href="/apresentacao/equipe" target="_blank" rel="noreferrer" className="presentation-story-team-link">
-            <Users size={16} /> Equipe
-          </a>
           <button
             type="button"
-            onClick={() => {
-              if (systemPrefersReducedMotion && !motionOverride) {
-                setMotionOverride(true);
-                setMotionPaused(false);
-                return;
-              }
-              setMotionPaused((current) => !current);
-            }}
+            onClick={() => setMotionPaused((current) => !current)}
             aria-pressed={motionPaused}
           >
             {motionPaused ? <Play size={16} /> : <Pause size={16} />}
-            {systemPrefersReducedMotion && !motionOverride
-              ? 'Ativar experiência completa'
-              : motionPaused ? 'Continuar movimento' : 'Pausar movimento'}
+            {motionPaused ? 'Continuar movimento' : 'Pausar movimento'}
           </button>
           <button type="button" onClick={onClose}>
             <ArrowLeft size={17} /> Fechar resumo
           </button>
         </div>
       </header>
-
-      <aside className="presentation-chapter-rail" aria-label="Navegação pelos capítulos">
-        <span className="presentation-chapter-progress" aria-hidden="true"><i /></span>
-        <a href="#registro"><span>00</span><b>Registro</b></a>
-        <a href="#como-funciona"><span>01</span><b>Caminho</b></a>
-        <a href="#arquitetura"><span>02</span><b>Arquitetura</b></a>
-        <a href="#impacto"><span>03</span><b>Impacto</b></a>
-        <a href="#responsabilidade"><span>04</span><b>Proteção</b></a>
-        <a href="#maluf"><span>05</span><b>Feira</b></a>
-        <a href="#equipe"><span>06</span><b>Equipe</b></a>
-      </aside>
 
       <main>
         <section id="registro" className="presentation-story-hero">
@@ -409,23 +283,30 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
         </section>
 
         <section id="equipe" className="presentation-story-section presentation-story-team-teaser">
-          <div className="presentation-team-giant-number" aria-hidden="true">05</div>
+          <div className="presentation-team-giant-number" aria-hidden="true">06</div>
           <div className="presentation-team-teaser-copy" data-story-team-copy>
             <span className="presentation-story-index">06 / QUEM CONSTRUIU</span>
             <h3>O sistema é técnico.<br />A autoria é humana.</h3>
             <p>
               Desenvolvimento, organização, pesquisa e comunicação foram construídos em conjunto
-              por cinco estudantes. Conheça quem transformou a ideia em uma demonstração real.
+              por cinco estudantes que transformaram a ideia em uma demonstração real.
             </p>
-            <a href="/apresentacao/equipe" target="_blank" rel="noreferrer">
-              <Users size={18} /> Abrir créditos da equipe
-            </a>
           </div>
-          <div className="presentation-team-disciplines" data-story-team-disciplines>
-            <span><Code2 size={18} /> Desenvolvimento</span>
-            <span><Lightbulb size={18} /> Ideias e organização</span>
-            <span><Sparkles size={18} /> Identidade da feira</span>
-          </div>
+          <ol className="presentation-story-team-list" aria-label="Integrantes do projeto">
+            {projectTeam.map((member, index) => (
+              <li key={member.name} data-story-team-member>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <div className="presentation-story-team-monogram" aria-hidden="true">
+                  {member.name.split(' ').slice(0, 2).map((part) => part[0]).join('')}
+                </div>
+                <div>
+                  <small>{member.discipline}</small>
+                  <strong>{member.name}</strong>
+                  <p>{member.role}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className="presentation-story-final">

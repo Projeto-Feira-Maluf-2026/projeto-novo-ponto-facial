@@ -305,17 +305,8 @@
 .presentation-story-brand strong { font-size: 13px; }
 .presentation-story-brand small { margin-top: 1px; color: #9ead9f; font-size: 11px; }
 .presentation-story-nav-actions { display: flex; align-items: center; gap: 8px; }
-.presentation-story-nav button, .presentation-story-team-link { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; border: 1px solid rgb(218 215 205 / .22); border-radius: 8px; padding: 0 14px; color: #f2f4ee; background: rgb(255 255 255 / .05); font-size: 12px; font-weight: 700; transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease; }
-.presentation-story-nav button:hover, .presentation-story-team-link:hover { border-color: rgb(163 177 138 / .7); background: rgb(163 177 138 / .13); transform: translateY(-1px); }
-
-.presentation-chapter-rail { position: fixed; z-index: 7; top: 50%; right: 15px; display: grid; gap: 7px; padding: 12px 8px; transform: translateY(-50%); }
-.presentation-chapter-progress { position: absolute; z-index: -1; top: 22px; bottom: 22px; left: 20px; width: 1px; background: rgb(218 215 205 / .18); }
-.presentation-chapter-progress i { display: block; width: 100%; height: 100%; background: #a3b18a; box-shadow: 0 0 12px rgb(163 177 138 / .55); transform: scaleY(var(--story-progress, 0)); transform-origin: top; }
-.presentation-chapter-rail a { display: grid; min-width: 40px; min-height: 34px; grid-template-columns: 24px 0fr; align-items: center; gap: 0; border: 1px solid transparent; border-radius: 5px; padding: 0 7px; color: #b8c5b8; background: rgb(16 24 18 / .68); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9px; backdrop-filter: blur(8px); transition: grid-template-columns 200ms cubic-bezier(.16, 1, .3, 1), border-color 160ms ease, background-color 160ms ease; }
-.presentation-chapter-rail a span { position: relative; z-index: 1; }
-.presentation-chapter-rail a b { overflow: hidden; opacity: 0; font-family: "Source Sans 3 Variable", sans-serif; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; transition: opacity 140ms ease; }
-.presentation-chapter-rail a:hover, .presentation-chapter-rail a:focus-visible { grid-template-columns: 24px 72px; border-color: rgb(163 177 138 / .42); background: rgb(24 39 28 / .94); }
-.presentation-chapter-rail a:hover b, .presentation-chapter-rail a:focus-visible b { opacity: 1; }
+.presentation-story-nav button { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; border: 1px solid rgb(218 215 205 / .22); border-radius: 8px; padding: 0 14px; color: #f2f4ee; background: rgb(255 255 255 / .05); font-size: 12px; font-weight: 700; transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease; }
+.presentation-story-nav button:hover { border-color: rgb(163 177 138 / .7); background: rgb(163 177 138 / .13); transform: translateY(-1px); }
 
 .presentation-story-hero { position: relative; display: grid; min-height: calc(100vh - 72px); grid-template-columns: minmax(0, .94fr) minmax(420px, 1.06fr); align-items: center; overflow: hidden; padding: clamp(46px, 6vw, 90px) clamp(22px, 7vw, 112px); color: #f4f4ec; background: linear-gradient(90deg, rgb(16 24 18 / .96) 0 34%, rgb(16 24 18 / .46) 66%, rgb(16 24 18 / .18)); }
 .presentation-story-hero::before { position: absolute; inset: 0; background: linear-gradient(110deg, transparent 0 55%, rgb(88 129 87 / .12)), repeating-linear-gradient(90deg, transparent 0 79px, rgb(218 215 205 / .035) 80px), repeating-linear-gradient(0deg, transparent 0 79px, rgb(218 215 205 / .035) 80px); content: ""; pointer-events: none; }
@@ -427,14 +418,20 @@
 .presentation-school-sources a { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; border-bottom: 1px solid rgb(163 177 138 / .45); color: #dce8d8; font-size: 12px; font-weight: 700; }
 .presentation-school-sources a:hover { border-color: #dce8d8; color: #fff; }
 
-.presentation-story-team-teaser { display: grid; min-height: 125vh; grid-template-columns: minmax(0, 1fr) minmax(300px, .55fr); align-content: center; gap: clamp(44px, 8vw, 130px); overflow: hidden; color: #f0f3eb; background: #101812; isolation: isolate; }
+.presentation-story-team-teaser { display: grid; min-height: calc(100vh - 72px); grid-template-columns: minmax(280px, .72fr) minmax(460px, 1.28fr); align-content: center; align-items: center; gap: clamp(44px, 8vw, 130px); overflow: hidden; padding-top: clamp(44px, 6vw, 76px); padding-bottom: clamp(44px, 6vw, 76px); color: #f0f3eb; background: #101812; isolation: isolate; }
 .presentation-story-team-teaser::before { position: absolute; z-index: -1; inset: 0; opacity: .6; background: radial-gradient(circle at 70% 45%, rgb(88 129 87 / .3), transparent 32%), repeating-linear-gradient(90deg, transparent 0 11.95%, rgb(163 177 138 / .08) 12%, transparent 12.05%); content: ""; }
 .presentation-team-giant-number { position: absolute; z-index: -1; top: 50%; right: -2vw; color: transparent; font-family: "Lexend Variable", sans-serif; font-size: clamp(280px, 48vw, 720px); font-weight: 700; line-height: .7; letter-spacing: -.14em; -webkit-text-stroke: 1px rgb(163 177 138 / .19); transform: translateY(-48%); }
 .presentation-team-teaser-copy { max-width: 850px; }
 .presentation-team-teaser-copy h3 { margin: 17px 0 24px; }
 .presentation-team-teaser-copy > p { max-width: 670px; color: #aebcaf; font-size: clamp(16px, 1.55vw, 21px); line-height: 1.65; }
-.presentation-team-teaser-copy > a { display: inline-flex; min-height: 50px; align-items: center; gap: 10px; margin-top: 32px; border: 1px solid #87a188; border-radius: 7px; padding: 0 19px; color: #f3f6ef; background: #3a5a40; font-size: 13px; font-weight: 750; transition: border-color 160ms ease, background-color 160ms ease, transform 180ms cubic-bezier(.16, 1, .3, 1); }
-.presentation-team-teaser-copy > a:hover { border-color: #c0d2bb; background: #476d4d; transform: translateY(-3px); }
+.presentation-story-team-list { margin: 0; padding: 0; border-top: 1px solid rgb(163 177 138 / .3); list-style: none; }
+.presentation-story-team-list li { display: grid; min-height: 88px; grid-template-columns: 34px 52px minmax(0, 1fr); align-items: center; gap: 15px; border-bottom: 1px solid rgb(163 177 138 / .22); padding: 10px 0; }
+.presentation-story-team-list li > span { color: #829785; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }
+.presentation-story-team-monogram { display: grid; width: 46px; height: 46px; place-items: center; border: 1px solid rgb(163 177 138 / .48); border-radius: 50%; color: #d9e5d5; font-size: 10px; font-weight: 800; letter-spacing: .06em; }
+.presentation-story-team-list small, .presentation-story-team-list strong { display: block; }
+.presentation-story-team-list small { color: #84a087; font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.presentation-story-team-list strong { margin-top: 4px; color: #f0f3eb; font-family: "Lexend Variable", sans-serif; font-size: clamp(18px, 2vw, 29px); font-weight: 520; letter-spacing: -.035em; }
+.presentation-story-team-list p { margin: 4px 0 0; color: #9cac9e; font-size: 12px; }
 .presentation-team-disciplines { display: grid; align-self: end; border-top: 1px solid rgb(163 177 138 / .28); }
 .presentation-team-disciplines span { display: grid; min-height: 76px; grid-template-columns: 32px 1fr; align-items: center; gap: 12px; border-bottom: 1px solid rgb(163 177 138 / .22); color: #c7d3c5; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
 .presentation-team-disciplines svg { color: #86a686; }
@@ -461,7 +458,7 @@
   .presentation-story:not([data-motion-engine]) .presentation-story-trust > *,
   .presentation-story:not([data-motion-engine]) .presentation-story-school > :not(.presentation-school-backdrop):not(.presentation-school-veil),
   .presentation-story:not([data-motion-engine]) .presentation-team-teaser-copy > *,
-  .presentation-story:not([data-motion-engine]) .presentation-team-disciplines > *,
+  .presentation-story:not([data-motion-engine]) .presentation-story-team-list > *,
   .presentation-story:not([data-motion-engine]) .presentation-story-final > * {
     animation: presentation-cinematic-fallback linear both;
     animation-timeline: view();
@@ -502,7 +499,6 @@
   .presentation-story-blueprint { grid-template-columns: 1fr; }
   .presentation-story-school { grid-template-columns: 1fr; }
   .presentation-story-team-teaser { grid-template-columns: 1fr; }
-  .presentation-chapter-rail { display: none; }
   .presentation-blueprint-stack { max-width: 680px; width: 100%; margin: 0 auto; }
 }
 
@@ -513,7 +509,7 @@
   .presentation-result-actions { display: grid; grid-template-columns: 1fr; }
   .presentation-result-actions .btn { width: 100%; }
   .presentation-story-nav { align-items: flex-start; }
-  .presentation-story-nav-actions :is(button, .presentation-story-team-link) { width: 44px; justify-content: center; padding: 0; font-size: 0; }
+  .presentation-story-nav-actions button { width: 44px; justify-content: center; padding: 0; font-size: 0; }
   .presentation-story-hero { padding-right: 20px; padding-left: 20px; }
   .presentation-story-hero h2 { font-size: clamp(42px, 15vw, 68px); }
   .presentation-data-sculpture { min-height: 430px; }
@@ -531,6 +527,9 @@
   .presentation-story-trust { grid-template-columns: 1fr; }
   .presentation-school-body dl div { grid-template-columns: 1fr; gap: 5px; }
   .presentation-team-giant-number { right: -8vw; font-size: 78vw; }
+  .presentation-story-team-list li { grid-template-columns: 26px 44px minmax(0, 1fr); gap: 10px; }
+  .presentation-story-team-monogram { width: 40px; height: 40px; }
+  .presentation-story-team-list strong { font-size: 18px; }
   .presentation-trust-symbol { width: 68px; height: 68px; }
   .presentation-story-close { display: grid; }
 }

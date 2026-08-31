@@ -1,13 +1,11 @@
-import { AlertCircle, LoaderCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import {
   PresentationResultSummary,
 } from '../presentation/PresentationResultExperience';
 import type { PresentationResult } from '../presentation/presentationResult';
-import { receivePresentationResult } from '../presentation/presentationResultTransfer';
-
-const RESULT_WAIT_TIMEOUT_MS = 45_000;
+import { consumeQueuedPresentationResult } from '../presentation/presentationResultTransfer';
 
 function createDevelopmentPreview(): PresentationResult | null {
   if (!import.meta.env.DEV || new URLSearchParams(window.location.search).get('preview') !== '1') return null;
@@ -26,18 +24,11 @@ function createDevelopmentPreview(): PresentationResult | null {
 }
 
 export function PresentationResultPage() {
-  const [result, setResult] = useState<PresentationResult | null>(createDevelopmentPreview);
-  const [expired, setExpired] = useState(false);
-
+  const [result] = useState<PresentationResult | null>(() => (
+    consumeQueuedPresentationResult() || createDevelopmentPreview()
+  ));
   useEffect(() => {
-    const sessionId = new URLSearchParams(window.location.search).get('session') || '';
-    const stopReceiving = receivePresentationResult(sessionId, setResult);
-    const timer = window.setTimeout(() => setExpired(true), RESULT_WAIT_TIMEOUT_MS);
     document.title = 'Resumo da experiência | Curitiba Empreiteira';
-    return () => {
-      stopReceiving();
-      window.clearTimeout(timer);
-    };
   }, []);
 
   const closePage = () => {
@@ -51,14 +42,10 @@ export function PresentationResultPage() {
 
   return (
     <main className="presentation-result-page-state">
-      {expired ? <AlertCircle size={28} /> : <LoaderCircle className="is-spinning" size={28} />}
-      <h1>{expired ? 'Este resumo não está mais disponível.' : 'Preparando o resumo da experiência'}</h1>
-      <p>
-        {expired
-          ? 'Volte ao terminal e conclua um novo registro para gerar outra apresentação.'
-          : 'Transferindo os dados confirmados sem armazená-los nesta página.'}
-      </p>
-      {expired && <button type="button" onClick={closePage}>Voltar ao terminal</button>}
+      <AlertCircle size={28} />
+      <h1>Este resumo não está mais disponível.</h1>
+      <p>Volte ao terminal e conclua um novo registro para gerar outra apresentação.</p>
+      <button type="button" onClick={closePage}>Voltar ao terminal</button>
     </main>
   );
 }

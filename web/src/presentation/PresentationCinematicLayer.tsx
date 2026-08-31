@@ -464,17 +464,19 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
         ease: 'power4.out',
         scrollTrigger: { trigger: '.presentation-story-team-teaser', start: 'top 90%', end: 'center 57%', scrub: 0.65, ...common },
       });
-      gsap.fromTo('[data-story-team-disciplines] > *', {
-        x: 220,
-        scale: 0.72,
+      gsap.fromTo('[data-story-team-member]', {
+        x: 210,
+        y: 70,
+        rotateY: 16,
         opacity: 0,
       }, {
         x: 0,
-        scale: 1,
+        y: 0,
+        rotateY: 0,
         opacity: 1,
-        stagger: 0.12,
+        stagger: 0.09,
         ease: 'power3.out',
-        scrollTrigger: { trigger: '.presentation-story-team-teaser', start: 'top 80%', end: 'center 52%', scrub: 0.6, ...common },
+        scrollTrigger: { trigger: '.presentation-story-team-list', start: 'top 91%', end: 'center 52%', scrub: 0.72, ...common },
       });
       gsap.fromTo('.presentation-story-final > *', {
         y: 160,

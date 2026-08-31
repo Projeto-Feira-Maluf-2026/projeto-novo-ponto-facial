@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { useState } from 'react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -12,6 +12,7 @@ import {
   type PresentationParticipantResult,
   type PresentationResult,
 } from './presentationResult';
+import { consumeQueuedPresentationResult } from './presentationResultTransfer';
 
 const participant: PresentationParticipantResult = {
   id: 'record-1',
@@ -30,132 +31,56 @@ const result: PresentationResult = {
 
 afterEach(() => {
   cleanup();
+  consumeQueuedPresentationResult();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe('PresentationResultExperience', () => {
-  it('offers the summary only for accepted presentation results', () => {
+  it('starts only for accepted presentation results', () => {
     expect(shouldOfferPresentationResult(false, [participant])).toBe(false);
     expect(shouldOfferPresentationResult(true, [])).toBe(false);
     expect(shouldOfferPresentationResult(true, [participant])).toBe(true);
   });
 
-  it('starts with an optional confirmation prompt using the real record', () => {
-    render(<PresentationResultExperience result={result} onClose={() => undefined} />);
-
-    expect(screen.getByRole('dialog', { name: /Ana Participante, seu ponto foi registrado/i })).toBeInTheDocument();
-    expect(screen.getByText('Obra Feira de Tecnologia')).toBeInTheDocument();
-    expect(screen.getByText('Entrada')).toBeInTheDocument();
-    expect(screen.queryByText(/Você acabou de atravessar um sistema inteiro/i)).not.toBeInTheDocument();
-  });
-
-  it('renders the invitation in a body portal above the terminal tree', () => {
-    const { container } = render(<PresentationResultExperience result={result} onClose={() => undefined} />);
-    expect(container.querySelector('.presentation-result-backdrop')).toBeNull();
-    expect(document.body.querySelector('.presentation-result-backdrop')).toBeInTheDocument();
-  });
-
-  it('opens the summary in a separate page', () => {
-    class FakeBroadcastChannel {
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      constructor(public name: string) {}
-      postMessage() {}
-      close() {}
-    }
-    vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel);
-    const open = vi.spyOn(window, 'open').mockReturnValue({} as Window);
+  it('enters the summary route immediately without a confirmation prompt', async () => {
     const onClose = vi.fn();
-    render(<PresentationResultExperience result={result} onClose={onClose} />);
-    fireEvent.click(screen.getByRole('button', { name: /Abrir meu resumo/i }));
+    render(
+      <MemoryRouter initialEntries={['/terminal-facial']}>
+        <Routes>
+          <Route
+            path="/terminal-facial"
+            element={<PresentationResultExperience result={result} onClose={onClose} />}
+          />
+          <Route path="/apresentacao/resumo" element={<h1>Resumo automático</h1>} />
+        </Routes>
+      </MemoryRouter>,
+    );
 
-    expect(open).toHaveBeenCalledTimes(1);
-    expect(String(open.mock.calls[0]?.[0])).toContain('/apresentacao/resumo?session=');
-    expect(open.mock.calls[0]?.[1]).toBe('_blank');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Resumo automático' })).toBeInTheDocument());
     expect(onClose).toHaveBeenCalledTimes(1);
+    expect(consumeQueuedPresentationResult()).toEqual(result);
   });
 
-  it('keeps the modal open and explains how to recover when pop-ups are blocked', () => {
-    class FakeBroadcastChannel {
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      postMessage() {}
-      close() {}
-    }
-    vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel);
-    vi.spyOn(window, 'open').mockReturnValue(null);
-    const onClose = vi.fn();
-    render(<PresentationResultExperience result={result} onClose={onClose} />);
-    fireEvent.click(screen.getByRole('button', { name: /Abrir meu resumo/i }));
-
-    expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/Permita pop-ups/i);
-  });
-
-  it('exposes a motion pause control in the standalone summary', () => {
+  it('starts with motion controls available, without an activation action', () => {
     render(<PresentationResultSummary result={result} onClose={() => undefined} />);
 
     expect(screen.getByRole('heading', { name: /Você acabou de atravessar um sistema inteiro/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ativar experiência completa/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Pausar movimento/i }));
     expect(screen.getByRole('button', { name: /Continuar movimento/i })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('offers an explicit full-motion recovery when the operating system reduces motion', () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
-      matches: true,
-      media: '(prefers-reduced-motion: reduce)',
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
-    const { container } = render(<PresentationResultSummary result={result} onClose={() => undefined} />);
-
-    const enable = screen.getByRole('button', { name: /Ativar experiência completa/i });
-    expect(enable).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(enable);
-    expect(screen.getByRole('button', { name: /Pausar movimento/i })).toHaveAttribute('aria-pressed', 'false');
-    expect(container.querySelector('.presentation-story')).toHaveAttribute('data-motion-override', 'true');
-  });
-
-  it('links project credits to their own page', () => {
+  it('keeps the team inside chapter 06 instead of linking to a separate page', () => {
     render(<PresentationResultSummary result={result} onClose={() => undefined} />);
 
-    const credits = screen.getByRole('link', { name: 'Equipe' });
-    expect(credits).toHaveAttribute('href', '/apresentacao/equipe');
-    expect(credits).toHaveAttribute('target', '_blank');
-  });
-
-  it('closes from Escape without submitting another action', () => {
-    const onClose = vi.fn();
-    render(<PresentationResultExperience result={result} onClose={onClose} />);
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps keyboard focus inside the prompt', () => {
-    render(<PresentationResultExperience result={result} onClose={() => undefined} />);
-    const primaryAction = screen.getByRole('button', { name: /Abrir meu resumo/i });
-    const secondaryAction = screen.getByRole('button', { name: /Agora não/i });
-    expect(primaryAction).toHaveFocus();
-    fireEvent.keyDown(window, { key: 'Tab' });
-    expect(secondaryAction).toHaveFocus();
-  });
-
-  it('restores focus to the terminal control after closing', () => {
-    function Harness() {
-      const [open, setOpen] = useState(false);
-      return (
-        <>
-          <button type="button" onClick={() => setOpen(true)}>Abrir experiência</button>
-          {open && <PresentationResultExperience result={result} onClose={() => setOpen(false)} />}
-        </>
-      );
-    }
-
-    render(<Harness />);
-    const trigger = screen.getByRole('button', { name: 'Abrir experiência' });
-    trigger.focus();
-    fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole('button', { name: 'Agora não' }));
-    expect(trigger).toHaveFocus();
+    const team = screen.getByRole('list', { name: 'Integrantes do projeto' });
+    expect(screen.getByText('06 / QUEM CONSTRUIU')).toBeInTheDocument();
+    expect(team).toHaveTextContent('Paulo Ricardo da Silva');
+    expect(team).toHaveTextContent('Ana Clara Silva Pinheiro');
+    expect(screen.queryByRole('link', { name: 'Equipe' })).not.toBeInTheDocument();
+    expect(document.querySelector('.presentation-chapter-rail')).toBeNull();
   });
 
   it('lists every confirmed participant from a collective reading', () => {

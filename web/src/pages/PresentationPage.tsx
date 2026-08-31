@@ -187,9 +187,6 @@ export function PresentationPage() {
             <Link to="/terminal-facial" className="btn presentation-secondary-action">
               <Camera size={17} /> Abrir câmera
             </Link>
-            <Link to="/apresentacao/equipe" className="btn presentation-secondary-action">
-              <UsersRound size={17} /> Conhecer a equipe
-            </Link>
           </div>
         </div>
         <div className="presentation-session-number" aria-label={`${sessionRecords} registros nesta apresentação`}>
