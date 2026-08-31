@@ -445,11 +445,6 @@
 .presentation-story-final-action:hover { border-color: #b2c5ae; background: #456a4b; transform: translateY(-2px); }
 .presentation-story-close { position: fixed; z-index: 10; right: 18px; bottom: 18px; display: none; width: 46px; height: 46px; place-items: center; border: 1px solid rgb(218 215 205 / .28); border-radius: 50%; color: #f3f4ee; background: rgb(16 24 18 / .86); backdrop-filter: blur(10px); }
 
-.presentation-story[data-motion-paused="true"] *,
-.presentation-story[data-motion-paused="true"] *::before,
-.presentation-story[data-motion-paused="true"] *::after { animation-play-state: paused !important; }
-.presentation-story[data-motion-paused="true"] { scroll-behavior: auto; }
-
 @supports (animation-timeline: view()) {
   .presentation-story:not([data-motion-engine]) [data-story-heading],
   .presentation-story:not([data-motion-engine]) [data-story-step],
@@ -534,29 +529,6 @@
   .presentation-story-close { display: grid; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .presentation-result-backdrop,
-  .presentation-result-prompt,
-  .presentation-story,
-  .presentation-story-hero-copy,
-  .presentation-story-word-line > *,
-  [data-story-intro],
-  .presentation-data-sculpture,
-  .presentation-sculpture-ring,
-  .presentation-sculpture-core,
-  .presentation-orbit-label,
-  .presentation-story-section-heading,
-  .presentation-story-journey li,
-  .presentation-blueprint-copy,
-  .presentation-blueprint-stack,
-  .presentation-impact-line article,
-  .presentation-story-trust > *,
-  .presentation-story-school > *,
-  .presentation-story-team-teaser > *,
-  .presentation-story-final > * { animation: none !important; transform: none; }
-  .presentation-team-giant-number { transform: translateY(-48%); }
-  .presentation-story { scroll-behavior: auto; }
-}
 .form-panel-heading p { margin: 5px 0 0; color: var(--muted, #667169); font-size: 12px; }
 
 @media (max-width: 1080px) {

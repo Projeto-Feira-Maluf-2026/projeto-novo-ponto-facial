@@ -9,14 +9,12 @@ import {
   ExternalLink,
   Fingerprint,
   Mail,
-  Pause,
-  Play,
   ScanFace,
   ShieldCheck,
   Sparkles,
   X,
 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import type { PunchType } from '../types/domain';
@@ -65,7 +63,6 @@ export function PresentationResultExperience({ result, onClose }: PresentationRe
 }
 
 export function PresentationResultSummary({ result, onClose }: PresentationResultExperienceProps) {
-  const [motionPaused, setMotionPaused] = useState(false);
   const storyRef = useRef<HTMLDivElement | null>(null);
   const summaryTitleId = useId();
   const participant = result.participants[0];
@@ -80,13 +77,11 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
     <div
       ref={storyRef}
       className="presentation-story"
-      data-motion-paused={motionPaused || undefined}
       aria-labelledby={summaryTitleId}
     >
       <Suspense fallback={null}>
         <PresentationCinematicLayer
           rootRef={storyRef}
-          paused={motionPaused}
         />
       </Suspense>
       <header className="presentation-story-nav">
@@ -95,14 +90,6 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
           <div><strong>Curitiba Empreiteira</strong><small>Construção e tecnologia</small></div>
         </div>
         <div className="presentation-story-nav-actions">
-          <button
-            type="button"
-            onClick={() => setMotionPaused((current) => !current)}
-            aria-pressed={motionPaused}
-          >
-            {motionPaused ? <Play size={16} /> : <Pause size={16} />}
-            {motionPaused ? 'Continuar movimento' : 'Pausar movimento'}
-          </button>
           <button type="button" onClick={onClose}>
             <ArrowLeft size={17} /> Fechar resumo
           </button>

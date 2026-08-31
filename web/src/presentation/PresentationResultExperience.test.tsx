@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -63,13 +63,13 @@ describe('PresentationResultExperience', () => {
     expect(consumeQueuedPresentationResult()).toEqual(result);
   });
 
-  it('starts with motion controls available, without an activation action', () => {
+  it('starts the cinematic experience without activation or pause controls', () => {
     render(<PresentationResultSummary result={result} onClose={() => undefined} />);
 
     expect(screen.getByRole('heading', { name: /Você acabou de atravessar um sistema inteiro/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ativar experiência completa/i })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Pausar movimento/i }));
-    expect(screen.getByRole('button', { name: /Continuar movimento/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: /Pausar movimento/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Continuar movimento/i })).not.toBeInTheDocument();
   });
 
   it('keeps the team inside chapter 06 instead of linking to a separate page', () => {

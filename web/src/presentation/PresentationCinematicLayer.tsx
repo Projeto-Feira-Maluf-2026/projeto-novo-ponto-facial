@@ -7,16 +7,9 @@ import * as THREE from 'three';
 
 interface PresentationCinematicLayerProps {
   rootRef: RefObject<HTMLDivElement>;
-  paused: boolean;
-  allowReducedMotion?: boolean;
 }
 
-function shouldUseWebGL(allowReducedMotion = false) {
-  if (!allowReducedMotion
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
-  const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
-  if (saveData) return false;
+function shouldUseWebGL() {
   try {
     const canvas = document.createElement('canvas');
     return Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl'));
@@ -306,33 +299,16 @@ function disposeScene(scene: THREE.Scene) {
   });
 }
 
-export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion = false }: PresentationCinematicLayerProps) {
+export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pausedRef = useRef(paused);
-  const lenisRef = useRef<Lenis | null>(null);
-  const [webglEnabled, setWebglEnabled] = useState(() => shouldUseWebGL(allowReducedMotion));
-
-  useEffect(() => {
-    setWebglEnabled(shouldUseWebGL(allowReducedMotion));
-  }, [allowReducedMotion]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-    if (paused) lenisRef.current?.stop();
-    else lenisRef.current?.start();
-  }, [paused]);
+  const [webglEnabled] = useState(shouldUseWebGL);
 
   useEffect(() => {
     const root = rootRef.current;
     const content = root?.querySelector<HTMLElement>('main');
     if (!root || !content) return undefined;
-    if (!allowReducedMotion
-      && typeof window.matchMedia === 'function'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
-
     gsap.registerPlugin(ScrollTrigger);
     const lenis = new Lenis({ wrapper: root, content, duration: 1.05, smoothWheel: true });
-    lenisRef.current = lenis;
     root.dataset.motionEngine = 'gsap';
     const updateProgress = () => {
       const maximum = Math.max(1, content.scrollHeight - root.clientHeight);
@@ -492,7 +468,6 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
       });
     }, root);
 
-    if (paused) lenis.stop();
     updateProgress();
     const refresh = () => ScrollTrigger.refresh();
     document.fonts?.ready.then(refresh).catch(() => undefined);
@@ -501,20 +476,11 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
     return () => {
       context.revert();
       lenis.destroy();
-      lenisRef.current = null;
       gsap.ticker.remove(tick);
       root.style.removeProperty('--story-progress');
       delete root.dataset.motionEngine;
     };
-  }, [allowReducedMotion, rootRef]);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const content = root.querySelector<HTMLElement>('main');
-    if (!content) return;
-    root.toggleAttribute('data-cinematic-paused', paused);
-  }, [paused, rootRef]);
+  }, [rootRef]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -566,7 +532,7 @@ export function PresentationCinematicLayer({ rootRef, paused, allowReducedMotion
 
     const render = (now: number) => {
       frame = window.requestAnimationFrame(render);
-      if (!visible || document.hidden || pausedRef.current) return;
+      if (!visible || document.hidden) return;
       const delta = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
       progress = THREE.MathUtils.damp(progress, targetProgress, 4.5, delta);
