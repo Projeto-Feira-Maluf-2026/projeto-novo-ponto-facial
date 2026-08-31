@@ -50,6 +50,12 @@
 - Não usar tilt, totem 3D, scan line ou ornamento permanente sobre a webcam; a prioridade visual e de GPU é a captura.
 - A evidência enviada ao backend é um snapshot interno. Nunca cobrir ou congelar o vídeo para mostrá-la; câmera e rastreamento continuam ao vivo durante o processamento.
 
+## Relatórios e auditoria
+
+- Auditoria não ocupa uma rota na navegação principal. Ela é uma seção interna de Relatórios para reduzir duplicação de destinos administrativos.
+- A seção Auditoria aparece somente para `SUPER_ADMIN` e `RH`; gestores de obra continuam vendo apenas exportações autorizadas.
+- O estado da seção fica na URL (`/relatorios?view=audit`) e a rota legada `/auditoria` redireciona para ela sem quebrar favoritos.
+
 ## Exclusão de funcionário
 
 - A lixeira representa exclusão permanente e aparece somente para `SUPER_ADMIN`; inativação deve usar linguagem e controle próprios quando voltar a existir.
@@ -78,4 +84,4 @@
 - A autoria do projeto é o capítulo 06 do próprio resumo, com os cinco integrantes e suas funções reais; não abre rota ou página paralela.
 - A navegação do resumo é linear pelo scroll e não exibe a régua lateral de miniatalhos numerados.
 - Créditos usam composição editorial de ficha técnica, números e monogramas tipográficos. Não inventar retratos, depoimentos, cargos ou biografias; a força visual vem do movimento e da hierarquia dos nomes.
-- A identificação envia uma rajada curta de três recortes do mesmo rosto para a verificação temporal do backend. O vídeo nunca congela; a captura é interna e serve para reduzir ambiguidades sem baixar limites de segurança.
+- A identificação envia um único recorte interno do rosto para reduzir a latência. O vídeo nunca congela e a captura não aparece na interface.

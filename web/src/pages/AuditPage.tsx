@@ -18,7 +18,7 @@ function formatAuditDate(value: string) {
   }).format(parseApiDate(value));
 }
 
-export function AuditPage() {
+export function AuditLogPanel() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,7 +52,7 @@ export function AuditPage() {
   }, [loadLogs]);
 
   return (
-    <div className="app-view-transition space-y-4">
+    <div className="space-y-4">
       <section className="toolbar-panel">
         <div>
           <strong>Operações recentes</strong>
@@ -105,4 +105,8 @@ export function AuditPage() {
       />
     </div>
   );
+}
+
+export function AuditPage() {
+  return <AuditLogPanel />;
 }

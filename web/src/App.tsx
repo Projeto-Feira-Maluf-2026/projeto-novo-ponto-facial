@@ -7,7 +7,6 @@ import { userHasRole, type AppRole } from './auth/permissions';
 import { Layout } from './components/Layout';
 import { BrandMark } from './components/BrandMark';
 import { useUtilityEffects } from './effects/useUtilityEffects';
-const AuditPage = lazy(() => import('./pages/AuditPage').then((module) => ({ default: module.AuditPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const DevicesPage = lazy(() => import('./pages/DevicesPage').then((module) => ({ default: module.DevicesPage })));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((module) => ({ default: module.EmployeesPage })));
@@ -132,7 +131,7 @@ export default function App() {
               <Route path="dispositivos" element={<RoleRoute roles={['SUPER_ADMIN', 'GESTOR_OBRA']}><DevicesPage /></RoleRoute>} />
               <Route path="terminal-facial" element={<FacialTerminalPage />} />
               <Route path="relatorios" element={<RoleRoute roles={['SUPER_ADMIN', 'RH', 'GESTOR_OBRA']}><ReportsPage /></RoleRoute>} />
-              <Route path="auditoria" element={<RoleRoute roles={['SUPER_ADMIN', 'RH']}><AuditPage /></RoleRoute>} />
+              <Route path="auditoria" element={<RoleRoute roles={['SUPER_ADMIN', 'RH']}><Navigate to="/relatorios?view=audit" replace /></RoleRoute>} />
               <Route path="apresentacao" element={<RoleRoute roles={privilegedRoles}><PresentationPage /></RoleRoute>} />
               <Route path="*" element={<Navigate to={initialPath} replace />} />
             </Routes>

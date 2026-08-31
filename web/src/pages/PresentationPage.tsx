@@ -208,7 +208,7 @@ export function PresentationPage() {
           <li><span>01</span><UserPlus size={20} /><div><strong>Cadastro</strong><small>Nome, e-mail e obra</small></div><Link to="/funcionarios?novo=apresentacao" aria-label="Abrir cadastro"><ArrowRight size={17} /></Link></li>
           <li><span>02</span><ScanFace size={20} /><div><strong>Face</strong><small>Coleta biométrica real</small></div><Link to="/funcionarios" aria-label="Abrir funcionários"><ArrowRight size={17} /></Link></li>
           <li><span>03</span><Fingerprint size={20} /><div><strong>Ponto</strong><small>Uma ou mais pessoas</small></div><Link to="/terminal-facial" aria-label="Abrir terminal"><ArrowRight size={17} /></Link></li>
-          <li><span>04</span><Mail size={20} /><div><strong>Confirmação</strong><small>Registro e e-mail</small></div><Link to="/auditoria" aria-label="Abrir auditoria"><ArrowRight size={17} /></Link></li>
+          <li><span>04</span><Mail size={20} /><div><strong>Confirmação</strong><small>Registro e e-mail</small></div><Link to="/relatorios?view=audit" aria-label="Abrir auditoria nos relatórios"><ArrowRight size={17} /></Link></li>
         </ol>
       </section>
 

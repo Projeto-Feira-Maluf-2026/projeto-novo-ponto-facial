@@ -10,7 +10,6 @@ import {
   MonitorPlay,
   MoreHorizontal,
   Moon,
-  ScrollText,
   Sparkles,
   Sun,
   Users,
@@ -39,7 +38,6 @@ const navItems: NavItem[] = [
   { to: '/obras', label: 'Obras', icon: Building2, roles: ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'] },
   { to: '/dispositivos', label: 'Câmeras', icon: HardDrive, roles: ['SUPER_ADMIN', 'GESTOR_OBRA'] },
   { to: '/relatorios', label: 'Relatórios', icon: ClipboardList, roles: ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA'] },
-  { to: '/auditoria', label: 'Auditoria', icon: ScrollText, roles: ['SUPER_ADMIN', 'RH'] },
 ];
 const presentationNavItem: NavItem = {
   to: '/apresentacao',
@@ -78,11 +76,6 @@ const pageCopy: Record<string, { title: string; description: string; eyebrow: st
     title: 'Relatórios',
     description: 'Consolide registros para conferência e fechamento.',
     eyebrow: 'Inteligência de dados',
-  },
-  '/auditoria': {
-    title: 'Auditoria',
-    description: 'Histórico das operações sensíveis realizadas no sistema.',
-    eyebrow: 'Segurança e rastreabilidade',
   },
   '/apresentacao': {
     title: 'Modo apresentação',

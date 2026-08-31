@@ -6,12 +6,17 @@ import {
   FileSpreadsheet,
   FileText,
   LoaderCircle,
+  ScrollText,
   Table2,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
+import { useAuth } from '../auth/AuthContext';
+import { userHasRole } from '../auth/permissions';
 import { apiClient, type ReportExportPayload } from '../services/api';
 import type { Employee, Worksite } from '../types/domain';
+import { AuditLogPanel } from './AuditPage';
 
 type ReportKind = ReportExportPayload['kind'];
 type ReportFormat = ReportExportPayload['format'];
@@ -50,7 +55,7 @@ function apiDate(date: string, endOfDay = false) {
   return new Date(`${date}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}`).toISOString();
 }
 
-export function ReportsPage() {
+function ReportExportPanel() {
   const initialRange = presetRange('monthly');
   const [kind, setKind] = useState<ReportKind>('monthly');
   const [format, setFormat] = useState<ReportFormat>('pdf');
@@ -200,6 +205,37 @@ export function ReportsPage() {
           <span>{feedback.text}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+export function ReportsPage() {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const canViewAudit = userHasRole(user, ['SUPER_ADMIN', 'RH']);
+  const requestedView = searchParams.get('view');
+  const activeView = requestedView === 'audit' && canViewAudit ? 'audit' : 'export';
+
+  const selectView = (view: 'export' | 'audit') => {
+    const next = new URLSearchParams(searchParams);
+    if (view === 'export') next.delete('view');
+    else next.set('view', view);
+    setSearchParams(next, { replace: true });
+  };
+
+  return (
+    <div className="app-view-transition reports-hub">
+      {canViewAudit && (
+        <nav className="reports-section-nav" aria-label="Seções de relatórios">
+          <button type="button" data-active={activeView === 'export'} aria-current={activeView === 'export' ? 'page' : undefined} onClick={() => selectView('export')}>
+            <FileText size={17} /> Exportar relatórios
+          </button>
+          <button type="button" data-active={activeView === 'audit'} aria-current={activeView === 'audit' ? 'page' : undefined} onClick={() => selectView('audit')}>
+            <ScrollText size={17} /> Auditoria
+          </button>
+        </nav>
+      )}
+      {activeView === 'audit' ? <AuditLogPanel /> : <ReportExportPanel />}
     </div>
   );
 }
