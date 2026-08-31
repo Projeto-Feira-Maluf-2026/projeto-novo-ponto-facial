@@ -150,11 +150,11 @@ describe('calculateFaceOverlayRect', () => {
     const face = { x: 180, y: 120, width: 240, height: 300 };
     const overlay = calculateFaceOverlayRect(face);
 
-    expect(overlay.width).toBeCloseTo(259.2);
-    expect(overlay.height).toBeCloseTo(336);
-    expect(overlay.x).toBeCloseTo(170.4);
-    expect(overlay.y).toBeCloseTo(96);
-    expect(overlay.height).toBeLessThan(face.height * 1.2);
+    expect(overlay.width).toBeCloseTo(240);
+    expect(overlay.height).toBeCloseTo(234);
+    expect(overlay.x).toBeCloseTo(180);
+    expect(overlay.y).toBeCloseTo(114);
+    expect(overlay.height).toBeLessThan(face.height);
   });
 });
 

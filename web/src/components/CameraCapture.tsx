@@ -182,11 +182,11 @@ export function faceBoxesFromLandmarks(
 }
 
 export function calculateFaceOverlayRect(face: FaceBox): FaceBox {
-  const width = face.width * 1.08;
-  const height = face.height * 1.12;
+  const width = face.width;
+  const height = face.height * 0.78;
   return {
     x: face.x - (width - face.width) / 2,
-    y: face.y - face.height * 0.08,
+    y: face.y - face.height * 0.02,
     width,
     height,
   };
@@ -727,11 +727,11 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         const rawWidth = Math.max(32, right - left);
         const rawHeight = Math.max(40, bottom - top);
         const centerX = (left + right) / 2;
-        const centerY = (top + bottom) / 2 - rawHeight * 0.02;
+        const centerY = (top + bottom) / 2 - rawHeight * 0.11;
         const availableWidth = Math.max(48, canvasRect.width - 16);
         const availableHeight = Math.max(60, canvasRect.height - 16);
-        const desiredWidth = Math.min(availableWidth, rawWidth * 1.08);
-        const desiredHeight = Math.min(availableHeight, rawHeight * 1.12);
+        const desiredWidth = Math.min(availableWidth, rawWidth);
+        const desiredHeight = Math.min(availableHeight, rawHeight * 0.78);
         const guideLeft = clamp(centerX - desiredWidth / 2, 8, canvasRect.width - desiredWidth - 8);
         const guideTop = clamp(centerY - desiredHeight / 2, 8, canvasRect.height - desiredHeight - 8);
         const guideRight = guideLeft + desiredWidth;
@@ -1109,7 +1109,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           ) < 150;
           const targetSize = distantFace
             ? 512
-            : crop.side < 720 ? 448 : Math.min(640, Math.round(crop.side));
+            : crop.side < 720 ? 384 : Math.min(576, Math.round(crop.side));
           canvas.width = targetSize;
           canvas.height = targetSize;
           const context = canvas.getContext('2d');
@@ -1127,7 +1127,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             targetSize,
             targetSize,
           );
-          return canvas.toDataURL('image/jpeg', distantFace ? 0.92 : 0.86);
+          return canvas.toDataURL('image/jpeg', distantFace ? 0.92 : 0.84);
         };
 
         return {
