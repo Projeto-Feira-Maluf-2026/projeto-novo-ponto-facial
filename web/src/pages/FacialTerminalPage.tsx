@@ -67,7 +67,6 @@ type PunchCandidate = {
   employeeId?: string | null;
   recognizedName?: string | null;
   image: string;
-  images?: string[];
   faceBox?: FaceAnalyzeResponse['face_box'];
 };
 
@@ -76,8 +75,8 @@ const SINGLE_RESULT_HOLD_MS = 2_200;
 const GROUP_RESULT_HOLD_MS = 1_200;
 const PARTIAL_RESULT_HOLD_MS = 450;
 const MAX_FACES_PER_SCAN = 5;
-const TEMPORAL_SAMPLE_COUNT = 3;
-const TEMPORAL_SAMPLE_INTERVAL_MS = 48;
+const RETRY_RESULT_HOLD_MS = 420;
+const SERVICE_RETRY_HOLD_MS = 1_200;
 
 const PresentationResultExperience = lazy(() => import('../presentation/PresentationResultExperience').then((module) => ({
   default: module.PresentationResultExperience,
@@ -253,9 +252,7 @@ export function FacialTerminalPage() {
         punch_type: null,
         face: {
           image_base64: candidate.image,
-          images_base64: candidate.images?.length === TEMPORAL_SAMPLE_COUNT
-            ? candidate.images
-            : [],
+          images_base64: [],
         },
         offline_batch_id: `terminal-${scanId}-${index + 1}`,
         occurred_at: occurredAt,
@@ -343,12 +340,12 @@ export function FacialTerminalPage() {
         return completed;
       }
 
-      resultHoldUntilRef.current = Date.now() + 2_500;
+      resultHoldUntilRef.current = Date.now() + RETRY_RESULT_HOLD_MS;
       setMode('attention');
       setGuidance(attendanceReasonMessage(batch.decisions[0]?.reasons || []));
       return 0;
     } catch {
-      resultHoldUntilRef.current = Date.now() + 4_000;
+      resultHoldUntilRef.current = Date.now() + SERVICE_RETRY_HOLD_MS;
       setMode('attention');
       setGuidance('O serviço de ponto não respondeu. A câmera continuará tentando.');
       return 0;
@@ -430,21 +427,8 @@ export function FacialTerminalPage() {
       try {
         setAnalysis(null);
         setDecision(null);
-        const temporalFrames = [croppedFaceImages];
-        if (croppedFaceImages.length > 0) {
-          for (let sample = 1; sample < TEMPORAL_SAMPLE_COUNT; sample += 1) {
-            await new Promise((resolve) => window.setTimeout(resolve, TEMPORAL_SAMPLE_INTERVAL_MS));
-            if (cancelled) return;
-            const next = cameraRef.current?.captureFaces({ limit: MAX_FACES_PER_SCAN }) || [];
-            if (next.length !== croppedFaceImages.length) break;
-            temporalFrames.push(next);
-          }
-        }
-        await submitAutomaticPunches(images.map((image, index) => ({
+        await submitAutomaticPunches(images.map((image) => ({
           image,
-          images: temporalFrames.length === TEMPORAL_SAMPLE_COUNT
-            ? temporalFrames.map((frame) => frame[index]).filter(Boolean)
-            : undefined,
         })));
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {

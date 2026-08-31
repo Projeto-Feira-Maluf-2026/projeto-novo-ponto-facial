@@ -181,6 +181,17 @@ export function faceBoxesFromLandmarks(
     });
 }
 
+export function calculateFaceOverlayRect(face: FaceBox): FaceBox {
+  const width = face.width * 1.08;
+  const height = face.height * 1.12;
+  return {
+    x: face.x - (width - face.width) / 2,
+    y: face.y - face.height * 0.08,
+    width,
+    height,
+  };
+}
+
 export type FaceCropRegion = {
   sourceX: number;
   sourceY: number;
@@ -716,14 +727,11 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         const rawWidth = Math.max(32, right - left);
         const rawHeight = Math.max(40, bottom - top);
         const centerX = (left + right) / 2;
-        const centerY = (top + bottom) / 2 - rawHeight * 0.015;
+        const centerY = (top + bottom) / 2 - rawHeight * 0.02;
         const availableWidth = Math.max(48, canvasRect.width - 16);
         const availableHeight = Math.max(60, canvasRect.height - 16);
-        const desiredWidth = Math.min(availableWidth, Math.max(rawWidth * 1.08, rawHeight * 0.72));
-        const desiredHeight = Math.min(
-          availableHeight,
-          Math.max(rawHeight * 1.1, desiredWidth / 0.82),
-        );
+        const desiredWidth = Math.min(availableWidth, rawWidth * 1.08);
+        const desiredHeight = Math.min(availableHeight, rawHeight * 1.12);
         const guideLeft = clamp(centerX - desiredWidth / 2, 8, canvasRect.width - desiredWidth - 8);
         const guideTop = clamp(centerY - desiredHeight / 2, 8, canvasRect.height - desiredHeight - 8);
         const guideRight = guideLeft + desiredWidth;
@@ -1099,7 +1107,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             normalizedFace.width * video.videoWidth,
             normalizedFace.height * video.videoHeight,
           ) < 150;
-          const targetSize = crop.side < 720 ? 512 : Math.min(720, Math.round(crop.side));
+          const targetSize = distantFace
+            ? 512
+            : crop.side < 720 ? 448 : Math.min(640, Math.round(crop.side));
           canvas.width = targetSize;
           canvas.height = targetSize;
           const context = canvas.getContext('2d');
@@ -1117,7 +1127,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             targetSize,
             targetSize,
           );
-          return canvas.toDataURL('image/jpeg', distantFace ? 0.94 : 0.9);
+          return canvas.toDataURL('image/jpeg', distantFace ? 0.92 : 0.86);
         };
 
         return {
@@ -1194,12 +1204,15 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         : projectedApiFaceBox
           ? [projectedApiFaceBox]
           : [];
-    const faceOutlines = displayFaceBoxes.map((displayFaceBox) => ({
-      width: displayFaceBox.width * 1.34,
-      height: displayFaceBox.height * 1.72,
-      left: displayFaceBox.x - displayFaceBox.width * 0.17,
-      top: displayFaceBox.y - displayFaceBox.height * 0.34,
-    }));
+    const faceOutlines = displayFaceBoxes.map((displayFaceBox) => {
+      const outline = calculateFaceOverlayRect(displayFaceBox);
+      return {
+        width: outline.width,
+        height: outline.height,
+        left: outline.x,
+        top: outline.y,
+      };
+    });
     const overlayLabel = faceOverlay?.label || 'Rosto detectado';
     const overlayTone = faceOverlay?.tone || 'tracking';
     const visibleFaceCount = landmarkFacePresent ? landmarkFaceCount : displayFaceBoxes.length;

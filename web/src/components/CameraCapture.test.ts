@@ -12,6 +12,7 @@ vi.mock('@mediapipe/tasks-vision', async () => {
 
 import {
   calculateFaceCropRegion,
+  calculateFaceOverlayRect,
   cameraAccessErrorMessage,
   faceBoxesFromLandmarks,
   isPlausibleDistantFace,
@@ -141,6 +142,19 @@ describe('calculateFaceCropRegion', () => {
     expect(crop!.side).toBeGreaterThanOrEqual(128);
     expect(crop!.side).toBeLessThan(190);
     expect((distantFace.width * 1920) / crop!.side).toBeGreaterThan(0.4);
+  });
+});
+
+describe('calculateFaceOverlayRect', () => {
+  it('mantém o contorno visual justo à cabeça', () => {
+    const face = { x: 180, y: 120, width: 240, height: 300 };
+    const overlay = calculateFaceOverlayRect(face);
+
+    expect(overlay.width).toBeCloseTo(259.2);
+    expect(overlay.height).toBeCloseTo(336);
+    expect(overlay.x).toBeCloseTo(170.4);
+    expect(overlay.y).toBeCloseTo(96);
+    expect(overlay.height).toBeLessThan(face.height * 1.2);
   });
 });
 
