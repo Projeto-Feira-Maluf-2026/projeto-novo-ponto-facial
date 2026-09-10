@@ -31,7 +31,13 @@ export interface CameraCaptureHandle {
     sourceFaceBox?: FaceSourceBox | null;
   }) => string | null;
   captureFaces: (options?: { limit?: number }) => string[];
+  captureFaceSamples: (options?: { limit?: number }) => CapturedFaceSample[];
   restart: () => Promise<void>;
+}
+
+export interface CapturedFaceSample {
+  image: string;
+  box: FaceBox;
 }
 
 export type FaceOverlayTone = 'tracking' | 'success' | 'warning' | 'danger';
@@ -61,10 +67,10 @@ const DISTANT_FACE_DETECTOR_MODEL_PATH = import.meta.env.VITE_FACE_DETECTOR_MODE
 const MAX_TRACKED_FACES = 5;
 // O overlay continua responsivo sem disputar cada frame da webcam com uma
 // inferência síncrona no thread principal.
-const LANDMARK_FRAME_INTERVAL_MS = 42;
-const DISTANT_SCAN_INTERVAL_MS = 110;
-const DISTANT_DETECTION_TTL_MS = 850;
-const DISTANT_TILE_SIZE = 512;
+const LANDMARK_FRAME_INTERVAL_MS = 58;
+const DISTANT_SCAN_INTERVAL_MS = 180;
+const DISTANT_DETECTION_TTL_MS = 560;
+const DISTANT_DETECTOR_MAX_EDGE = 640;
 const CAMERA_RELEASE_DELAY_MS = 180;
 const CAMERA_START_RETRIES = 2;
 const SELECTED_CAMERA_STORAGE_KEY = 'ponto-facial:selected-camera';
@@ -105,11 +111,21 @@ function faceBoxIou(left: FaceBox, right: FaceBox) {
   return union > 0 ? intersection / union : 0;
 }
 
+function boxesRepresentSameFace(left: FaceBox, right: FaceBox) {
+  if (faceBoxIou(left, right) > 0.24) return true;
+  const leftCenterX = left.x + left.width / 2;
+  const leftCenterY = left.y + left.height / 2;
+  const rightCenterX = right.x + right.width / 2;
+  const rightCenterY = right.y + right.height / 2;
+  return Math.abs(leftCenterX - rightCenterX) < Math.max(left.width, right.width) * 0.32
+    && Math.abs(leftCenterY - rightCenterY) < Math.max(left.height, right.height) * 0.32;
+}
+
 export function mergeFaceBoxes(boxes: FaceBox[], limit = MAX_TRACKED_FACES) {
   return [...boxes]
     .sort((left, right) => right.width * right.height - left.width * left.height)
     .reduce<FaceBox[]>((merged, candidate) => {
-      if (merged.length >= limit || merged.some((current) => faceBoxIou(current, candidate) > 0.32)) {
+      if (merged.length >= limit || merged.some((current) => boxesRepresentSameFace(current, candidate))) {
         return merged;
       }
       merged.push(candidate);
@@ -118,7 +134,26 @@ export function mergeFaceBoxes(boxes: FaceBox[], limit = MAX_TRACKED_FACES) {
     .sort((left, right) => left.x - right.x);
 }
 
-export function isPlausibleDistantFace(detection: Detection, inputSize = DISTANT_TILE_SIZE) {
+export function mergeTrackedAndDistantFaces(
+  tracked: FaceBox[],
+  distant: FaceBox[],
+  limit = MAX_TRACKED_FACES,
+) {
+  const merged = tracked.slice(0, limit);
+  for (const candidate of distant) {
+    if (merged.length >= limit) break;
+    if (!merged.some((current) => boxesRepresentSameFace(current, candidate))) {
+      merged.push(candidate);
+    }
+  }
+  return merged.sort((left, right) => left.x - right.x);
+}
+
+export function isPlausibleDistantFace(
+  detection: Detection,
+  inputWidth = 512,
+  inputHeight = inputWidth,
+) {
   const box = detection.boundingBox;
   const score = detection.categories[0]?.score || 0;
   if (!box || score < 0.55 || box.width <= 0 || box.height <= 0) return false;
@@ -131,8 +166,8 @@ export function isPlausibleDistantFace(detection: Detection, inputSize = DISTANT
   if (detection.keypoints.length < 4) return false;
   const [rightEye, leftEye, nose, mouth] = detection.keypoints;
   const points = [rightEye, leftEye, nose, mouth].map((point) => ({
-    x: point.x * inputSize,
-    y: point.y * inputSize,
+    x: point.x * inputWidth,
+    y: point.y * inputHeight,
   }));
   const marginX = box.width * 0.18;
   const marginY = box.height * 0.18;
@@ -646,9 +681,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let distantDetector: FaceDetector | null = null;
       let distantCanvas: HTMLCanvasElement | null = null;
       let distantContext: CanvasRenderingContext2D | null = null;
-      let distantTileIndex = 0;
       let lastDistantScanAt = 0;
-      let lastLandmarkerFaceAt = 0;
       let distantCandidates: Array<{ box: FaceBox; expiresAt: number }> = [];
       let lastFacePresent = false;
       let lastFaceCount = 0;
@@ -671,7 +704,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
 
       const resizeCanvas = (canvas: HTMLCanvasElement) => {
         const rect = canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
+        // As guias não precisam do DPR integral de monitores 2K/4K.
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
         const width = Math.max(1, Math.round(rect.width * dpr));
         const height = Math.max(1, Math.round(rect.height * dpr));
 
@@ -792,47 +826,37 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         const detectedLandmarks = (result.faceLandmarks || [])
           .filter((landmarks) => landmarks.length > 0)
           .slice(0, MAX_TRACKED_FACES);
-        if (!detectedLandmarks.length) {
-          const now = performance.now();
-          distantCandidates = distantCandidates.filter((candidate) => candidate.expiresAt > now);
-          const distantBoxes = mergeFaceBoxes(distantCandidates.map((candidate) => candidate.box));
-          if (distantBoxes.length) {
-            normalizedFaceBoxesRef.current = distantBoxes;
-            normalizedFaceBoxRef.current = distantBoxes[0];
-            setDetectedFaceCount(distantBoxes.length);
-            const color = TONE_RGB.tracking;
-            distantBoxes.forEach((box, index) => {
-              drawLabel(context, [
-                { x: box.x, y: box.y, z: 0, visibility: 1 },
-                { x: box.x + box.width, y: box.y, z: 0, visibility: 1 },
-                { x: box.x + box.width, y: box.y + box.height, z: 0, visibility: 1 },
-                { x: box.x, y: box.y + box.height, z: 0, visibility: 1 },
-              ], color, index, distantBoxes.length);
-            });
-            return;
-          }
+        const now = performance.now();
+        distantCandidates = distantCandidates.filter((candidate) => candidate.expiresAt > now);
+        const normalizedBoxes = mergeTrackedAndDistantFaces(
+          faceBoxesFromLandmarks(detectedLandmarks),
+          distantCandidates.map((candidate) => candidate.box),
+        );
+        if (!normalizedBoxes.length) {
           normalizedFaceBoxRef.current = null;
           normalizedFaceBoxesRef.current = [];
           setDetectedFaceCount(0);
           return;
         }
 
-        const normalizedBoxes = faceBoxesFromLandmarks(detectedLandmarks);
-        lastLandmarkerFaceAt = performance.now();
-        distantCandidates = [];
         normalizedFaceBoxesRef.current = normalizedBoxes;
         normalizedFaceBoxRef.current = normalizedBoxes.reduce((largest, box) => (
           box.width * box.height > largest.width * largest.height ? box : largest
         ));
-        setDetectedFaceCount(detectedLandmarks.length);
+        setDetectedFaceCount(normalizedBoxes.length);
         const tone = faceOverlayRef.current?.tone || 'tracking';
-        const color = TONE_RGB[detectedLandmarks.length > 1 ? 'tracking' : tone];
-        detectedLandmarks.forEach((landmarks, index) => {
-          drawLabel(context, landmarks, color, index, detectedLandmarks.length);
+        const color = TONE_RGB[normalizedBoxes.length > 1 ? 'tracking' : tone];
+        normalizedBoxes.forEach((box, index) => {
+          drawLabel(context, [
+            { x: box.x, y: box.y, z: 0, visibility: 1 },
+            { x: box.x + box.width, y: box.y, z: 0, visibility: 1 },
+            { x: box.x + box.width, y: box.y + box.height, z: 0, visibility: 1 },
+            { x: box.x, y: box.y + box.height, z: 0, visibility: 1 },
+          ], color, index, normalizedBoxes.length);
         });
       };
 
-      const scanDistantTile = (now: number) => {
+      const scanDistantFrame = (now: number) => {
         const video = videoRef.current;
         if (
           !distantDetector
@@ -842,53 +866,45 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           || !video.videoWidth
           || !video.videoHeight
           || now - lastDistantScanAt < DISTANT_SCAN_INTERVAL_MS
-          || now - lastLandmarkerFaceAt < 420
         ) return;
 
         lastDistantScanAt = now;
-        const columns = 3;
-        const rows = 2;
-        const column = distantTileIndex % columns;
-        const row = Math.floor(distantTileIndex / columns) % rows;
-        distantTileIndex = (distantTileIndex + 1) % (columns * rows);
-        const sourceWidth = video.videoWidth * 0.46;
-        const sourceHeight = video.videoHeight * 0.64;
-        const sourceX = column * ((video.videoWidth - sourceWidth) / Math.max(columns - 1, 1));
-        const sourceY = row * ((video.videoHeight - sourceHeight) / Math.max(rows - 1, 1));
+        const scale = Math.min(1, DISTANT_DETECTOR_MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
+        const detectorWidth = Math.max(1, Math.round(video.videoWidth * scale));
+        const detectorHeight = Math.max(1, Math.round(video.videoHeight * scale));
+        if (distantCanvas.width !== detectorWidth || distantCanvas.height !== detectorHeight) {
+          distantCanvas.width = detectorWidth;
+          distantCanvas.height = detectorHeight;
+          distantContext = distantCanvas.getContext('2d', { alpha: false });
+          if (!distantContext) return;
+        }
 
         distantContext.drawImage(
           video,
-          sourceX,
-          sourceY,
-          sourceWidth,
-          sourceHeight,
           0,
           0,
-          DISTANT_TILE_SIZE,
-          DISTANT_TILE_SIZE,
+          detectorWidth,
+          detectorHeight,
         );
         const detections = distantDetector.detect(distantCanvas).detections
-          .filter((detection) => isPlausibleDistantFace(detection));
+          .filter((detection) => isPlausibleDistantFace(detection, detectorWidth, detectorHeight));
         const expiresAt = now + DISTANT_DETECTION_TTL_MS;
         const detectedBoxes = detections.flatMap((detection) => {
           const box = detection.boundingBox;
           if (!box) return [];
           const normalizedBox = {
-            x: clamp((sourceX + (box.originX / DISTANT_TILE_SIZE) * sourceWidth) / video.videoWidth, 0, 1),
-            y: clamp((sourceY + (box.originY / DISTANT_TILE_SIZE) * sourceHeight) / video.videoHeight, 0, 1),
-            width: clamp((box.width / DISTANT_TILE_SIZE) * sourceWidth / video.videoWidth, 0, 1),
-            height: clamp((box.height / DISTANT_TILE_SIZE) * sourceHeight / video.videoHeight, 0, 1),
+            x: clamp(box.originX / detectorWidth, 0, 1),
+            y: clamp(box.originY / detectorHeight, 0, 1),
+            width: clamp(box.width / detectorWidth, 0, 1),
+            height: clamp(box.height / detectorHeight, 0, 1),
           };
           return normalizedBox.width > 0.012 && normalizedBox.height > 0.02
             ? [{ box: normalizedBox, expiresAt }]
             : [];
         });
-        if (detectedBoxes.length) {
-          distantCandidates = [
-            ...distantCandidates.filter((candidate) => candidate.expiresAt > now),
-            ...detectedBoxes,
-          ];
-        }
+        distantCandidates = detectedBoxes.length
+          ? detectedBoxes
+          : distantCandidates.filter((candidate) => candidate.expiresAt > now);
       };
 
       const processFrame = (now: DOMHighResTimeStamp) => {
@@ -904,8 +920,11 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           lastVideoTime = video.currentTime;
           lastLandmarkAt = now;
           try {
-            drawFaces(landmarker.detectForVideo(video, now));
-            scanDistantTile(now);
+            if (distantDetector && now - lastDistantScanAt >= DISTANT_SCAN_INTERVAL_MS) {
+              scanDistantFrame(now);
+            } else {
+              drawFaces(landmarker.detectForVideo(video, now));
+            }
           } catch {
             setLandmarkState('error');
           }
@@ -973,8 +992,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           setLandmarkState('ready');
           try {
             distantCanvas = document.createElement('canvas');
-            distantCanvas.width = DISTANT_TILE_SIZE;
-            distantCanvas.height = DISTANT_TILE_SIZE;
+            distantCanvas.width = DISTANT_DETECTOR_MAX_EDGE;
+            distantCanvas.height = Math.round(DISTANT_DETECTOR_MAX_EDGE * 9 / 16);
             distantContext = distantCanvas.getContext('2d', { alpha: false });
             distantDetector = await FaceDetector.createFromOptions(vision, {
               baseOptions: {
@@ -982,7 +1001,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
                 delegate: 'CPU',
               },
               runningMode: 'IMAGE',
-              minDetectionConfidence: 0.50,
+              minDetectionConfidence: 0.48,
               minSuppressionThreshold: 0.35,
             });
           } catch {
@@ -1176,6 +1195,23 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
                 orderedBoxes.filter((candidate) => candidate !== box),
               ))
               .filter(Boolean) as string[];
+          },
+          captureFaceSamples: (options) => {
+            const limit = clamp(options?.limit || MAX_TRACKED_FACES, 1, MAX_TRACKED_FACES);
+            const boxes = normalizedFaceBoxesRef.current.length
+              ? normalizedFaceBoxesRef.current
+              : nativeNormalizedFaceBoxesRef.current;
+            const orderedBoxes = [...boxes].sort((left, right) => left.x - right.x);
+            return orderedBoxes
+              .slice(0, limit)
+              .flatMap((box) => {
+                const image = captureNormalizedFace(
+                  box,
+                  orderedBoxes.length > 1,
+                  orderedBoxes.filter((candidate) => candidate !== box),
+                );
+                return image ? [{ image, box }] : [];
+              });
           },
           restart: () => start(selectedDeviceIdRef.current, true),
         };

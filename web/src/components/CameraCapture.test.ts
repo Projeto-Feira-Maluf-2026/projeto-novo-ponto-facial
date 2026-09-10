@@ -17,6 +17,7 @@ import {
   faceBoxesFromLandmarks,
   isPlausibleDistantFace,
   mergeFaceBoxes,
+  mergeTrackedAndDistantFaces,
   CameraCapture,
 } from './CameraCapture';
 
@@ -169,6 +170,32 @@ describe('mergeFaceBoxes', () => {
     expect(boxes).toHaveLength(2);
     expect(boxes[0].x).toBeLessThan(boxes[1].x);
   });
+
+  it('funde o mesmo rosto vindo dos detectores mesmo com caixas de tamanhos diferentes', () => {
+    const boxes = mergeFaceBoxes([
+      { x: 0.40, y: 0.20, width: 0.12, height: 0.22 },
+      { x: 0.415, y: 0.225, width: 0.08, height: 0.15 },
+      { x: 0.65, y: 0.21, width: 0.11, height: 0.21 },
+    ]);
+
+    expect(boxes).toHaveLength(2);
+  });
+});
+
+describe('mergeTrackedAndDistantFaces', () => {
+  it('keeps the current tracker box instead of a larger stale detector box', () => {
+    const tracked = { x: 0.31, y: 0.2, width: 0.18, height: 0.25 };
+    const staleDistant = { x: 0.27, y: 0.16, width: 0.28, height: 0.34 };
+
+    expect(mergeTrackedAndDistantFaces([tracked], [staleDistant])).toEqual([tracked]);
+  });
+
+  it('adds a second distant face that is not present in the tracker result', () => {
+    const tracked = { x: 0.12, y: 0.2, width: 0.18, height: 0.25 };
+    const distant = { x: 0.66, y: 0.22, width: 0.15, height: 0.22 };
+
+    expect(mergeTrackedAndDistantFaces([tracked], [distant])).toEqual([tracked, distant]);
+  });
 });
 
 describe('isPlausibleDistantFace', () => {
@@ -187,6 +214,14 @@ describe('isPlausibleDistantFace', () => {
 
   it('aceita uma detecção com olhos, nariz e boca coerentes', () => {
     expect(isPlausibleDistantFace(faceDetection)).toBe(true);
+  });
+
+  it('mantém a validação geométrica em quadros retangulares', () => {
+    expect(isPlausibleDistantFace({
+      ...faceDetection,
+      boundingBox: { originX: 212, originY: 60, width: 188, height: 140, angle: 0 },
+      keypoints: faceDetection.keypoints.map((point) => ({ x: point.x, y: point.y * 0.5625 })),
+    }, 640, 360)).toBe(true);
   });
 
   it('rejeita objeto com baixa confiança ou geometria impossível', () => {

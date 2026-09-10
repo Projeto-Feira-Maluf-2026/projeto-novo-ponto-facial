@@ -97,6 +97,12 @@ class AttendanceService:
         self.face_embeddings = face_embeddings
         self.email_notifier = email_notifier
         self.actor_user_id = actor_user_id
+        # A instância vive somente durante uma requisição. Em uma batida em
+        # grupo, todos os rostos consultam o mesmo conjunto de matrículas.
+        self._template_cache: dict[
+            tuple[str | None, str | None],
+            list[FaceTemplate],
+        ] = {}
 
     def _face_embeddings(self):
         if self.face_embeddings is None:
@@ -494,7 +500,11 @@ class AttendanceService:
                     EmployeeWorksite.ends_at >= reference_time,
                 ),
             )
-        templates = list(await self.session.scalars(statement))
+        cache_key = (employee_id, worksite_id)
+        templates = self._template_cache.get(cache_key)
+        if templates is None:
+            templates = list(await self.session.scalars(statement))
+            self._template_cache[cache_key] = templates
         if not templates:
             return None, 0.0, None, 0.0, "no_compatible_templates"
         expected_blob_size = int(provider_info.embedding_dimension or 0) * 4

@@ -1133,43 +1133,43 @@ html[data-motion-mode="full"] .route-content > .app-view-transition {
 }
 
 html[data-motion-mode="full"] .route-content > .app-view-transition > * {
-  --assemble-delay: 35ms;
-  --assemble-x: -110px;
-  --assemble-y: -44px;
-  --assemble-rotate: -1deg;
-  --dock-x: 4px;
-  --dock-y: 2px;
-  animation: page-piece-dock 560ms var(--motion-smooth) var(--assemble-delay) both !important;
+  --assemble-delay: 24ms;
+  --assemble-x: -52px;
+  --assemble-y: -24px;
+  --assemble-rotate: -.45deg;
+  --dock-x: 2px;
+  --dock-y: 1px;
+  animation: page-piece-dock 440ms var(--motion-smooth) var(--assemble-delay) both !important;
   transform-origin: left top;
 }
 
 html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n + 2) {
-  --assemble-delay: 90ms;
-  --assemble-x: 120px;
-  --assemble-y: -32px;
-  --assemble-rotate: 1deg;
-  --dock-x: -4px;
-  --dock-y: 2px;
+  --assemble-delay: 64ms;
+  --assemble-x: 56px;
+  --assemble-y: -18px;
+  --assemble-rotate: .45deg;
+  --dock-x: -2px;
+  --dock-y: 1px;
   transform-origin: right top;
 }
 
 html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n + 3) {
-  --assemble-delay: 145ms;
-  --assemble-x: -125px;
-  --assemble-y: 58px;
-  --assemble-rotate: .8deg;
-  --dock-x: 4px;
-  --dock-y: -2px;
+  --assemble-delay: 104ms;
+  --assemble-x: -58px;
+  --assemble-y: 28px;
+  --assemble-rotate: .35deg;
+  --dock-x: 2px;
+  --dock-y: -1px;
   transform-origin: left bottom;
 }
 
 html[data-motion-mode="full"] .route-content > .app-view-transition > :nth-child(4n) {
-  --assemble-delay: 200ms;
-  --assemble-x: 130px;
-  --assemble-y: 64px;
-  --assemble-rotate: -1deg;
-  --dock-x: -4px;
-  --dock-y: -2px;
+  --assemble-delay: 144ms;
+  --assemble-x: 60px;
+  --assemble-y: 30px;
+  --assemble-rotate: -.45deg;
+  --dock-x: -2px;
+  --dock-y: -1px;
   transform-origin: right bottom;
 }
 
@@ -1451,6 +1451,28 @@ html[data-motion-mode="reduced"] .route-content :is(
 .app-main-terminal .terminal-shell {
   width: 100%;
   min-width: 0;
+}
+
+/* A página ainda chega em módulos, mas os descendentes não criam uma segunda
+   cascata de camadas de composição. Isso preserva o efeito sem travar tabelas. */
+html[data-motion-mode="full"] .route-content :is(
+  .metric-mosaic,
+  .operations-analysis,
+  .worksite-statline,
+  .device-statline,
+  .camera-card-grid,
+  .worksite-command-grid,
+  .terminal-shell,
+  .terminal-side,
+  .report-filter-grid,
+  .report-format-list,
+  .dashboard-loading-grid
+) > * {
+  animation: none !important;
+}
+
+.app-main-terminal .terminal-camera-frame::after {
+  display: none;
 }
 
 .terminal-shell {

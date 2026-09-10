@@ -245,6 +245,35 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
+async def test_group_matching_reuses_templates_within_one_request() -> None:
+    provider_info = SimpleNamespace(
+        model_name="model",
+        model_version="1",
+        embedding_dimension=2,
+        detector_name="detector",
+        normalization_version="v1",
+    )
+    template = SimpleNamespace(
+        id="template-1",
+        employee_id="employee-1",
+        embedding=b"\x00" * 8,
+        quality_score=0.8,
+    )
+    scalars = MagicMock(return_value=[template])
+    session = SimpleNamespace(
+        scalars=AsyncMock(side_effect=scalars),
+        get=AsyncMock(return_value=None),
+    )
+    face_service = SimpleNamespace(provider=SimpleNamespace(info=lambda: provider_info))
+    service = AttendanceService(session, face_service)
+
+    await service._match_employee([([1.0, 0.0], 0.8)], None, "worksite-1")
+    await service._match_employee([([1.0, 0.0], 0.8)], None, "worksite-1")
+
+    assert session.scalars.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_manual_correction_preserves_before_and_after_in_audit() -> None:
     record = SimpleNamespace(
         id="record-1",

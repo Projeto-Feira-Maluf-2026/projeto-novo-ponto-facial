@@ -85,3 +85,7 @@
 - A navegação do resumo é linear pelo scroll e não exibe a régua lateral de miniatalhos numerados.
 - Créditos usam composição editorial de ficha técnica, números e monogramas tipográficos. Não inventar retratos, depoimentos, cargos ou biografias; a força visual vem do movimento e da hierarquia dos nomes.
 - A identificação envia um único recorte interno do rosto para reduzir a latência. O vídeo nunca congela e a captura não aparece na interface.
+- O rastreamento combina landmarks rápidos com uma varredura full-range do quadro inteiro. As caixas dos dois detectores são fundidas para manter pessoas próximas e distantes no mesmo grupo.
+- Durante uma presença contínua, os rostos já registrados ficam bloqueados por posição até saírem do quadro; uma nova pessoa que entra continua elegível sem duplicar quem permaneceu diante da câmera.
+- A montagem normal anima módulos de primeiro nível, não todos os seus descendentes. O efeito espacial permanece sem criar dezenas de camadas de composição em telas densas.
+- O indicador da navegação usa transição CSS nativa; engines de motion ficam restritas às rotas e experiências que realmente precisam delas, sem custo no carregamento inicial.

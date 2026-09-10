@@ -19,7 +19,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 
-import { moveIndicator } from '../animations/motion';
+import { moveIndicator } from '../animations/navigationMotion';
 import { useAuth } from '../auth/AuthContext';
 import { ALL_ROLES, roleForUser, type AppRole } from '../auth/permissions';
 import { BrandMark } from './BrandMark';

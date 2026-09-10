@@ -16,6 +16,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   CameraCapture,
   type CameraCaptureHandle,
+  type FaceBox as CameraFaceBox,
   type FaceOverlayState,
   type FaceSourceBox,
 } from '../components/CameraCapture';
@@ -68,6 +69,7 @@ type PunchCandidate = {
   recognizedName?: string | null;
   image: string;
   faceBox?: FaceAnalyzeResponse['face_box'];
+  localFaceBox?: CameraFaceBox;
 };
 
 const RECOGNITION_INTERVAL_MS = 160;
@@ -77,6 +79,17 @@ const PARTIAL_RESULT_HOLD_MS = 450;
 const MAX_FACES_PER_SCAN = 5;
 const RETRY_RESULT_HOLD_MS = 420;
 const SERVICE_RETRY_HOLD_MS = 1_200;
+
+function faceBoxIou(left: CameraFaceBox, right: CameraFaceBox) {
+  const intersectionLeft = Math.max(left.x, right.x);
+  const intersectionTop = Math.max(left.y, right.y);
+  const intersectionRight = Math.min(left.x + left.width, right.x + right.width);
+  const intersectionBottom = Math.min(left.y + left.height, right.y + right.height);
+  const intersection = Math.max(0, intersectionRight - intersectionLeft)
+    * Math.max(0, intersectionBottom - intersectionTop);
+  const union = left.width * left.height + right.width * right.height - intersection;
+  return union > 0 ? intersection / union : 0;
+}
 
 const PresentationResultExperience = lazy(() => import('../presentation/PresentationResultExperience').then((module) => ({
   default: module.PresentationResultExperience,
@@ -152,15 +165,16 @@ export function FacialTerminalPage() {
   const requestInFlightRef = useRef(false);
   const punchInFlightRef = useRef(false);
   const localFacePresentRef = useRef(false);
+  const localFaceCountRef = useRef(0);
   const resultHoldUntilRef = useRef(0);
   const triggerScanRef = useRef<(() => void) | null>(null);
   const awaitingFaceExitRef = useRef(false);
+  const completedFaceBoxesRef = useRef<CameraFaceBox[]>([]);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [worksiteId, setWorksiteId] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
-  const [localFaceCount, setLocalFaceCount] = useState(0);
   const [autoEnabled, setAutoEnabled] = useState(true);
   const [mode, setMode] = useState<TerminalMode>('starting');
   const [analysis, setAnalysis] = useState<FaceAnalyzeResponse | null>(null);
@@ -221,10 +235,16 @@ export function FacialTerminalPage() {
   }, []);
   const handleLocalFaceCount = useCallback((count: number) => {
     const wasPresent = localFacePresentRef.current;
+    const previousCount = localFaceCountRef.current;
     localFacePresentRef.current = count > 0;
-    setLocalFaceCount(count);
-    if (count === 0) awaitingFaceExitRef.current = false;
-    if (!wasPresent && count > 0) triggerScanRef.current?.();
+    localFaceCountRef.current = count;
+    if (count === 0) {
+      awaitingFaceExitRef.current = false;
+      completedFaceBoxesRef.current = [];
+    } else if (count > completedFaceBoxesRef.current.length) {
+      awaitingFaceExitRef.current = false;
+    }
+    if ((!wasPresent && count > 0) || count > previousCount) triggerScanRef.current?.();
   }, []);
   const closePresentationResult = useCallback(() => setPresentationResult(null), []);
 
@@ -282,6 +302,14 @@ export function FacialTerminalPage() {
             : new Date(),
           emailSent: result.email_notification_sent,
         });
+        if (candidate.localFaceBox) {
+          completedFaceBoxesRef.current = [
+            ...completedFaceBoxesRef.current.filter((box) => (
+              faceBoxIou(box, candidate.localFaceBox!) < 0.2
+            )),
+            candidate.localFaceBox,
+          ];
+        }
         successfulRecognition ||= {
           employeeId: resolvedEmployeeId,
           employeeName,
@@ -304,7 +332,9 @@ export function FacialTerminalPage() {
           batch.decisions.filter((result) => result.email_notification_sent).length,
         );
         const allCompleted = completed === validCandidates.length;
-        if (allCompleted) awaitingFaceExitRef.current = true;
+        if (allCompleted && completedFaceBoxesRef.current.length >= localFaceCountRef.current) {
+          awaitingFaceExitRef.current = true;
+        }
         resultHoldUntilRef.current = Date.now() + (
           allCompleted
             ? validCandidates.length > 1 ? GROUP_RESULT_HOLD_MS : SINGLE_RESULT_HOLD_MS
@@ -399,36 +429,31 @@ export function FacialTerminalPage() {
         return;
       }
 
-      const capturedFrame = cameraRef.current?.capture({ faceCrop: false }) || null;
-      const croppedFaceImages = localFacePresentRef.current
-        ? cameraRef.current?.captureFaces({ limit: MAX_FACES_PER_SCAN }) || []
+      const capturedFaces = localFacePresentRef.current
+        ? cameraRef.current?.captureFaceSamples({ limit: MAX_FACES_PER_SCAN }) || []
         : [];
-      const fallbackImage = croppedFaceImages.length === 0
-        ? capturedFrame
-        : null;
-      const images = croppedFaceImages.length > 0
-        ? croppedFaceImages
-        : fallbackImage
-          ? [fallbackImage]
-          : [];
-      if (!images.length) {
-        setMode('starting');
-        setGuidance('Aguardando imagem da câmera…');
+      const pendingFaces = capturedFaces.filter(({ box }) => (
+        completedFaceBoxesRef.current.every((completed) => faceBoxIou(completed, box) < 0.2)
+      ));
+      if (!pendingFaces.length) {
+        setMode(localFacePresentRef.current ? 'ready' : 'starting');
+        setGuidance(localFacePresentRef.current ? 'Rosto já registrado nesta leitura.' : 'Aguardando rosto…');
         schedule();
         return;
       }
 
       requestInFlightRef.current = true;
       setMode('scanning');
-      setGuidance(images.length > 1
-        ? `Reconhecendo ${images.length} pessoas ao mesmo tempo…`
+      setGuidance(pendingFaces.length > 1
+        ? `Reconhecendo ${pendingFaces.length} pessoas ao mesmo tempo…`
         : 'Reconhecendo o rosto…');
 
       try {
         setAnalysis(null);
         setDecision(null);
-        await submitAutomaticPunches(images.map((image) => ({
+        await submitAutomaticPunches(pendingFaces.map(({ image, box }) => ({
           image,
+          localFaceBox: box,
         })));
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {
