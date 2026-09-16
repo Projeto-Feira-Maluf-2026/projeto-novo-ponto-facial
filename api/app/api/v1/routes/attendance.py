@@ -58,13 +58,22 @@ async def punch_batch(
             503,
         )
 
-    service = AttendanceService(session, actor_user_id=current_user.id)
+    service = AttendanceService(
+        session,
+        actor_user_id=current_user.id,
+        defer_email_notifications=True,
+    )
     decisions: list[AttendanceDecision] = []
     try:
         for punch_payload in payload.punches:
             decisions.append(await service.register_punch(punch_payload))
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    email_results = await service.send_pending_email_notifications()
+    for decision in decisions:
+        if decision.record is not None:
+            decision.email_notification_sent = email_results.get(decision.record.id, False)
 
     return AttendanceBatchDecision(
         decisions=decisions,

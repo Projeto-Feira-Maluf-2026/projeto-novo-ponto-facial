@@ -1,10 +1,9 @@
 from datetime import datetime
 
-from sqlalchemy import distinct, func, select
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.time import SAO_PAULO, as_local, local_day_utc_bounds
-from app.models.entities import AttendanceRecord, CaptureDevice, Employee, SuspiciousAttempt, Worksite
+from app.core.time import SAO_PAULO, local_day_utc_bounds
 from app.models.enums import AttendanceStatus, EmployeeStatus
 from app.schemas.dashboard import DashboardMetrics
 
@@ -15,58 +14,77 @@ class DashboardService:
 
     async def metrics(self) -> DashboardMetrics:
         start, end = local_day_utc_bounds(datetime.now(SAO_PAULO).date())
-        total_employees = await self.session.scalar(
-            select(func.count()).select_from(Employee).where(Employee.status == EmployeeStatus.ACTIVE)
-        )
-        present = await self.session.scalar(
-            select(func.count(distinct(AttendanceRecord.employee_id))).where(
-                AttendanceRecord.occurred_at >= start,
-                AttendanceRecord.occurred_at < end,
-                AttendanceRecord.status == AttendanceStatus.ACCEPTED,
+        # Uma unica ida ao Supabase produz totais e series. No serverless, a
+        # latencia de rede costuma custar mais que estas agregacoes pequenas.
+        row = (
+            await self.session.execute(
+                text(
+                    """
+                    with worksite_counts as (
+                      select w.name, count(ar.id)::int as records
+                      from worksites w
+                      left join attendance_records ar
+                        on ar.worksite_id = w.id
+                       and ar.occurred_at >= :start
+                       and ar.occurred_at < :end
+                      where w.active is true
+                      group by w.name
+                    ),
+                    hour_counts as (
+                      select
+                        to_char(
+                          date_trunc('hour', occurred_at) at time zone 'UTC'
+                            at time zone 'America/Sao_Paulo',
+                          'HH24:MI'
+                        ) as hour,
+                        count(id)::int as records
+                      from attendance_records
+                      where occurred_at >= :start and occurred_at < :end
+                      group by date_trunc('hour', occurred_at)
+                      order by date_trunc('hour', occurred_at)
+                    )
+                    select
+                      (select count(*) from employees
+                        where status::text = :employee_status)::int as total_employees,
+                      (select count(distinct employee_id) from attendance_records
+                        where occurred_at >= :start and occurred_at < :end
+                          and status::text = :attendance_status)::int as present,
+                      (select count(*) from attendance_records
+                        where occurred_at >= :start and occurred_at < :end)::int as records_today,
+                      (select count(*) from worksites where active is true)::int as worksites,
+                      (select count(*) from capture_devices
+                        where last_seen_at >= :start)::int as connected_devices,
+                      (select count(*) from suspicious_attempts
+                        where created_at >= :start and created_at < :end)::int as fraud_alerts,
+                      coalesce((
+                        select jsonb_agg(
+                          jsonb_build_object('name', name, 'records', records)
+                          order by name
+                        ) from worksite_counts
+                      ), '[]'::jsonb) as by_worksite,
+                      coalesce((
+                        select jsonb_agg(
+                          jsonb_build_object('hour', hour, 'records', records)
+                        ) from hour_counts
+                      ), '[]'::jsonb) as timeline
+                    """
+                ),
+                {
+                    "start": start,
+                    "end": end,
+                    "employee_status": EmployeeStatus.ACTIVE.value,
+                    "attendance_status": AttendanceStatus.ACCEPTED.value,
+                },
             )
-        )
-        records_today = await self.session.scalar(
-            select(func.count()).select_from(AttendanceRecord).where(
-                AttendanceRecord.occurred_at >= start,
-                AttendanceRecord.occurred_at < end,
-            )
-        )
-        worksites = await self.session.scalar(select(func.count()).select_from(Worksite).where(Worksite.active.is_(True)))
-        connected_devices = await self.session.scalar(
-            select(func.count()).select_from(CaptureDevice).where(CaptureDevice.last_seen_at >= start)
-        )
-        fraud_alerts = await self.session.scalar(
-            select(func.count()).select_from(SuspiciousAttempt).where(
-                SuspiciousAttempt.created_at >= start,
-                SuspiciousAttempt.created_at < end,
-            )
-        )
-
-        by_worksite_rows = await self.session.execute(
-            select(Worksite.name, func.count(AttendanceRecord.id))
-            .join(AttendanceRecord, AttendanceRecord.worksite_id == Worksite.id, isouter=True)
-            .group_by(Worksite.name)
-            .order_by(Worksite.name)
-        )
-        by_worksite = [{"name": name, "records": count} for name, count in by_worksite_rows.all()]
-
-        hour_bucket = func.date_trunc("hour", AttendanceRecord.occurred_at)
-        timeline_rows = await self.session.execute(
-            select(hour_bucket, func.count(AttendanceRecord.id))
-            .where(
-                AttendanceRecord.occurred_at >= start,
-                AttendanceRecord.occurred_at < end,
-            )
-            .group_by(hour_bucket)
-            .order_by(hour_bucket)
-        )
-        timeline = [
-            {
-                "hour": as_local(hour).strftime("%H:%M") if isinstance(hour, datetime) else str(hour),
-                "records": count,
-            }
-            for hour, count in timeline_rows.all()
-        ]
+        ).one()
+        total_employees = row.total_employees
+        present = row.present
+        records_today = row.records_today
+        worksites = row.worksites
+        connected_devices = row.connected_devices
+        fraud_alerts = row.fraud_alerts
+        by_worksite = list(row.by_worksite or [])
+        timeline = list(row.timeline or [])
 
         total = int(total_employees or 0)
         present_count = int(present or 0)

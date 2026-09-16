@@ -208,7 +208,10 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
         )
         for index in (1, 2)
     ]
-    service = SimpleNamespace(register_punch=AsyncMock(side_effect=decisions))
+    service = SimpleNamespace(
+        register_punch=AsyncMock(side_effect=decisions),
+        send_pending_email_notifications=AsyncMock(return_value={}),
+    )
     monkeypatch.setattr(
         "app.api.v1.routes.attendance.AttendanceService",
         lambda _session, **_kwargs: service,

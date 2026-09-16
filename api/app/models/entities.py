@@ -143,6 +143,8 @@ class CaptureDevice(Base, TimestampMixin):
 
     worksite: Mapped[Worksite] = relationship(back_populates="devices")
 
+    __table_args__ = (Index("ix_capture_devices_last_seen_at", "last_seen_at"),)
+
 
 class FaceEnrollmentSession(Base, TimestampMixin):
     __tablename__ = "face_enrollment_sessions"
@@ -253,6 +255,8 @@ class AttendanceRecord(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_attendance_employee_date", "employee_id", "occurred_at"),
         Index("ix_attendance_worksite_date", "worksite_id", "occurred_at"),
+        Index("ix_attendance_occurred_at", "occurred_at"),
+        Index("ix_attendance_status_occurred_at", "status", "occurred_at"),
     )
 
 
@@ -270,6 +274,8 @@ class SuspiciousAttempt(Base, TimestampMixin):
     details: Mapped[dict | None] = mapped_column(JSON)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    __table_args__ = (Index("ix_suspicious_attempts_created_at", "created_at"),)
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
@@ -284,4 +290,8 @@ class AuditLog(Base):
     metadata_json: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    __table_args__ = (Index("ix_audit_action_created", "action", "created_at"),)
+    __table_args__ = (
+        Index("ix_audit_action_created", "action", "created_at"),
+        Index("ix_audit_created_at", "created_at"),
+        Index("ix_audit_entity_created_at", "entity", "created_at"),
+    )

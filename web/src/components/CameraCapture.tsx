@@ -69,7 +69,7 @@ const MAX_TRACKED_FACES = 5;
 // inferência síncrona no thread principal.
 const LANDMARK_FRAME_INTERVAL_MS = 58;
 const DISTANT_SCAN_INTERVAL_MS = 180;
-const DISTANT_DETECTION_TTL_MS = 560;
+const DISTANT_DETECTION_TTL_MS = 280;
 const DISTANT_DETECTOR_MAX_EDGE = 640;
 const CAMERA_RELEASE_DELAY_MS = 180;
 const CAMERA_START_RETRIES = 2;
@@ -1127,7 +1127,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             normalizedFace.height * video.videoHeight,
           ) < 150;
           const targetSize = distantFace
-            ? 512
+            ? 384
             : crop.side < 720 ? 384 : Math.min(576, Math.round(crop.side));
           canvas.width = targetSize;
           canvas.height = targetSize;
@@ -1146,7 +1146,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             targetSize,
             targetSize,
           );
-          return canvas.toDataURL('image/jpeg', distantFace ? 0.92 : 0.84);
+          return canvas.toDataURL('image/jpeg', distantFace ? 0.88 : 0.84);
         };
 
         return {

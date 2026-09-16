@@ -1,7 +1,7 @@
 import httpx
 import pytest
 from pydantic import ValidationError
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from types import SimpleNamespace
 
 from app.api.v1.routes import ai as ai_routes
@@ -81,8 +81,14 @@ async def test_batch_identification_returns_two_distinct_people(monkeypatch) -> 
         FaceIdentifyResponse.model_construct(matched=True, employee_id="employee-1"),
         FaceIdentifyResponse.model_construct(matched=True, employee_id="employee-2"),
     ]
-    identify_mock = AsyncMock(side_effect=recognized)
-    monkeypatch.setattr(ai_routes, "identify_face", identify_mock)
+    processed = SimpleNamespace(
+        quality=SimpleNamespace(accepted=False),
+        inference=SimpleNamespace(embedding=None),
+    )
+    service = SimpleNamespace(from_image_base64=Mock(return_value=processed))
+    response_mock = Mock(side_effect=recognized)
+    monkeypatch.setattr(ai_routes, "FaceEmbeddingService", Mock(return_value=service))
+    monkeypatch.setattr(ai_routes, "_identification_response", response_mock)
 
     response = await ai_routes.identify_faces(
         FaceIdentifyBatchRequest(
@@ -98,7 +104,8 @@ async def test_batch_identification_returns_two_distinct_people(monkeypatch) -> 
     )
 
     assert [result.employee_id for result in response.results] == ["employee-1", "employee-2"]
-    assert identify_mock.await_count == 2
+    assert service.from_image_base64.call_count == 2
+    assert response_mock.call_count == 2
 
 
 def test_enrollment_capture_requires_timezone_and_burst() -> None:

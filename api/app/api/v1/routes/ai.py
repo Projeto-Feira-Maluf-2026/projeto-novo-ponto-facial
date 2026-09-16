@@ -1,3 +1,5 @@
+import asyncio
+from dataclasses import dataclass
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
@@ -46,6 +48,70 @@ from app.services.ai.image_validation import FaceImageValidator
 from app.services.enrollment import ENROLLMENT_POSES
 
 router = APIRouter()
+
+
+@dataclass(frozen=True)
+class _IdentificationGallery:
+    employees_by_id: dict[str, Employee]
+    candidates_by_employee: dict[str, list[TemplateCandidate]]
+
+
+def _inference_compatibility_key(inference) -> tuple[str | None, str | None, int | None, str | None, str | None]:
+    return (
+        inference.model_name,
+        inference.model_version,
+        inference.embedding_dimension,
+        inference.detector_name,
+        inference.normalization_version,
+    )
+
+
+async def _load_identification_gallery(
+    session: AsyncSession,
+    inference,
+    worksite_id: str | None,
+) -> _IdentificationGallery:
+    statement = (
+        select(FaceTemplate, Employee)
+        .join(Employee, FaceTemplate.employee_id == Employee.id)
+        .where(
+            FaceTemplate.active.is_(True),
+            Employee.status == EmployeeStatus.ACTIVE,
+            FaceTemplate.model_name == inference.model_name,
+            FaceTemplate.model_version == inference.model_version,
+            FaceTemplate.embedding_dimension == inference.embedding_dimension,
+            FaceTemplate.detector_name == inference.detector_name,
+            FaceTemplate.normalization_version == inference.normalization_version,
+        )
+    )
+    if worksite_id:
+        now = datetime.utcnow()
+        statement = statement.join(
+            EmployeeWorksite,
+            EmployeeWorksite.employee_id == Employee.id,
+        ).where(
+            EmployeeWorksite.worksite_id == worksite_id,
+            EmployeeWorksite.active.is_(True),
+            or_(EmployeeWorksite.starts_at.is_(None), EmployeeWorksite.starts_at <= now),
+            or_(EmployeeWorksite.ends_at.is_(None), EmployeeWorksite.ends_at >= now),
+        )
+
+    rows = (await session.execute(statement)).all()
+    employees_by_id: dict[str, Employee] = {}
+    candidates_by_employee: dict[str, list[TemplateCandidate]] = {}
+    expected_blob_size = int(inference.embedding_dimension or 0) * 4
+    for template, employee in rows:
+        if len(template.embedding) != expected_blob_size:
+            continue
+        employees_by_id[employee.id] = employee
+        candidates_by_employee.setdefault(employee.id, []).append(
+            TemplateCandidate(
+                template_id=template.id,
+                embedding=template.embedding,
+                quality_score=template.quality_score,
+            )
+        )
+    return _IdentificationGallery(employees_by_id, candidates_by_employee)
 
 
 def _request_id(request: Request) -> str:
@@ -114,6 +180,73 @@ def _analysis_response(request: Request, processed: ProcessedFace) -> FaceAnalyz
     )
 
 
+def _identification_response(
+    request: Request,
+    processed: ProcessedFace,
+    gallery: _IdentificationGallery | None,
+) -> FaceIdentifyResponse:
+    analysis = _analysis_response(request, processed)
+    inference = processed.inference
+    if not processed.quality.accepted or inference.embedding is None:
+        return FaceIdentifyResponse(**analysis.model_dump(), matched=False)
+
+    candidates = gallery.candidates_by_employee if gallery else {}
+    employees = gallery.employees_by_id if gallery else {}
+    ranked = rank_identity_candidates(inference.embedding, candidates)
+    best_match = ranked[0] if ranked else None
+    second_best_score = ranked[1].score if len(ranked) > 1 else None
+    best_employee = employees.get(best_match.employee_id) if best_match else None
+    best_score = best_match.score if best_match else 0.0
+    confidence_score = (
+        face_match_confidence_score(best_score, second_best_score) if best_match else 0.0
+    )
+    margin = face_match_margin(best_score, second_best_score)
+
+    def rejected(reason: str) -> FaceIdentifyResponse:
+        response_payload = analysis.model_dump()
+        response_payload["reasons"] = [*analysis.reasons, reason]
+        return FaceIdentifyResponse(
+            **response_payload,
+            matched=False,
+            similarity_score=round(best_score, 4),
+            second_best_similarity_score=(
+                round(second_best_score, 4) if second_best_score is not None else None
+            ),
+            match_margin=margin,
+            match_confidence_score=confidence_score,
+            candidate_count=len(ranked),
+            templates_used=best_match.template_count if best_match else 0,
+            centroid_score=(round(best_match.centroid_score, 4) if best_match else None),
+            robust_score=(round(best_match.robust_score, 4) if best_match else None),
+        )
+
+    if not candidates:
+        return rejected("NO_COMPATIBLE_TEMPLATES")
+    if not best_employee or best_score < settings.FACE_MIN_SIMILARITY:
+        return rejected("LOW_SIMILARITY")
+    if is_face_match_ambiguous(best_score, second_best_score):
+        return rejected("AMBIGUOUS_FACE")
+
+    return FaceIdentifyResponse(
+        **analysis.model_dump(),
+        matched=True,
+        employee_id=best_employee.id,
+        employee_name=best_employee.name,
+        employee_registration=best_employee.registration,
+        employee_photo_url=best_employee.photo_url,
+        similarity_score=round(best_score, 4),
+        second_best_similarity_score=(
+            round(second_best_score, 4) if second_best_score is not None else None
+        ),
+        match_margin=margin,
+        match_confidence_score=confidence_score,
+        candidate_count=len(ranked),
+        templates_used=best_match.template_count,
+        centroid_score=round(best_match.centroid_score, 4),
+        robust_score=round(best_match.robust_score, 4),
+    )
+
+
 @router.get("/capabilities", response_model=FaceCapabilitiesResponse)
 async def face_capabilities() -> FaceCapabilitiesResponse:
     provider_info = get_face_provider().info()
@@ -158,106 +291,18 @@ async def identify_face(
     _: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> FaceIdentifyResponse:
-    processed = FaceEmbeddingService().from_image_base64(payload.image_base64)
-    analysis = _analysis_response(request, processed)
-    inference = processed.inference
-    if not processed.quality.accepted or inference.embedding is None:
-        return FaceIdentifyResponse(**analysis.model_dump(), matched=False)
-
-    statement = (
-        select(FaceTemplate, Employee)
-        .join(Employee, FaceTemplate.employee_id == Employee.id)
-        .where(
-            FaceTemplate.active.is_(True),
-            Employee.status == EmployeeStatus.ACTIVE,
-            FaceTemplate.model_name == inference.model_name,
-            FaceTemplate.model_version == inference.model_version,
-            FaceTemplate.embedding_dimension == inference.embedding_dimension,
-            FaceTemplate.detector_name == inference.detector_name,
-            FaceTemplate.normalization_version == inference.normalization_version,
-        )
+    processed = await asyncio.to_thread(
+        FaceEmbeddingService().from_image_base64,
+        payload.image_base64,
     )
-    if payload.worksite_id:
-        now = datetime.utcnow()
-        statement = statement.join(
-            EmployeeWorksite,
-            EmployeeWorksite.employee_id == Employee.id,
-        ).where(
-            EmployeeWorksite.worksite_id == payload.worksite_id,
-            EmployeeWorksite.active.is_(True),
-            or_(EmployeeWorksite.starts_at.is_(None), EmployeeWorksite.starts_at <= now),
-            or_(EmployeeWorksite.ends_at.is_(None), EmployeeWorksite.ends_at >= now),
+    gallery = None
+    if processed.quality.accepted and processed.inference.embedding is not None:
+        gallery = await _load_identification_gallery(
+            session,
+            processed.inference,
+            payload.worksite_id,
         )
-    templates = (await session.execute(statement)).all()
-    employees_by_id: dict[str, Employee] = {}
-    candidates_by_employee: dict[str, list[TemplateCandidate]] = {}
-
-    expected_blob_size = int(inference.embedding_dimension or 0) * 4
-    for template, employee in templates:
-        if len(template.embedding) != expected_blob_size:
-            continue
-        employees_by_id[employee.id] = employee
-        candidates_by_employee.setdefault(employee.id, []).append(
-            TemplateCandidate(
-                template_id=template.id,
-                embedding=template.embedding,
-                quality_score=template.quality_score,
-            )
-        )
-
-    ranked = rank_identity_candidates(inference.embedding, candidates_by_employee)
-    best_match = ranked[0] if ranked else None
-    second_best_score = ranked[1].score if len(ranked) > 1 else None
-    best_employee = employees_by_id.get(best_match.employee_id) if best_match else None
-    best_score = best_match.score if best_match else 0.0
-    confidence_score = (
-        face_match_confidence_score(best_score, second_best_score) if best_match else 0.0
-    )
-    margin = face_match_margin(best_score, second_best_score)
-
-    def rejected(reason: str) -> FaceIdentifyResponse:
-        response_payload = analysis.model_dump()
-        response_payload["reasons"] = [*analysis.reasons, reason]
-        return FaceIdentifyResponse(
-            **response_payload,
-            matched=False,
-            similarity_score=round(best_score, 4),
-            second_best_similarity_score=(
-                round(second_best_score, 4) if second_best_score is not None else None
-            ),
-            match_margin=margin,
-            match_confidence_score=confidence_score,
-            candidate_count=len(ranked),
-            templates_used=best_match.template_count if best_match else 0,
-            centroid_score=(round(best_match.centroid_score, 4) if best_match else None),
-            robust_score=(round(best_match.robust_score, 4) if best_match else None),
-        )
-
-    if not candidates_by_employee:
-        return rejected("NO_COMPATIBLE_TEMPLATES")
-    if not best_employee or best_score < settings.FACE_MIN_SIMILARITY:
-        return rejected("LOW_SIMILARITY")
-    if is_face_match_ambiguous(best_score, second_best_score):
-        return rejected("AMBIGUOUS_FACE")
-
-    return FaceIdentifyResponse(
-        **analysis.model_dump(),
-        matched=True,
-        employee_id=best_employee.id,
-        employee_name=best_employee.name,
-        employee_registration=best_employee.registration,
-        employee_photo_url=best_employee.photo_url,
-        similarity_score=round(best_score, 4),
-        second_best_similarity_score=(
-            round(second_best_score, 4) if second_best_score is not None else None
-        ),
-        match_margin=margin,
-        match_confidence_score=confidence_score,
-        candidate_count=len(ranked),
-        templates_used=best_match.template_count,
-        centroid_score=round(best_match.centroid_score, 4),
-        robust_score=round(best_match.robust_score, 4),
-    )
+    return _identification_response(request, processed, gallery)
 
 
 @router.post("/identify-faces", response_model=FaceIdentifyBatchResponse)
@@ -268,15 +313,25 @@ async def identify_faces(
     session: AsyncSession = Depends(get_session),
 ) -> FaceIdentifyBatchResponse:
     """Processa todos os recortes de um quadro na mesma conexão autenticada."""
-    results = [
-        await identify_face(
-            FaceIdentifyRequest(image_base64=image, worksite_id=payload.worksite_id),
-            request,
-            user,
-            session,
-        )
-        for image in payload.images_base64
-    ]
+    service = FaceEmbeddingService()
+    processed_faces = await asyncio.to_thread(
+        lambda: [service.from_image_base64(image) for image in payload.images_base64]
+    )
+    galleries: dict[tuple[str | None, str | None, int | None, str | None, str | None], _IdentificationGallery] = {}
+    results: list[FaceIdentifyResponse] = []
+    for processed in processed_faces:
+        gallery = None
+        if processed.quality.accepted and processed.inference.embedding is not None:
+            key = _inference_compatibility_key(processed.inference)
+            gallery = galleries.get(key)
+            if gallery is None:
+                gallery = await _load_identification_gallery(
+                    session,
+                    processed.inference,
+                    payload.worksite_id,
+                )
+                galleries[key] = gallery
+        results.append(_identification_response(request, processed, gallery))
     return FaceIdentifyBatchResponse(results=results)
 
 

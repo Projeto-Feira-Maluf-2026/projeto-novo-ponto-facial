@@ -108,6 +108,36 @@ const faceApi = createApi(faceApiBaseUrl, 45_000);
 
 const enableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
 
+type CachedRead = { expiresAt: number; value?: unknown; inFlight?: Promise<unknown> };
+const readCache = new Map<string, CachedRead>();
+
+function cachedRead<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const cached = readCache.get(key);
+  if (cached?.value !== undefined && cached.expiresAt > now) {
+    return Promise.resolve(cached.value as T);
+  }
+  if (cached?.inFlight) return cached.inFlight as Promise<T>;
+
+  const inFlight = loader()
+    .then((value) => {
+      readCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+      return value;
+    })
+    .catch((error) => {
+      readCache.delete(key);
+      throw error;
+    });
+  readCache.set(key, { expiresAt: 0, inFlight });
+  return inFlight;
+}
+
+function invalidateReads(...prefixes: string[]) {
+  for (const key of readCache.keys()) {
+    if (prefixes.some((prefix) => key.startsWith(prefix))) readCache.delete(key);
+  }
+}
+
 const fallbackMetrics: DashboardMetrics = {
   total_employees: 1264,
   present_employees: 982,
@@ -237,12 +267,13 @@ export interface PunchPayload {
 }
 
 export const apiClient = {
-  dashboard: () => fallback(api.get<DashboardMetrics>('/dashboard'), fallbackMetrics),
-  employees: () => fallback(api.get<Page<Employee>>('/employees?size=20'), fallbackEmployees),
-  worksites: () => fallback(api.get<Page<Worksite>>('/worksites?size=20'), fallbackWorksites),
-  devices: () => fallback(api.get<Page<Device>>('/devices?size=20'), fallbackDevices),
+  dashboard: () => cachedRead('dashboard', 12_000, () => fallback(api.get<DashboardMetrics>('/dashboard'), fallbackMetrics)),
+  employees: () => cachedRead('employees', 20_000, () => fallback(api.get<Page<Employee>>('/employees?size=20'), fallbackEmployees)),
+  worksites: () => cachedRead('worksites', 30_000, () => fallback(api.get<Page<Worksite>>('/worksites?size=20'), fallbackWorksites)),
+  devices: () => cachedRead('devices', 20_000, () => fallback(api.get<Page<Device>>('/devices?size=20'), fallbackDevices)),
   createDevice: async (payload: DeviceCreatePayload) => {
     const response = await api.post<Device>('/devices', payload);
+    invalidateReads('devices', 'dashboard');
     return response.data;
   },
   testCamera: async (camera: CameraConfig) => {
@@ -259,17 +290,21 @@ export const apiClient = {
   },
   createEmployee: async (payload: EmployeeCreatePayload) => {
     const response = await api.post<Employee>('/employees', payload);
+    invalidateReads('employees', 'dashboard');
     return response.data;
   },
   updateEmployee: async (employeeId: string, payload: EmployeeUpdatePayload) => {
     const response = await api.patch<Employee>(`/employees/${employeeId}`, payload);
+    invalidateReads('employees', 'dashboard');
     return response.data;
   },
   deleteEmployee: async (employeeId: string) => {
     await api.delete(`/employees/${employeeId}`);
+    invalidateReads('employees', 'dashboard');
   },
   createWorksite: async (payload: WorksiteCreatePayload) => {
     const response = await api.post<Worksite>('/worksites', payload);
+    invalidateReads('worksites', 'dashboard');
     return response.data;
   },
   faceCapabilities: async () => {
@@ -333,6 +368,7 @@ export const apiClient = {
       `/employees/${employeeId}/face-enrollment-sessions/${sessionId}/finalize`,
       { captures },
     );
+    invalidateReads('employees');
     return response.data;
   },
   cancelFaceEnrollment: async (employeeId: string, sessionId: string) => {
@@ -358,10 +394,11 @@ export const apiClient = {
     });
     return response.data;
   },
-  punchBatch: async (punches: PunchPayload[]) => {
+  punchBatch: async (punches: PunchPayload[], signal?: AbortSignal) => {
     const response = await faceApi.post<AttendanceBatchDecision>('/attendance/punch/batch', {
       punches,
-    });
+    }, { signal });
+    invalidateReads('dashboard');
     return response.data;
   },
   attendanceHistory: async (worksiteId?: string | null) => {

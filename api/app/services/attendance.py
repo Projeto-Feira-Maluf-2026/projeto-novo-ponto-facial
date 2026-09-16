@@ -92,11 +92,14 @@ class AttendanceService:
         face_embeddings=None,
         email_notifier=None,
         actor_user_id: str | None = None,
+        defer_email_notifications: bool = False,
     ) -> None:
         self.session = session
         self.face_embeddings = face_embeddings
         self.email_notifier = email_notifier
         self.actor_user_id = actor_user_id
+        self.defer_email_notifications = defer_email_notifications
+        self.pending_email_notifications: dict[str, dict] = {}
         # A instância vive somente durante uma requisição. Em uma batida em
         # grupo, todos os rostos consultam o mesmo conjunto de matrículas.
         self._template_cache: dict[
@@ -117,6 +120,24 @@ class AttendanceService:
 
             self.email_notifier = AttendanceEmailNotifier()
         return self.email_notifier
+
+    async def send_pending_email_notifications(self) -> dict[str, bool]:
+        """Send a batch concurrently after records have been durably committed."""
+        pending = list(self.pending_email_notifications.items())
+        if not pending:
+            return {}
+        results = await asyncio.gather(
+            *(
+                self._email_notifier().send_confirmation(**notification)
+                for _, notification in pending
+            ),
+            return_exceptions=True,
+        )
+        self.pending_email_notifications.clear()
+        return {
+            record_id: result is True
+            for (record_id, _), result in zip(pending, results, strict=True)
+        }
 
     async def register_punch(self, payload: PunchCreate) -> AttendanceDecision:
         from app.services.ai.facial_service import face_match_margin
@@ -331,21 +352,27 @@ class AttendanceService:
         await self.session.refresh(record)
         email_notification_sent = False
         if status == AttendanceStatus.ACCEPTED and getattr(employee, "email", None):
-            try:
-                email_notification_sent = await self._email_notifier().send_confirmation(
-                    recipient=employee.email,
-                    employee_name=employee.name,
-                    worksite_name=worksite.name,
-                    punch_type=punch_type,
-                    occurred_at=record.occurred_at,
-                    record_id=record.id,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Falha inesperada na notificacao record_id=%s error_type=%s",
-                    record.id,
-                    type(exc).__name__,
-                )
+            notification = {
+                "recipient": employee.email,
+                "employee_name": employee.name,
+                "worksite_name": worksite.name,
+                "punch_type": punch_type,
+                "occurred_at": record.occurred_at,
+                "record_id": record.id,
+            }
+            if self.defer_email_notifications:
+                self.pending_email_notifications[record.id] = notification
+            else:
+                try:
+                    email_notification_sent = await self._email_notifier().send_confirmation(
+                        **notification,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Falha inesperada na notificacao record_id=%s error_type=%s",
+                        record.id,
+                        type(exc).__name__,
+                    )
         return AttendanceDecision(
             accepted=status == AttendanceStatus.ACCEPTED,
             status=status,

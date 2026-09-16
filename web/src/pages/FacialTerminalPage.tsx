@@ -248,7 +248,7 @@ export function FacialTerminalPage() {
   }, []);
   const closePresentationResult = useCallback(() => setPresentationResult(null), []);
 
-  const submitAutomaticPunches = useCallback(async (candidates: PunchCandidate[]) => {
+  const submitAutomaticPunches = useCallback(async (candidates: PunchCandidate[], signal?: AbortSignal) => {
     if (!worksiteId || punchInFlightRef.current || !candidates.length) return 0;
     const validCandidates = candidates.filter((candidate) => Boolean(candidate.image));
     if (!validCandidates.length) {
@@ -276,7 +276,7 @@ export function FacialTerminalPage() {
         },
         offline_batch_id: `terminal-${scanId}-${index + 1}`,
         occurred_at: occurredAt,
-      })));
+      })), signal);
       const completedRecords: RecentRecord[] = [];
       let successfulRecognition: LiveRecognition | null = null;
 
@@ -454,7 +454,7 @@ export function FacialTerminalPage() {
         await submitAutomaticPunches(pendingFaces.map(({ image, box }) => ({
           image,
           localFaceBox: box,
-        })));
+        })), controller.signal);
       } catch (error) {
         if (!cancelled && !(error instanceof DOMException && error.name === 'AbortError')) {
           setMode('attention');
