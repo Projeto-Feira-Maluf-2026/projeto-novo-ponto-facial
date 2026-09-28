@@ -193,6 +193,74 @@ async def test_punch_preserves_and_validates_three_temporal_frames() -> None:
 
 
 @pytest.mark.asyncio
+async def test_terminal_duplicate_face_reuses_record_without_advancing_punch() -> None:
+    now = datetime.now(UTC).replace(tzinfo=None)
+    worksite = SimpleNamespace(id="worksite-1", active=True)
+    employee = SimpleNamespace(
+        id="employee-1",
+        name="Funcionário Teste",
+        registration="CE-001",
+        photo_url=None,
+        status=EmployeeStatus.ACTIVE,
+    )
+    existing = AttendanceRecord(
+        id="record-existing",
+        employee_id=employee.id,
+        worksite_id=worksite.id,
+        device_id=None,
+        punch_type=PunchType.ENTRY,
+        status=AttendanceStatus.ACCEPTED,
+        occurred_at=now - timedelta(seconds=2),
+        latitude=None,
+        longitude=None,
+        similarity_score=0.83,
+        liveness_score=None,
+        quality_score=0.79,
+        confidence_score=0.88,
+        offline_batch_id="terminal-scan-1",
+        notes=None,
+        metadata_json={},
+        created_at=now,
+        updated_at=now,
+    )
+    processed = SimpleNamespace(
+        quality=SimpleNamespace(accepted=True, quality_score=0.8, reasons=[]),
+        inference=SimpleNamespace(embedding=[1.0, 0.0]),
+    )
+    session = SimpleNamespace(
+        get=AsyncMock(return_value=worksite),
+        scalar=AsyncMock(return_value=existing),
+        add=MagicMock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+    )
+    service = AttendanceService(
+        session,
+        SimpleNamespace(from_image_base64=MagicMock(return_value=processed)),
+    )
+    service._match_employee = AsyncMock(
+        return_value=(employee, 0.84, None, 0.9, None)
+    )
+
+    decision = await service.register_punch(PunchCreate(
+        employee_id=None,
+        worksite_id=worksite.id,
+        punch_type=None,
+        face={"image_base64": "data:image/jpeg;base64,duplicada"},
+        offline_batch_id="terminal-scan-2",
+        occurred_at=now.replace(tzinfo=UTC),
+    ))
+
+    assert decision.accepted is True
+    assert decision.record is not None
+    assert decision.record.id == existing.id
+    assert decision.punch_type == PunchType.ENTRY
+    assert decision.reasons == ["duplicate_capture"]
+    session.add.assert_not_called()
+    session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.MonkeyPatch) -> None:
     decisions = [
         AttendanceDecision(

@@ -18,6 +18,7 @@ import {
   type CameraCaptureHandle,
   type FaceBox as CameraFaceBox,
   type FaceOverlayState,
+  type FaceOverlayTarget,
   type FaceSourceBox,
 } from '../components/CameraCapture';
 import { apiClient } from '../services/api';
@@ -179,6 +180,7 @@ export function FacialTerminalPage() {
   const [mode, setMode] = useState<TerminalMode>('starting');
   const [analysis, setAnalysis] = useState<FaceAnalyzeResponse | null>(null);
   const [recognition, setRecognition] = useState<LiveRecognition>(initialRecognition);
+  const [recognizedFaceTargets, setRecognizedFaceTargets] = useState<FaceOverlayTarget[]>([]);
   const [decision, setDecision] = useState<AttendanceDecision | null>(null);
   const [guidance, setGuidance] = useState('Iniciando a câmera…');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
@@ -241,6 +243,7 @@ export function FacialTerminalPage() {
     if (count === 0) {
       awaitingFaceExitRef.current = false;
       completedFaceBoxesRef.current = [];
+      setRecognizedFaceTargets([]);
     } else if (count > completedFaceBoxesRef.current.length) {
       awaitingFaceExitRef.current = false;
     }
@@ -303,12 +306,22 @@ export function FacialTerminalPage() {
           emailSent: result.email_notification_sent,
         });
         if (candidate.localFaceBox) {
+          const recognizedBox = candidate.localFaceBox;
           completedFaceBoxesRef.current = [
             ...completedFaceBoxesRef.current.filter((box) => (
-              faceBoxIou(box, candidate.localFaceBox!) < 0.2
+              faceBoxIou(box, recognizedBox) < 0.2
             )),
-            candidate.localFaceBox,
+            recognizedBox,
           ];
+          setRecognizedFaceTargets((current) => [
+            ...current.filter((target) => faceBoxIou(target.box, recognizedBox) < 0.2),
+            {
+              box: recognizedBox,
+              label: employeeName,
+              detail: result.accepted ? 'Identificado' : 'Em conferência',
+              tone: result.accepted ? 'success' : 'warning',
+            },
+          ]);
         }
         successfulRecognition ||= {
           employeeId: resolvedEmployeeId,
@@ -626,6 +639,7 @@ export function FacialTerminalPage() {
             className={cameraClass}
             fitMode="contain"
             faceOverlay={faceOverlay}
+            faceOverlayTargets={recognizedFaceTargets}
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
             onFacePresenceChange={handleLocalFacePresence}

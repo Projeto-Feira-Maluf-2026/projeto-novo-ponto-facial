@@ -18,6 +18,9 @@ import {
   isPlausibleDistantFace,
   mergeFaceBoxes,
   mergeTrackedAndDistantFaces,
+  matchFaceOverlayTarget,
+  stabilizeFaceBoxes,
+  updateDistantFaceCandidates,
   CameraCapture,
 } from './CameraCapture';
 
@@ -151,10 +154,10 @@ describe('calculateFaceOverlayRect', () => {
     const face = { x: 180, y: 120, width: 240, height: 300 };
     const overlay = calculateFaceOverlayRect(face);
 
-    expect(overlay.width).toBeCloseTo(240);
-    expect(overlay.height).toBeCloseTo(234);
-    expect(overlay.x).toBeCloseTo(180);
-    expect(overlay.y).toBeCloseTo(114);
+    expect(overlay.width).toBeCloseTo(211.2);
+    expect(overlay.height).toBeCloseTo(246);
+    expect(overlay.x).toBeCloseTo(194.4);
+    expect(overlay.y).toBeCloseTo(124.5);
     expect(overlay.height).toBeLessThan(face.height);
   });
 });
@@ -180,6 +183,15 @@ describe('mergeFaceBoxes', () => {
 
     expect(boxes).toHaveLength(2);
   });
+
+  it('remove uma caixa grande que contém o mesmo rosto', () => {
+    const boxes = mergeFaceBoxes([
+      { x: 0.40, y: 0.22, width: 0.12, height: 0.20 },
+      { x: 0.34, y: 0.14, width: 0.25, height: 0.36 },
+    ]);
+
+    expect(boxes).toHaveLength(1);
+  });
 });
 
 describe('mergeTrackedAndDistantFaces', () => {
@@ -195,6 +207,37 @@ describe('mergeTrackedAndDistantFaces', () => {
     const distant = { x: 0.66, y: 0.22, width: 0.15, height: 0.22 };
 
     expect(mergeTrackedAndDistantFaces([tracked], [distant])).toEqual([tracked, distant]);
+  });
+});
+
+describe('rastreamento visual multi-rosto', () => {
+  it('suaviza movimento sem ampliar a caixa', () => {
+    const previous = [{ x: 0.20, y: 0.20, width: 0.12, height: 0.20 }];
+    const current = [{ x: 0.22, y: 0.19, width: 0.12, height: 0.20 }];
+    const [box] = stabilizeFaceBoxes(previous, current, 0.5);
+
+    expect(box.x).toBeCloseTo(0.21);
+    expect(box.y).toBeCloseTo(0.195);
+    expect(box.width).toBeCloseTo(0.12);
+  });
+
+  it('associa o verde somente ao rosto reconhecido', () => {
+    const left = { x: 0.10, y: 0.20, width: 0.16, height: 0.24 };
+    const right = { x: 0.62, y: 0.20, width: 0.16, height: 0.24 };
+    const targets = [{ box: right, tone: 'success' as const, label: 'Funcionário' }];
+
+    expect(matchFaceOverlayTarget(left, targets)).toBeUndefined();
+    expect(matchFaceOverlayTarget(right, targets)?.tone).toBe('success');
+  });
+
+  it('exige duas leituras coerentes antes de confirmar um rosto distante', () => {
+    const face = { x: 0.42, y: 0.24, width: 0.08, height: 0.14 };
+    const first = updateDistantFaceCandidates([], [face], 100, 300);
+    const second = updateDistantFaceCandidates(first, [{ ...face, x: 0.424 }], 220, 300);
+
+    expect(first[0].hits).toBe(1);
+    expect(second[0].hits).toBe(2);
+    expect(updateDistantFaceCandidates(first, [], 450, 300)).toHaveLength(0);
   });
 });
 

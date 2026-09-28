@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from statistics import median
 from uuid import uuid4
 
@@ -43,6 +43,7 @@ ATTENDANCE_RECOVERABLE_QUALITY_REASONS = {
 
 
 EVENING_EXIT_START = time(16, 0)
+TERMINAL_DUPLICATE_CAPTURE_WINDOW = timedelta(seconds=12)
 
 
 def next_punch_type(
@@ -301,6 +302,53 @@ class AttendanceService:
                     else None
                 ),
             )
+
+        # O detector pode, em um frame ruim, recortar duas regiões sobrepostas
+        # do mesmo rosto. Uma segunda confirmação do mesmo terminal dentro desta
+        # janela representa a mesma presença, não o próximo evento da jornada.
+        if payload.offline_batch_id and payload.offline_batch_id.startswith("terminal-"):
+            duplicate_record = await self.session.scalar(
+                select(AttendanceRecord)
+                .where(
+                    AttendanceRecord.employee_id == employee.id,
+                    AttendanceRecord.worksite_id == worksite.id,
+                    AttendanceRecord.status.in_(
+                        [AttendanceStatus.ACCEPTED, AttendanceStatus.MANUAL_REVIEW]
+                    ),
+                    AttendanceRecord.occurred_at
+                    >= occurred_at - TERMINAL_DUPLICATE_CAPTURE_WINDOW,
+                    AttendanceRecord.occurred_at <= occurred_at,
+                )
+                .order_by(desc(AttendanceRecord.occurred_at))
+                .limit(1)
+            )
+            if duplicate_record is not None:
+                duplicate_accepted = duplicate_record.status == AttendanceStatus.ACCEPTED
+                return AttendanceDecision(
+                    accepted=duplicate_accepted,
+                    status=duplicate_record.status,
+                    employee_id=employee.id,
+                    employee_name=employee.name,
+                    employee_registration=employee.registration,
+                    employee_photo_url=employee.photo_url,
+                    punch_type=duplicate_record.punch_type,
+                    confidence_score=duplicate_record.confidence_score or match_confidence,
+                    similarity_score=duplicate_record.similarity_score or similarity,
+                    second_best_similarity_score=second_similarity,
+                    match_margin=margin,
+                    match_confidence_score=match_confidence,
+                    liveness_score=None,
+                    quality_score=duplicate_record.quality_score or quality_score,
+                    reasons=["duplicate_capture"],
+                    temporal_evidence_count=len(vectors),
+                    temporal_similarity_median=(
+                        round(temporal_similarity_median, 4)
+                        if temporal_similarity_median is not None
+                        else None
+                    ),
+                    email_notification_sent=False,
+                    record=AttendanceRead.model_validate(duplicate_record),
+                )
 
         punch_type = payload.punch_type or await self._infer_next_punch(
             employee.id,

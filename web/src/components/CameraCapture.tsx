@@ -48,6 +48,16 @@ export interface FaceOverlayState {
   tone?: FaceOverlayTone;
 }
 
+export interface FaceOverlayTarget extends FaceOverlayState {
+  box: FaceBox;
+}
+
+export interface DistantFaceCandidate {
+  box: FaceBox;
+  expiresAt: number;
+  hits: number;
+}
+
 export interface FaceSourceBox {
   x: number;
   y: number;
@@ -113,12 +123,62 @@ function faceBoxIou(left: FaceBox, right: FaceBox) {
 
 function boxesRepresentSameFace(left: FaceBox, right: FaceBox) {
   if (faceBoxIou(left, right) > 0.24) return true;
+  const intersectionLeft = Math.max(left.x, right.x);
+  const intersectionTop = Math.max(left.y, right.y);
+  const intersectionRight = Math.min(left.x + left.width, right.x + right.width);
+  const intersectionBottom = Math.min(left.y + left.height, right.y + right.height);
+  const intersection = Math.max(0, intersectionRight - intersectionLeft)
+    * Math.max(0, intersectionBottom - intersectionTop);
+  const smallerArea = Math.min(left.width * left.height, right.width * right.height);
+  if (smallerArea > 0 && intersection / smallerArea > 0.46) return true;
   const leftCenterX = left.x + left.width / 2;
   const leftCenterY = left.y + left.height / 2;
   const rightCenterX = right.x + right.width / 2;
   const rightCenterY = right.y + right.height / 2;
   return Math.abs(leftCenterX - rightCenterX) < Math.max(left.width, right.width) * 0.32
     && Math.abs(leftCenterY - rightCenterY) < Math.max(left.height, right.height) * 0.32;
+}
+
+export function stabilizeFaceBoxes(previous: FaceBox[], current: FaceBox[], alpha = 0.72) {
+  const weight = clamp(alpha, 0, 1);
+  return current.map((candidate) => {
+    const prior = previous
+      .filter((box) => boxesRepresentSameFace(box, candidate))
+      .sort((left, right) => faceBoxIou(right, candidate) - faceBoxIou(left, candidate))[0];
+    if (!prior) return candidate;
+    return {
+      x: prior.x + (candidate.x - prior.x) * weight,
+      y: prior.y + (candidate.y - prior.y) * weight,
+      width: prior.width + (candidate.width - prior.width) * weight,
+      height: prior.height + (candidate.height - prior.height) * weight,
+    };
+  });
+}
+
+export function matchFaceOverlayTarget(face: FaceBox, targets: FaceOverlayTarget[]) {
+  return targets
+    .map((target) => ({ target, score: faceBoxIou(face, target.box) }))
+    .filter(({ target, score }) => score >= 0.16 || boxesRepresentSameFace(face, target.box))
+    .sort((left, right) => right.score - left.score)[0]?.target;
+}
+
+export function updateDistantFaceCandidates(
+  previous: DistantFaceCandidate[],
+  detected: FaceBox[],
+  now: number,
+  ttl = DISTANT_DETECTION_TTL_MS,
+) {
+  if (!detected.length) return previous.filter((candidate) => candidate.expiresAt > now);
+  return mergeFaceBoxes(detected).map((box) => {
+    const prior = previous
+      .filter((candidate) => boxesRepresentSameFace(candidate.box, box))
+      .sort((left, right) => faceBoxIou(right.box, box) - faceBoxIou(left.box, box))[0];
+    return {
+      box: prior ? stabilizeFaceBoxes([prior.box], [box], 0.76)[0] : box,
+      expiresAt: now + ttl,
+      hits: Math.min((prior?.hits || 0) + 1, 4),
+    };
+  });
 }
 
 export function mergeFaceBoxes(boxes: FaceBox[], limit = MAX_TRACKED_FACES) {
@@ -139,8 +199,8 @@ export function mergeTrackedAndDistantFaces(
   distant: FaceBox[],
   limit = MAX_TRACKED_FACES,
 ) {
-  const merged = tracked.slice(0, limit);
-  for (const candidate of distant) {
+  const merged = mergeFaceBoxes(tracked, limit);
+  for (const candidate of mergeFaceBoxes(distant, limit)) {
     if (merged.length >= limit) break;
     if (!merged.some((current) => boxesRepresentSameFace(current, candidate))) {
       merged.push(candidate);
@@ -156,7 +216,13 @@ export function isPlausibleDistantFace(
 ) {
   const box = detection.boundingBox;
   const score = detection.categories[0]?.score || 0;
-  if (!box || score < 0.55 || box.width <= 0 || box.height <= 0) return false;
+  if (!box || box.width <= 0 || box.height <= 0) return false;
+  const frameArea = Math.max(1, inputWidth * inputHeight);
+  const faceAreaRatio = (box.width * box.height) / frameArea;
+  // Rostos realmente distantes costumam ter score um pouco menor. Eles ainda
+  // precisam passar pela geometria facial e por dois frames consecutivos.
+  const minimumScore = faceAreaRatio < 0.035 ? 0.58 : 0.62;
+  if (score < minimumScore) return false;
 
   const aspectRatio = box.width / box.height;
   if (aspectRatio < 0.55 || aspectRatio > 1.55) return false;
@@ -217,11 +283,11 @@ export function faceBoxesFromLandmarks(
 }
 
 export function calculateFaceOverlayRect(face: FaceBox): FaceBox {
-  const width = face.width;
-  const height = face.height * 0.78;
+  const width = face.width * 0.88;
+  const height = face.height * 0.82;
   return {
-    x: face.x - (width - face.width) / 2,
-    y: face.y - face.height * 0.02,
+    x: face.x + (face.width - width) / 2,
+    y: face.y + face.height * 0.015,
     width,
     height,
   };
@@ -310,6 +376,7 @@ interface CameraCaptureProps {
   className?: string;
   fitMode?: 'cover' | 'contain';
   faceOverlay?: FaceOverlayState;
+  faceOverlayTargets?: FaceOverlayTarget[];
   detectedFaceBox?: FaceSourceBox | null;
   onReadyChange?: (ready: boolean) => void;
   onFacePresenceChange?: (present: boolean) => void;
@@ -321,6 +388,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     className = '',
     fitMode = 'cover',
     faceOverlay,
+    faceOverlayTargets = [],
     detectedFaceBox,
     onReadyChange,
     onFacePresenceChange,
@@ -337,6 +405,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const cameraFailureCountRef = useRef(0);
     const restartCameraRef = useRef<(() => void) | null>(null);
     const faceOverlayRef = useRef<FaceOverlayState | undefined>(faceOverlay);
+    const faceOverlayTargetsRef = useRef<FaceOverlayTarget[]>(faceOverlayTargets);
     const onReadyChangeRef = useRef(onReadyChange);
     const onFacePresenceChangeRef = useRef(onFacePresenceChange);
     const onFaceCountChangeRef = useRef(onFaceCountChange);
@@ -357,7 +426,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
 
     useEffect(() => {
       faceOverlayRef.current = faceOverlay;
-    }, [faceOverlay]);
+      faceOverlayTargetsRef.current = faceOverlayTargets;
+    }, [faceOverlay, faceOverlayTargets]);
 
     useEffect(() => {
       onReadyChangeRef.current = onReadyChange;
@@ -682,7 +752,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let distantCanvas: HTMLCanvasElement | null = null;
       let distantContext: CanvasRenderingContext2D | null = null;
       let lastDistantScanAt = 0;
-      let distantCandidates: Array<{ box: FaceBox; expiresAt: number }> = [];
+      let distantCandidates: DistantFaceCandidate[] = [];
+      let stabilizedBoxes: FaceBox[] = [];
       let lastFacePresent = false;
       let lastFaceCount = 0;
       let lastVideoTime = -1;
@@ -729,7 +800,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           return null;
         }
 
-        const scale = Math.max(video.clientWidth / video.videoWidth, video.clientHeight / video.videoHeight);
+        const scale = fitMode === 'contain'
+          ? Math.min(video.clientWidth / video.videoWidth, video.clientHeight / video.videoHeight)
+          : Math.max(video.clientWidth / video.videoWidth, video.clientHeight / video.videoHeight);
         const renderedWidth = video.videoWidth * scale;
         const renderedHeight = video.videoHeight * scale;
         const offsetX = (video.clientWidth - renderedWidth) / 2;
@@ -746,9 +819,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       const drawLabel = (
         context: CanvasRenderingContext2D,
         landmarks: NormalizedLandmark[],
-        color: string,
+        tone: FaceOverlayTone,
         faceIndex: number,
         faceCount: number,
+        target?: FaceOverlayTarget,
       ) => {
         const points = landmarks.map(projectLandmark).filter(Boolean) as Array<{ x: number; y: number; z: number }>;
         if (!points.length) return;
@@ -760,12 +834,13 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         const canvasRect = context.canvas.getBoundingClientRect();
         const rawWidth = Math.max(32, right - left);
         const rawHeight = Math.max(40, bottom - top);
-        const centerX = (left + right) / 2;
-        const centerY = (top + bottom) / 2 - rawHeight * 0.11;
+        const tightRect = calculateFaceOverlayRect({ x: left, y: top, width: rawWidth, height: rawHeight });
+        const centerX = tightRect.x + tightRect.width / 2;
+        const centerY = tightRect.y + tightRect.height / 2;
         const availableWidth = Math.max(48, canvasRect.width - 16);
         const availableHeight = Math.max(60, canvasRect.height - 16);
-        const desiredWidth = Math.min(availableWidth, rawWidth);
-        const desiredHeight = Math.min(availableHeight, rawHeight * 0.78);
+        const desiredWidth = Math.min(availableWidth, tightRect.width);
+        const desiredHeight = Math.min(availableHeight, tightRect.height);
         const guideLeft = clamp(centerX - desiredWidth / 2, 8, canvasRect.width - desiredWidth - 8);
         const guideTop = clamp(centerY - desiredHeight / 2, 8, canvasRect.height - desiredHeight - 8);
         const guideRight = guideLeft + desiredWidth;
@@ -773,9 +848,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         const cornerLength = clamp(Math.min(guideRight - guideLeft, guideBottom - guideTop) * 0.20, 18, 40);
         const labelY = guideTop > 42 ? guideTop - 36 : guideTop + 10;
         const labelX = clamp(guideLeft, 10, Math.max(10, canvasRect.width - 242));
-        const overlay = faceOverlayRef.current;
-        const label = faceCount > 1 ? `Rosto ${faceIndex + 1}` : overlay?.label || 'Rosto detectado';
-        const detail = faceCount === 1 && overlay?.detail ? ` ${overlay.detail}` : '';
+        const overlay = target || faceOverlayRef.current;
+        const label = target?.label
+          || (faceCount > 1 ? `Rosto ${faceIndex + 1}` : overlay?.label || 'Rosto detectado');
+        const detail = overlay?.detail ? ` ${overlay.detail}` : '';
         const text = `${label}${detail}`;
 
         context.font = '650 12px Inter, ui-sans-serif, system-ui, sans-serif';
@@ -785,7 +861,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         const radius = 5;
 
         context.save();
-        context.strokeStyle = `rgba(${color}, 0.96)`;
+        context.strokeStyle = `rgba(${TONE_RGB[tone]}, 0.96)`;
         context.lineWidth = 2.5;
         context.lineCap = 'round';
         context.lineJoin = 'round';
@@ -828,10 +904,12 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           .slice(0, MAX_TRACKED_FACES);
         const now = performance.now();
         distantCandidates = distantCandidates.filter((candidate) => candidate.expiresAt > now);
-        const normalizedBoxes = mergeTrackedAndDistantFaces(
+        const mergedBoxes = mergeTrackedAndDistantFaces(
           faceBoxesFromLandmarks(detectedLandmarks),
-          distantCandidates.map((candidate) => candidate.box),
+          distantCandidates.filter((candidate) => candidate.hits >= 2).map((candidate) => candidate.box),
         );
+        const normalizedBoxes = stabilizeFaceBoxes(stabilizedBoxes, mergedBoxes);
+        stabilizedBoxes = normalizedBoxes;
         if (!normalizedBoxes.length) {
           normalizedFaceBoxRef.current = null;
           normalizedFaceBoxesRef.current = [];
@@ -844,15 +922,17 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           box.width * box.height > largest.width * largest.height ? box : largest
         ));
         setDetectedFaceCount(normalizedBoxes.length);
-        const tone = faceOverlayRef.current?.tone || 'tracking';
-        const color = TONE_RGB[normalizedBoxes.length > 1 ? 'tracking' : tone];
         normalizedBoxes.forEach((box, index) => {
+          const target = matchFaceOverlayTarget(box, faceOverlayTargetsRef.current);
+          const tone = target?.tone
+            || (normalizedBoxes.length === 1 ? faceOverlayRef.current?.tone : 'tracking')
+            || 'tracking';
           drawLabel(context, [
             { x: box.x, y: box.y, z: 0, visibility: 1 },
             { x: box.x + box.width, y: box.y, z: 0, visibility: 1 },
             { x: box.x + box.width, y: box.y + box.height, z: 0, visibility: 1 },
             { x: box.x, y: box.y + box.height, z: 0, visibility: 1 },
-          ], color, index, normalizedBoxes.length);
+          ], tone, index, normalizedBoxes.length, target);
         });
       };
 
@@ -888,8 +968,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         );
         const detections = distantDetector.detect(distantCanvas).detections
           .filter((detection) => isPlausibleDistantFace(detection, detectorWidth, detectorHeight));
-        const expiresAt = now + DISTANT_DETECTION_TTL_MS;
-        const detectedBoxes = detections.flatMap((detection) => {
+        const detectedBoxes = mergeFaceBoxes(detections.flatMap((detection) => {
           const box = detection.boundingBox;
           if (!box) return [];
           const normalizedBox = {
@@ -899,12 +978,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             height: clamp(box.height / detectorHeight, 0, 1),
           };
           return normalizedBox.width > 0.012 && normalizedBox.height > 0.02
-            ? [{ box: normalizedBox, expiresAt }]
+            ? [normalizedBox]
             : [];
-        });
-        distantCandidates = detectedBoxes.length
-          ? detectedBoxes
-          : distantCandidates.filter((candidate) => candidate.expiresAt > now);
+        }));
+        distantCandidates = updateDistantFaceCandidates(distantCandidates, detectedBoxes, now);
       };
 
       const processFrame = (now: DOMHighResTimeStamp) => {
@@ -958,9 +1035,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           const landmarkerOptions = {
             runningMode: 'VIDEO' as const,
             numFaces: MAX_TRACKED_FACES,
-            minFaceDetectionConfidence: 0.36,
-            minFacePresenceConfidence: 0.36,
-            minTrackingConfidence: 0.36,
+            minFaceDetectionConfidence: 0.48,
+            minFacePresenceConfidence: 0.48,
+            minTrackingConfidence: 0.42,
             outputFaceBlendshapes: false,
             // O terminal usa landmarks e caixas, não as matrizes faciais 3D.
             outputFacialTransformationMatrixes: false,
@@ -1034,7 +1111,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         onFaceCountChangeRef.current?.(0);
         onFacePresenceChangeRef.current?.(false);
       };
-    }, [ready]);
+    }, [fitMode, ready]);
 
     useEffect(() => {
       if (!ready || landmarkState === 'ready') {
