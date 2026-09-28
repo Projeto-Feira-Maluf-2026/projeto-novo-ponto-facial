@@ -43,7 +43,10 @@ ATTENDANCE_RECOVERABLE_QUALITY_REASONS = {
 
 
 EVENING_EXIT_START = time(16, 0)
-TERMINAL_DUPLICATE_CAPTURE_WINDOW = timedelta(seconds=12)
+# Um rosto que continua diante do terminal representa a mesma presenca. A
+# janela precisa ser longa o bastante para absorver perda momentanea de
+# tracking, reconexao da camera e novas caixas geradas para a mesma pessoa.
+TERMINAL_DUPLICATE_CAPTURE_WINDOW = timedelta(minutes=1)
 
 
 def next_punch_type(
@@ -307,6 +310,7 @@ class AttendanceService:
         # do mesmo rosto. Uma segunda confirmação do mesmo terminal dentro desta
         # janela representa a mesma presença, não o próximo evento da jornada.
         if payload.offline_batch_id and payload.offline_batch_id.startswith("terminal-"):
+            duplicate_checked_at = datetime.now(UTC).replace(tzinfo=None)
             duplicate_record = await self.session.scalar(
                 select(AttendanceRecord)
                 .where(
@@ -315,11 +319,13 @@ class AttendanceService:
                     AttendanceRecord.status.in_(
                         [AttendanceStatus.ACCEPTED, AttendanceStatus.MANUAL_REVIEW]
                     ),
-                    AttendanceRecord.occurred_at
-                    >= occurred_at - TERMINAL_DUPLICATE_CAPTURE_WINDOW,
-                    AttendanceRecord.occurred_at <= occurred_at,
+                    # Use o relogio do servidor para que um timestamp antigo ou
+                    # adiantado do navegador nao contorne o rate limit.
+                    AttendanceRecord.created_at
+                    >= duplicate_checked_at - TERMINAL_DUPLICATE_CAPTURE_WINDOW,
+                    AttendanceRecord.created_at <= duplicate_checked_at,
                 )
-                .order_by(desc(AttendanceRecord.occurred_at))
+                .order_by(desc(AttendanceRecord.created_at))
                 .limit(1)
             )
             if duplicate_record is not None:

@@ -14,7 +14,7 @@ class EmployeeCreate(BaseModel):
     email: EmailStr | None = None
     department_id: str | None = None
     job_role_id: str | None = None
-    worksite_ids: list[str] = []
+    worksite_ids: list[str] = Field(default_factory=list)
     status: EmployeeStatus = EmployeeStatus.ACTIVE
 
 

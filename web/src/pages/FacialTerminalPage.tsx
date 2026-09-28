@@ -36,6 +36,7 @@ import type {
 } from '../types/domain';
 import { parseApiDate } from '../utils/dateTime';
 import { publishAttendancePulse } from '../utils/attendancePulse';
+import { readTerminalWorksiteId, saveTerminalWorksiteId } from '../utils/terminalPreferences';
 
 type TerminalMode =
   | 'starting'
@@ -73,12 +74,12 @@ type PunchCandidate = {
   localFaceBox?: CameraFaceBox;
 };
 
-const RECOGNITION_INTERVAL_MS = 160;
-const SINGLE_RESULT_HOLD_MS = 2_200;
+const RECOGNITION_INTERVAL_MS = 100;
+const SINGLE_RESULT_HOLD_MS = 1_400;
 const GROUP_RESULT_HOLD_MS = 1_200;
-const PARTIAL_RESULT_HOLD_MS = 450;
+const PARTIAL_RESULT_HOLD_MS = 260;
 const MAX_FACES_PER_SCAN = 5;
-const RETRY_RESULT_HOLD_MS = 420;
+const RETRY_RESULT_HOLD_MS = 180;
 const SERVICE_RETRY_HOLD_MS = 1_200;
 
 function faceBoxIou(left: CameraFaceBox, right: CameraFaceBox) {
@@ -212,7 +213,15 @@ export function FacialTerminalPage() {
       .then((page) => {
         const active = page.items.filter((worksite) => worksite.active);
         setWorksites(active);
-        setWorksiteId((current) => current || active[0]?.id || '');
+        setWorksiteId((current) => {
+          if (active.some((worksite) => worksite.id === current)) return current;
+          const stored = readTerminalWorksiteId();
+          const selected = active.some((worksite) => worksite.id === stored)
+            ? stored
+            : active[0]?.id || '';
+          saveTerminalWorksiteId(selected);
+          return selected;
+        });
       })
       .catch(() => setGuidance('Não foi possível carregar as obras.'));
 
@@ -281,6 +290,7 @@ export function FacialTerminalPage() {
         occurred_at: occurredAt,
       })), signal);
       const completedRecords: RecentRecord[] = [];
+      const newlyCompletedRecords: RecentRecord[] = [];
       let successfulRecognition: LiveRecognition | null = null;
 
       batch.decisions.forEach((result, index) => {
@@ -294,7 +304,7 @@ export function FacialTerminalPage() {
         const resolvedEmployeeId = result.employee_id || candidate.employeeId || '';
         if (result.status !== 'ACCEPTED' && result.status !== 'MANUAL_REVIEW') return;
 
-        completedRecords.push({
+        const completedRecord = {
           id: result.record?.id || crypto.randomUUID(),
           employee: employeeName,
           registration: result.employee_registration || employee?.registration,
@@ -304,7 +314,11 @@ export function FacialTerminalPage() {
             ? parseApiDate(result.record.occurred_at)
             : new Date(),
           emailSent: result.email_notification_sent,
-        });
+        } satisfies RecentRecord;
+        completedRecords.push(completedRecord);
+        if (!result.reasons.includes('duplicate_capture')) {
+          newlyCompletedRecords.push(completedRecord);
+        }
         if (candidate.localFaceBox) {
           const recognizedBox = candidate.localFaceBox;
           completedFaceBoxesRef.current = [
@@ -333,17 +347,19 @@ export function FacialTerminalPage() {
 
       const completed = completedRecords.length;
       setDecision(batch.decisions.find((result) => !result.accepted) || batch.decisions[0] || null);
-      if (completedRecords.length) {
-        setRecentRecords((current) => [...completedRecords, ...current].slice(0, 5));
+      if (newlyCompletedRecords.length) {
+        setRecentRecords((current) => [...newlyCompletedRecords, ...current].slice(0, 5));
       }
       if (successfulRecognition) setRecognition(successfulRecognition);
 
       if (completed > 0) {
-        publishAttendancePulse(
-          worksiteId,
-          completed,
-          batch.decisions.filter((result) => result.email_notification_sent).length,
-        );
+        if (newlyCompletedRecords.length) {
+          publishAttendancePulse(
+            worksiteId,
+            newlyCompletedRecords.length,
+            batch.decisions.filter((result) => result.email_notification_sent).length,
+          );
+        }
         const allCompleted = completed === validCandidates.length;
         if (allCompleted && completedFaceBoxesRef.current.length >= localFaceCountRef.current) {
           awaitingFaceExitRef.current = true;
@@ -354,7 +370,7 @@ export function FacialTerminalPage() {
             : PARTIAL_RESULT_HOLD_MS
         );
         setMode(batch.manual_review > 0 ? 'review' : allCompleted ? 'accepted' : 'attention');
-        const acceptedForPresentation = completedRecords.filter((record) => record.status === 'ACCEPTED');
+        const acceptedForPresentation = newlyCompletedRecords.filter((record) => record.status === 'ACCEPTED');
         const presentationParticipants = acceptedForPresentation.map((record) => ({
           id: record.id,
           name: record.employee,
@@ -376,9 +392,11 @@ export function FacialTerminalPage() {
             : `${completed} de ${validCandidates.length} pontos foram registrados; os demais rostos serão tentados novamente.`);
         } else {
           const result = batch.decisions[0];
-          setGuidance(result?.status === 'MANUAL_REVIEW'
-            ? 'O registro foi recebido e será conferido pela equipe responsável.'
-            : `${punchLabels[result?.punch_type || 'ENTRY']} registrada com sucesso.`);
+          setGuidance(result?.reasons.includes('duplicate_capture')
+            ? 'Ponto já registrado há menos de 1 minuto. Aguarde antes de tentar novamente.'
+            : result?.status === 'MANUAL_REVIEW'
+              ? 'O registro foi recebido e será conferido pela equipe responsável.'
+              : `${punchLabels[result?.punch_type || 'ENTRY']} registrada com sucesso.`);
         }
         return completed;
       }
@@ -484,7 +502,7 @@ export function FacialTerminalPage() {
       window.clearTimeout(timer);
       timer = window.setTimeout(scan, 0);
     };
-    schedule(350);
+    schedule(80);
     return () => {
       triggerScanRef.current = null;
       cancelled = true;
@@ -602,7 +620,11 @@ export function FacialTerminalPage() {
             <select
               id="terminal-worksite"
               value={worksiteId}
-              onChange={(event) => setWorksiteId(event.target.value)}
+              onChange={(event) => {
+                const nextWorksiteId = event.target.value;
+                setWorksiteId(nextWorksiteId);
+                saveTerminalWorksiteId(nextWorksiteId);
+              }}
               className="input-field"
             >
               <option value="">Selecionar obra</option>

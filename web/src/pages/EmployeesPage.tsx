@@ -30,6 +30,7 @@ import type {
   EnrollmentSessionResponse,
   Worksite,
 } from '../types/domain';
+import { readTerminalWorksiteId } from '../utils/terminalPreferences';
 
 const initialForm = {
   registration: '',
@@ -181,13 +182,17 @@ export function EmployeesPage() {
   }, [loadEmployees]);
 
   useEffect(() => {
-    if (!presentationRegistration || presentationFormOpenedRef.current) return;
+    if (!presentationRegistration || presentationFormOpenedRef.current || worksites.length === 0) return;
     presentationFormOpenedRef.current = true;
+    const preferredWorksiteId = readTerminalWorksiteId();
+    const preferredWorksite = worksites.find((worksite) => (
+      worksite.active && worksite.id === preferredWorksiteId
+    ));
     setEditingEmployee(null);
     setForm({
       ...initialForm,
       registration: `FEIRA-${Date.now().toString().slice(-6)}`,
-      worksite_id: worksites.find((worksite) => worksite.active)?.id || '',
+      worksite_id: preferredWorksite?.id || worksites.find((worksite) => worksite.active)?.id || '',
     });
     setShowForm(true);
     setMessage('Cadastre o participante e informe um e-mail válido. A matrícula facial abrirá em seguida.');
@@ -231,6 +236,10 @@ export function EmployeesPage() {
 
   const onSaveEmployee = async (event: FormEvent) => {
     event.preventDefault();
+    if (presentationRegistration && !form.worksite_id) {
+      setMessage('Selecione a obra da apresentação antes de cadastrar o participante.');
+      return;
+    }
     setSaving(true);
     setMessage('');
     try {

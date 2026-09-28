@@ -15,10 +15,15 @@ from app.schemas.attendance import (
 from app.api.v1.routes.attendance import punch_batch
 from app.services.attendance import (
     AttendanceService,
+    TERMINAL_DUPLICATE_CAPTURE_WINDOW,
     attendance_confidence,
     attendance_frame_is_usable,
     next_punch_type,
 )
+
+
+def test_terminal_duplicate_window_is_one_minute() -> None:
+    assert TERMINAL_DUPLICATE_CAPTURE_WINDOW == timedelta(minutes=1)
 
 
 def test_punch_sequence() -> None:
