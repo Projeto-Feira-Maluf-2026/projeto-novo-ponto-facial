@@ -47,6 +47,7 @@ EVENING_EXIT_START = time(16, 0)
 # janela precisa ser longa o bastante para absorver perda momentanea de
 # tracking, reconexao da camera e novas caixas geradas para a mesma pessoa.
 TERMINAL_DUPLICATE_CAPTURE_WINDOW = timedelta(minutes=1)
+ADAPTIVE_FLIP_RETRY_SIMILARITY_GAP = 0.12
 
 
 def next_punch_type(
@@ -254,6 +255,52 @@ class AttendanceService:
             payload.worksite_id,
             occurred_at,
         )
+
+        # A maioria das pessoas encerra na primeira inferencia. Somente uma
+        # leitura proxima do limiar recebe um flip-test adicional. A media das
+        # duas orientacoes reduz assimetria de iluminacao, reflexo de oculos e
+        # pequenas diferencas de pose sem dobrar o custo do caminho normal.
+        adaptive_retry_floor = max(
+            0.0,
+            float(settings.FACE_MIN_SIMILARITY) - ADAPTIVE_FLIP_RETRY_SIMILARITY_GAP,
+        )
+        if (
+            len(submitted_images) == 1
+            and len(processed_frames) == 1
+            and match_reason in {"low_similarity", "ambiguous_face"}
+            and similarity >= adaptive_retry_floor
+        ):
+            mirrored = await asyncio.to_thread(
+                self._face_embeddings().from_mirrored_image,
+                processed_frames[0].image,
+            )
+            mirrored_similarity: float | None = None
+            if attendance_frame_is_usable(mirrored):
+                from app.services.ai.facial_service import cosine_similarity
+
+                mirrored_similarity = cosine_similarity(
+                    vectors[0][0],
+                    mirrored.inference.embedding,
+                )
+            if (
+                mirrored_similarity is not None
+                and mirrored_similarity >= settings.FACE_TEMPORAL_MIN_EMBEDDING_SIMILARITY
+            ):
+                retried_vectors = [
+                    *vectors,
+                    (mirrored.inference.embedding, mirrored.quality.quality_score),
+                ]
+                retried = await self._match_employee(
+                    retried_vectors,
+                    payload.employee_id,
+                    payload.worksite_id,
+                    occurred_at,
+                )
+                if retried[4] is None:
+                    vectors = retried_vectors
+                    employee, similarity, second_similarity, match_confidence, match_reason = retried
+                    quality_score = max(quality_score, mirrored.quality.quality_score)
+                    temporal_similarity_median = mirrored_similarity
         margin = face_match_margin(similarity, second_similarity)
 
         if match_reason:

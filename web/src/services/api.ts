@@ -60,6 +60,7 @@ export function resolveApiBaseUrl(configured: string | undefined, fallback: stri
 
 const apiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_URL, DEFAULT_API_URL);
 const faceApiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_FACE_API_URL, apiBaseUrl);
+const faceHealthBaseUrl = faceApiBaseUrl.replace(/\/api\/v1$/, '');
 
 function createApi(baseURL: string, timeout: number): AxiosInstance {
   const client = axios.create({ baseURL, timeout });
@@ -105,6 +106,7 @@ function createApi(baseURL: string, timeout: number): AxiosInstance {
 
 const api = createApi(apiBaseUrl, 20_000);
 const faceApi = createApi(faceApiBaseUrl, 45_000);
+const faceHealthApi = createApi(faceHealthBaseUrl, 10_000);
 
 const enableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
 
@@ -309,6 +311,10 @@ export const apiClient = {
   },
   faceCapabilities: async () => {
     const response = await faceApi.get<FaceCapabilitiesResponse>('/ai/capabilities');
+    return response.data;
+  },
+  faceReadiness: async () => {
+    const response = await faceHealthApi.get('/health/ready');
     return response.data;
   },
   analyzeFace: async (imageBase64: string) => {

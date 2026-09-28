@@ -1223,7 +1223,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             targetSize,
             targetSize,
           );
-          return canvas.toDataURL('image/jpeg', distantFace ? 0.88 : 0.84);
+          return canvas.toDataURL('image/jpeg', distantFace ? 0.90 : 0.88);
         };
 
         return {

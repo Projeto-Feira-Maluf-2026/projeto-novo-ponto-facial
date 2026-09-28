@@ -74,7 +74,7 @@ type PunchCandidate = {
   localFaceBox?: CameraFaceBox;
 };
 
-const RECOGNITION_INTERVAL_MS = 100;
+const RECOGNITION_INTERVAL_MS = 80;
 const SINGLE_RESULT_HOLD_MS = 1_400;
 const GROUP_RESULT_HOLD_MS = 1_200;
 const PARTIAL_RESULT_HOLD_MS = 260;
@@ -196,9 +196,9 @@ export function FacialTerminalPage() {
 
   useEffect(() => {
     // Aquece o container e os modelos antes de o primeiro funcionário aparecer.
-    // O ping periódico reduz cold starts em terminais que ficam abertos o dia inteiro.
+    // A readiness aquece modelo e conexao com o banco em uma unica chamada.
     const warmFaceRuntime = () => {
-      void apiClient.faceCapabilities().catch(() => undefined);
+      void apiClient.faceReadiness().catch(() => undefined);
     };
     warmFaceRuntime();
     const warmupTimer = window.setInterval(warmFaceRuntime, 3 * 60_000);
@@ -502,7 +502,7 @@ export function FacialTerminalPage() {
       window.clearTimeout(timer);
       timer = window.setTimeout(scan, 0);
     };
-    schedule(80);
+    schedule(40);
     return () => {
       triggerScanRef.current = null;
       cancelled = true;

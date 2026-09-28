@@ -15,6 +15,7 @@ from app.services.ai.base import FaceProviderState
 from app.services.ai.fake_provider import FakeFaceProvider
 from app.services.ai.facial_service import FaceEmbeddingService
 from app.services.ai.image_validation import FaceImageValidator
+from app.services.ai.image_validation import ImageMetrics, ValidatedFaceImage
 from app.services.ai.insightface_provider import (
     InsightFaceArcFaceProvider,
     _reliable_face_candidates,
@@ -210,3 +211,38 @@ def test_production_operations_are_blocked_without_calibrated_thresholds() -> No
         service.from_image_base64(f"data:image/jpeg;base64,{encoded}")
 
     assert error.value.code == "THRESHOLDS_NOT_CALIBRATED"
+
+
+def test_mirrored_retry_reuses_validated_pixels_without_decoding_again() -> None:
+    pixels = np.zeros((4, 5, 3), dtype=np.uint8)
+    pixels[:, 0] = 10
+    pixels[:, -1] = 240
+    image = ValidatedFaceImage(
+        image_bgr=pixels,
+        original_bytes=b"validated",
+        sha256="sha",
+        mime_type="image/jpeg",
+        width=5,
+        height=4,
+        image_metrics=ImageMetrics(100.0, 120.0, 30.0, 0.0, 0.0),
+    )
+    inference = SimpleNamespace(state=FaceProviderState.READY)
+    quality = SimpleNamespace(reasons=[], accepted=True, quality_score=0.9)
+    provider = SimpleNamespace(
+        info=MagicMock(return_value=SimpleNamespace(state=FaceProviderState.READY)),
+        analyze=MagicMock(return_value=inference),
+    )
+    validator = SimpleNamespace(
+        from_base64=MagicMock(side_effect=AssertionError("não deve decodificar")),
+        quality_report=MagicMock(return_value=quality),
+    )
+    config = SimpleNamespace(ENVIRONMENT="test", FACE_THRESHOLDS_CALIBRATED=True)
+    service = FaceEmbeddingService(provider, validator, config)
+
+    processed = service.from_mirrored_image(image)
+
+    analyzed = provider.analyze.call_args.args[0]
+    assert np.array_equal(analyzed[:, 0], pixels[:, -1])
+    assert np.array_equal(analyzed[:, -1], pixels[:, 0])
+    assert processed.image.sha256 == image.sha256
+    validator.from_base64.assert_not_called()

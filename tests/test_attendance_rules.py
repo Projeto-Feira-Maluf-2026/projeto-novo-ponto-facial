@@ -198,6 +198,106 @@ async def test_punch_preserves_and_validates_three_temporal_frames() -> None:
 
 
 @pytest.mark.asyncio
+async def test_borderline_match_uses_one_mirrored_retry_and_can_recover() -> None:
+    worksite = SimpleNamespace(id="worksite-1", name="Obra Teste", active=True)
+    employee = SimpleNamespace(
+        id="employee-1",
+        name="Funcionário Teste",
+        registration="CE-001",
+        photo_url=None,
+        email=None,
+        status=EmployeeStatus.ACTIVE,
+    )
+    source_image = SimpleNamespace(image_bgr=None)
+    original = SimpleNamespace(
+        image=source_image,
+        quality=SimpleNamespace(accepted=True, quality_score=0.82, reasons=[]),
+        inference=SimpleNamespace(embedding=[1.0, 0.0]),
+    )
+    mirrored = SimpleNamespace(
+        image=source_image,
+        quality=SimpleNamespace(accepted=True, quality_score=0.84, reasons=[]),
+        inference=SimpleNamespace(embedding=[0.98, 0.02]),
+    )
+    face_service = SimpleNamespace(
+        from_image_base64=MagicMock(return_value=original),
+        from_mirrored_image=MagicMock(return_value=mirrored),
+    )
+    session = SimpleNamespace(
+        get=AsyncMock(return_value=worksite),
+        scalar=AsyncMock(return_value=None),
+        add=MagicMock(),
+        commit=AsyncMock(),
+        refresh=AsyncMock(),
+    )
+
+    async def refresh_record(record: AttendanceRecord) -> None:
+        record.created_at = datetime.now(UTC).replace(tzinfo=None)
+
+    session.refresh.side_effect = refresh_record
+    service = AttendanceService(session, face_service)
+    service._match_employee = AsyncMock(side_effect=[
+        (employee, 0.56, 0.49, 0.61, "low_similarity"),
+        (employee, 0.68, 0.51, 0.86, None),
+    ])
+
+    decision = await service.register_punch(PunchCreate(
+        employee_id=None,
+        worksite_id=worksite.id,
+        punch_type=PunchType.ENTRY,
+        face={"image_base64": "data:image/jpeg;base64,limiar"},
+    ))
+
+    assert decision.accepted is True
+    assert decision.similarity_score == pytest.approx(0.68)
+    assert decision.temporal_evidence_count == 2
+    assert decision.temporal_similarity_median is not None
+    face_service.from_mirrored_image.assert_called_once_with(source_image)
+    assert service._match_employee.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_mirrored_retry_never_combines_inconsistent_identity() -> None:
+    worksite = SimpleNamespace(id="worksite-1", active=True)
+    source_image = SimpleNamespace(image_bgr=None)
+    face_service = SimpleNamespace(
+        from_image_base64=MagicMock(return_value=SimpleNamespace(
+            image=source_image,
+            quality=SimpleNamespace(accepted=True, quality_score=0.8, reasons=[]),
+            inference=SimpleNamespace(embedding=[1.0, 0.0]),
+        )),
+        from_mirrored_image=MagicMock(return_value=SimpleNamespace(
+            image=source_image,
+            quality=SimpleNamespace(accepted=True, quality_score=0.8, reasons=[]),
+            inference=SimpleNamespace(embedding=[0.0, 1.0]),
+        )),
+    )
+    session = SimpleNamespace(
+        get=AsyncMock(return_value=worksite),
+        add=MagicMock(),
+        commit=AsyncMock(),
+    )
+    service = AttendanceService(session, face_service)
+    service._match_employee = AsyncMock(return_value=(
+        SimpleNamespace(id="employee-1"),
+        0.56,
+        0.49,
+        0.61,
+        "low_similarity",
+    ))
+
+    decision = await service.register_punch(PunchCreate(
+        employee_id=None,
+        worksite_id=worksite.id,
+        face={"image_base64": "data:image/jpeg;base64,limiar"},
+    ))
+
+    assert decision.accepted is False
+    assert decision.reasons == ["low_similarity"]
+    assert service._match_employee.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_terminal_duplicate_face_reuses_record_without_advancing_punch() -> None:
     now = datetime.now(UTC).replace(tzinfo=None)
     worksite = SimpleNamespace(id="worksite-1", active=True)

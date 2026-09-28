@@ -307,6 +307,23 @@ class FaceEmbeddingService:
     def from_image_base64(self, image_base64: str) -> ProcessedFace:
         started_at = perf_counter()
         image = self.validator.from_base64(image_base64)
+        return self._process_validated_image(image, started_at=started_at)
+
+    def from_mirrored_image(self, image: ValidatedFaceImage) -> ProcessedFace:
+        """Run a conditional flip-test without decoding or trusting a new payload."""
+        started_at = perf_counter()
+        mirrored = replace(
+            image,
+            image_bgr=np.ascontiguousarray(image.image_bgr[:, ::-1]),
+        )
+        return self._process_validated_image(mirrored, started_at=started_at)
+
+    def _process_validated_image(
+        self,
+        image: ValidatedFaceImage,
+        *,
+        started_at: float,
+    ) -> ProcessedFace:
         if (
             self.config.ENVIRONMENT in {"staging", "production"}
             and not self.config.FACE_THRESHOLDS_CALIBRATED
