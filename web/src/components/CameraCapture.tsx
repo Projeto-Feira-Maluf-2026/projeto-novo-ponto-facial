@@ -75,9 +75,9 @@ const FACE_LANDMARKER_MODEL_PATH = import.meta.env.VITE_FACE_LANDMARKER_MODEL_UR
 const DISTANT_FACE_DETECTOR_MODEL_PATH = import.meta.env.VITE_FACE_DETECTOR_MODEL_URL?.trim()
   || 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_full_range/float16/1/blaze_face_full_range.tflite';
 const MAX_TRACKED_FACES = 5;
-// O overlay continua responsivo sem disputar cada frame da webcam com uma
-// inferência síncrona no thread principal.
-const LANDMARK_FRAME_INTERVAL_MS = 58;
+// ~25 FPS mantém o contorno visual colado ao rosto sem tentar executar a
+// inferência síncrona em todos os frames de webcams de 30/60 FPS.
+const LANDMARK_FRAME_INTERVAL_MS = 40;
 const DISTANT_SCAN_INTERVAL_MS = 180;
 const DISTANT_DETECTION_TTL_MS = 280;
 const DISTANT_DETECTOR_MAX_EDGE = 640;
@@ -139,7 +139,7 @@ function boxesRepresentSameFace(left: FaceBox, right: FaceBox) {
     && Math.abs(leftCenterY - rightCenterY) < Math.max(left.height, right.height) * 0.32;
 }
 
-export function stabilizeFaceBoxes(previous: FaceBox[], current: FaceBox[], alpha = 0.72) {
+export function stabilizeFaceBoxes(previous: FaceBox[], current: FaceBox[], alpha = 0.9) {
   const weight = clamp(alpha, 0, 1);
   return current.map((candidate) => {
     const prior = previous
@@ -174,7 +174,7 @@ export function updateDistantFaceCandidates(
       .filter((candidate) => boxesRepresentSameFace(candidate.box, box))
       .sort((left, right) => faceBoxIou(right.box, box) - faceBoxIou(left.box, box))[0];
     return {
-      box: prior ? stabilizeFaceBoxes([prior.box], [box], 0.76)[0] : box,
+      box: prior ? stabilizeFaceBoxes([prior.box], [box], 0.9)[0] : box,
       expiresAt: now + ttl,
       hits: Math.min((prior?.hits || 0) + 1, 4),
     };

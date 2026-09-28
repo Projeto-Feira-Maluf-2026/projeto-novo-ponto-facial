@@ -221,6 +221,15 @@ describe('rastreamento visual multi-rosto', () => {
     expect(box.width).toBeCloseTo(0.12);
   });
 
+  it('prioriza a posição atual para o quadro não parecer atrasado', () => {
+    const previous = [{ x: 0.20, y: 0.20, width: 0.12, height: 0.20 }];
+    const current = [{ x: 0.22, y: 0.18, width: 0.12, height: 0.20 }];
+    const [box] = stabilizeFaceBoxes(previous, current);
+
+    expect(box.x).toBeCloseTo(0.218);
+    expect(box.y).toBeCloseTo(0.182);
+  });
+
   it('associa o verde somente ao rosto reconhecido', () => {
     const left = { x: 0.10, y: 0.20, width: 0.16, height: 0.24 };
     const right = { x: 0.62, y: 0.20, width: 0.16, height: 0.24 };
