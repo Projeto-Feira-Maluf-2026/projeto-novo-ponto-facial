@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+# Public stack name in the original audit table; exact value and path only.
+[[allowlists]]
+description = "Public stack name, not a credential"
+condition = "AND"
+paths = ['''docs/audit-2026-10-10\.md$''']
+regexTarget = "secret"
+regexes = ['''^InsightFace/ArcFace$''']

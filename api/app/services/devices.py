@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import password_hash, verify_password
+from app.core.rate_limit import check_rate_limit
 from app.models.entities import CaptureDevice
 from app.models.enums import DeviceStatus
 from app.schemas.devices import CameraConfig, CameraTestResponse, DeviceCreate, DeviceHeartbeat
@@ -44,6 +45,7 @@ class DeviceService:
         )
         if not device or not verify_password(payload.api_key, device.api_key_hash):
             raise PermissionError("Dispositivo nao autorizado")
+        await check_rate_limit("device:" + device.id, "heartbeat")
         device.last_seen_at = datetime.utcnow()
         device.metadata_json = payload.metadata_json
         await self.session.commit()

@@ -5,7 +5,7 @@ $Api = Join-Path $Root "api"
 $Web = Join-Path $Root "web"
 $Logs = Join-Path $Root "logs"
 $VenvPython = Join-Path $Api ".venv\Scripts\python.exe"
-$ViteCommand = Join-Path $Web "node_modules\.bin\vite.cmd"
+$ViteCommand = Join-Path $Root "node_modules\.bin\vite.cmd"
 $SetupScript = Join-Path $PSScriptRoot "setup.ps1"
 
 New-Item -ItemType Directory -Force -Path $Logs | Out-Null

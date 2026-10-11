@@ -289,6 +289,9 @@ export function FacialTerminalPage() {
         offline_batch_id: `terminal-${scanId}-${index + 1}`,
         occurred_at: occurredAt,
       })), signal);
+      // A cancelled scan may have committed on the server. Do not present its
+      // response in a different worksite or after the operator pauses the scan.
+      if (signal?.aborted) return 0;
       const completedRecords: RecentRecord[] = [];
       const newlyCompletedRecords: RecentRecord[] = [];
       let successfulRecognition: LiveRecognition | null = null;
@@ -303,16 +306,17 @@ export function FacialTerminalPage() {
           || 'Funcionário';
         const resolvedEmployeeId = result.employee_id || candidate.employeeId || '';
         if (result.status !== 'ACCEPTED' && result.status !== 'MANUAL_REVIEW') return;
+        // Only a persisted record can confirm attendance. Never fabricate a
+        // record identifier or timestamp from a recognition-only response.
+        if (!result.record?.id || !result.record.occurred_at) return;
 
         const completedRecord = {
-          id: result.record?.id || crypto.randomUUID(),
+          id: result.record.id,
           employee: employeeName,
           registration: result.employee_registration || employee?.registration,
           punchType: result.punch_type,
           status: result.status,
-          occurredAt: result.record?.occurred_at
-            ? parseApiDate(result.record.occurred_at)
-            : new Date(),
+          occurredAt: parseApiDate(result.record.occurred_at),
           emailSent: result.email_notification_sent,
         } satisfies RecentRecord;
         completedRecords.push(completedRecord);
@@ -406,6 +410,7 @@ export function FacialTerminalPage() {
       setGuidance(attendanceReasonMessage(batch.decisions[0]?.reasons || []));
       return 0;
     } catch {
+      if (signal?.aborted) return 0;
       resultHoldUntilRef.current = Date.now() + SERVICE_RETRY_HOLD_MS;
       setMode('attention');
       setGuidance('O serviço de ponto não respondeu. A câmera continuará tentando.');
@@ -639,6 +644,7 @@ export function FacialTerminalPage() {
               onClick={() => setAutoEnabled((current) => !current)}
               className="icon-button"
               aria-label={autoEnabled ? 'Pausar leitura automática' : 'Iniciar leitura automática'}
+              aria-pressed={autoEnabled}
               title={autoEnabled ? 'Pausar leitura' : 'Iniciar leitura'}
             >
               {autoEnabled ? <Pause size={17} /> : <Play size={17} />}
@@ -648,6 +654,7 @@ export function FacialTerminalPage() {
               onClick={() => setFullscreen((current) => !current)}
               className="icon-button"
               aria-label={fullscreen ? 'Sair da tela cheia' : 'Usar tela cheia'}
+              aria-pressed={fullscreen}
               title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
             >
               {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
@@ -682,7 +689,7 @@ export function FacialTerminalPage() {
             >
               <ResultIcon size={20} />
             </div>
-            <div className="min-w-0" aria-live="polite">
+            <div className="min-w-0" role="status" aria-live="polite" aria-atomic="true">
               <strong>{resultPresentation.title}</strong>
               <span>{guidance}</span>
             </div>

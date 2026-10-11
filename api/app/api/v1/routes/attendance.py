@@ -89,7 +89,7 @@ async def punch_batch(
 async def correct_attendance(
     record_id: str,
     payload: AttendanceCorrection,
-    current_user: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
+    current_user: UserRead = Depends(require_scopes(Scope.ATTENDANCE_CORRECT)),
     session: AsyncSession = Depends(get_session),
 ) -> AttendanceRead:
     try:
