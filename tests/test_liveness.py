@@ -1,3 +1,5 @@
+import pytest
+
 from app.models.enums import FraudType
 from app.services.ai.liveness import LivenessEvaluator, LivenessInput
 
@@ -46,3 +48,15 @@ def test_missing_liveness_is_reported_as_not_evaluated() -> None:
     assert decision.evaluated is False
     assert decision.reasons == ["liveness_not_evaluated"]
     assert "low_liveness" not in decision.reasons
+
+
+@pytest.mark.parametrize("field", ["liveness_score", "quality_score", "motion_score"])
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf"), -0.1, 1.1])
+def test_invalid_liveness_evidence_fails_closed(field: str, invalid: float) -> None:
+    scores = {"liveness_score": 0.92, "quality_score": 0.86, "motion_score": 0.74}
+    scores[field] = invalid
+    decision = LivenessEvaluator().evaluate(LivenessInput(face_count=1, **scores))
+    assert decision.accepted is False
+    assert decision.score == 0.0
+    assert decision.evaluated is False
+    assert decision.reasons == ["invalid_liveness_evidence"]

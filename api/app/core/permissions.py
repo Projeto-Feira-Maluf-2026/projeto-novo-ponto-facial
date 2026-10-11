@@ -7,6 +7,7 @@ class Scope(StrEnum):
     EMPLOYEES_DELETE = "employees:delete"
     EMPLOYEES_READ = "employees:read"
     ATTENDANCE_WRITE = "attendance:write"
+    ATTENDANCE_CORRECT = "attendance:correct"
     ATTENDANCE_READ = "attendance:read"
     WORKSITES_WRITE = "worksites:write"
     WORKSITES_READ = "worksites:read"
@@ -25,6 +26,7 @@ ROLE_SCOPES: dict[str, set[Scope]] = {
         Scope.EMPLOYEES_WRITE,
         Scope.ATTENDANCE_READ,
         Scope.ATTENDANCE_WRITE,
+        Scope.ATTENDANCE_CORRECT,
         Scope.WORKSITES_READ,
         Scope.REPORTS_EXPORT,
         Scope.ALERTS_READ,
@@ -35,6 +37,7 @@ ROLE_SCOPES: dict[str, set[Scope]] = {
         Scope.EMPLOYEES_READ,
         Scope.ATTENDANCE_READ,
         Scope.ATTENDANCE_WRITE,
+        Scope.ATTENDANCE_CORRECT,
         Scope.WORKSITES_READ,
         Scope.DEVICES_READ,
         Scope.REPORTS_EXPORT,
@@ -45,11 +48,11 @@ ROLE_SCOPES: dict[str, set[Scope]] = {
         Scope.EMPLOYEES_READ,
         Scope.ATTENDANCE_READ,
         Scope.ATTENDANCE_WRITE,
+        Scope.ATTENDANCE_CORRECT,
         Scope.WORKSITES_READ,
     },
     "FUNCIONARIO": {
         Scope.ATTENDANCE_WRITE,
-        Scope.ATTENDANCE_READ,
     },
 }
 

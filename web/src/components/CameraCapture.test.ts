@@ -1,5 +1,5 @@
-import { render, waitFor } from '@testing-library/react';
-import { createElement } from 'react';
+import { act, render, waitFor } from '@testing-library/react';
+import { createElement, createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@mediapipe/tasks-vision', async () => {
@@ -22,9 +22,84 @@ import {
   stabilizeFaceBoxes,
   updateDistantFaceCandidates,
   CameraCapture,
+  type CameraCaptureHandle,
 } from './CameraCapture';
 
 describe('CameraCapture lifecycle', () => {
+  it('não captura imagem congelada quando a câmera está muda, encerrada ou sem frame', async () => {
+    const track = { readyState: 'live', muted: false, stop: vi.fn(), getSettings: () => ({ deviceId: 'camera-1' }) };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [track], getVideoTracks: () => [track] }),
+        enumerateDevices: vi.fn().mockResolvedValue([]),
+        addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', { configurable: true, value: vi.fn().mockResolvedValue(undefined) });
+    Object.defineProperty(HTMLMediaElement.prototype, 'pause', { configurable: true, value: vi.fn() });
+    const drawImage = vi.fn();
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage } as unknown as ReturnType<HTMLCanvasElement['getContext']>);
+    const toDataURL = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,synthetic');
+    const ref = createRef<CameraCaptureHandle>();
+    const onReady = vi.fn();
+    const view = render(createElement(CameraCapture, { ref, onReadyChange: onReady }));
+    await waitFor(() => expect(onReady).toHaveBeenCalledWith(true));
+    const video = view.container.querySelector('video')!;
+    Object.defineProperties(video, {
+      videoWidth: { configurable: true, value: 640 },
+      videoHeight: { configurable: true, value: 480 },
+      readyState: { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA },
+    });
+    expect(ref.current?.capture()).toBe('data:image/jpeg;base64,synthetic');
+    track.muted = true;
+    expect(ref.current?.capture()).toBeNull();
+    track.muted = false;
+    track.readyState = 'ended';
+    expect(ref.current?.capture()).toBeNull();
+    track.readyState = 'live';
+    Object.defineProperty(video, 'readyState', { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    expect(ref.current?.capture()).toBeNull();
+    expect(drawImage).toHaveBeenCalledTimes(1);
+    view.unmount();
+    getContext.mockRestore();
+    toDataURL.mockRestore();
+  });
+
+  it.each(['play', 'enumerateDevices'])('não confirma câmera pronta após desmontar durante %s', async (pendingStep) => {
+    let finishPending!: () => void;
+    const pending = new Promise<void>((resolve) => { finishPending = resolve; });
+    const stopTrack = vi.fn();
+    const play = vi.fn(() => pendingStep === 'play' ? pending : Promise.resolve());
+    const enumerateDevices = vi.fn(async () => {
+      if (pendingStep === 'enumerateDevices') await pending;
+      return [];
+    });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [{ stop: stopTrack }],
+          getVideoTracks: () => [{ getSettings: () => ({ deviceId: 'camera-1' }) }],
+        }),
+        enumerateDevices,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', { configurable: true, value: play });
+    Object.defineProperty(HTMLMediaElement.prototype, 'pause', { configurable: true, value: vi.fn() });
+    const onReady = vi.fn();
+    const view = render(createElement(CameraCapture, { onReadyChange: onReady }));
+    await waitFor(() => expect(pendingStep === 'play' ? play : enumerateDevices).toHaveBeenCalled());
+    view.unmount();
+    finishPending();
+    await pending;
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(stopTrack).toHaveBeenCalledTimes(1);
+    expect(onReady).not.toHaveBeenCalledWith(true);
+  });
+
   it('não reinicia a webcam quando o componente pai troca callbacks', async () => {
     const stopTrack = vi.fn();
     const getUserMedia = vi.fn().mockResolvedValue({
@@ -290,5 +365,65 @@ describe('isPlausibleDistantFace', () => {
         { x: 0.48, y: 0.25 },
       ],
     })).toBe(false);
+  });
+});
+
+
+describe('CameraCapture worker bounds', () => {
+  it('permite um frame pendente e descarta bitmap criado depois de desmontar', async () => {
+    let workerInstance: FakeWorker | undefined;
+    class FakeWorker {
+      onmessage: ((event: { data: unknown }) => void) | null = null;
+      onerror: (() => void) | null = null;
+      postMessage = vi.fn();
+      terminate = vi.fn();
+      constructor() { workerInstance = this; }
+    }
+    vi.stubGlobal('Worker', FakeWorker);
+    let completeBitmap!: (bitmap: ImageBitmap) => void;
+    const bitmapPromise = new Promise<ImageBitmap>((resolve) => { completeBitmap = resolve; });
+    const makeBitmap = vi.fn(() => bitmapPromise);
+    vi.stubGlobal('createImageBitmap', makeBitmap);
+    let nextFrame: ((now: number) => void) | undefined;
+    Object.defineProperty(HTMLVideoElement.prototype, 'requestVideoFrameCallback', {
+      configurable: true, value: vi.fn((callback) => { nextFrame = callback; return 1; }),
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, 'cancelVideoFrameCallback', {
+      configurable: true, value: vi.fn(),
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', { configurable: true, value: vi.fn().mockResolvedValue(undefined) });
+    Object.defineProperty(HTMLMediaElement.prototype, 'pause', { configurable: true, value: vi.fn() });
+    const track = { readyState: 'live', muted: false, stop: vi.fn(), getSettings: () => ({ deviceId: 'camera-1' }) };
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true, value: {
+        getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [track], getVideoTracks: () => [track] }),
+        enumerateDevices: vi.fn().mockResolvedValue([]), addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      },
+    });
+    const view = render(createElement(CameraCapture));
+    await waitFor(() => expect(workerInstance?.postMessage).toHaveBeenCalled());
+    const instance = workerInstance!;
+    const video = view.container.querySelector('video')!;
+    Object.defineProperties(video, {
+      videoWidth: { configurable: true, value: 640 }, videoHeight: { configurable: true, value: 480 },
+      readyState: { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA },
+      currentTime: { configurable: true, writable: true, value: 1 },
+    });
+    await act(async () => instance.onmessage?.({ data: { type: 'ready' } }));
+    act(() => nextFrame?.(100));
+    video.currentTime = 2;
+    act(() => nextFrame?.(200));
+    expect(makeBitmap).toHaveBeenCalledTimes(1);
+    view.unmount();
+    const close = vi.fn();
+    completeBitmap({ close } as unknown as ImageBitmap);
+    await bitmapPromise;
+    await Promise.resolve();
+    expect(close).toHaveBeenCalledOnce();
+    expect(instance.terminate).toHaveBeenCalledOnce();
+    expect(instance.postMessage).toHaveBeenCalledTimes(1); // only init; no stale transferred pixels
+    vi.unstubAllGlobals();
+    delete (HTMLVideoElement.prototype as unknown as Record<string, unknown>).requestVideoFrameCallback;
+    delete (HTMLVideoElement.prototype as unknown as Record<string, unknown>).cancelVideoFrameCallback;
   });
 });

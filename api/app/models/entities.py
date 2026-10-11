@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -11,12 +11,12 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    LargeBinary,
     String,
     Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from app.core.crypto import EncryptedEmbedding
 
 from app.models.enums import (
     AlertSeverity,
@@ -34,16 +34,20 @@ class Base(DeclarativeBase):
     pass
 
 
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 def new_uuid() -> str:
     return str(uuid4())
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
         nullable=False,
     )
 
@@ -146,6 +150,26 @@ class CaptureDevice(Base, TimestampMixin):
     __table_args__ = (Index("ix_capture_devices_last_seen_at", "last_seen_at"),)
 
 
+class UserEmployeeLink(Base, TimestampMixin):
+    __tablename__ = "user_employee_links"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    employee_id: Mapped[str] = mapped_column(
+        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class UserWorksiteGrant(Base, TimestampMixin):
+    __tablename__ = "user_worksite_grants"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    worksite_id: Mapped[str] = mapped_column(
+        ForeignKey("worksites.id", ondelete="CASCADE"), primary_key=True
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class FaceEnrollmentSession(Base, TimestampMixin):
     __tablename__ = "face_enrollment_sessions"
 
@@ -192,7 +216,7 @@ class FaceTemplate(Base, TimestampMixin):
     embedding_dimension: Mapped[int] = mapped_column(Integer, nullable=False)
     detector_name: Mapped[str] = mapped_column(String(120), nullable=False)
     normalization_version: Mapped[str] = mapped_column(String(120), nullable=False)
-    embedding: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    embedding: Mapped[bytes] = mapped_column(EncryptedEmbedding(), nullable=False)
     image_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     quality_score: Mapped[float] = mapped_column(Float, nullable=False)
     quality_metrics: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -237,7 +261,7 @@ class AttendanceRecord(Base, TimestampMixin):
     device_id: Mapped[str | None] = mapped_column(ForeignKey("capture_devices.id"))
     punch_type: Mapped[PunchType] = mapped_column(Enum(PunchType), nullable=False)
     status: Mapped[AttendanceStatus] = mapped_column(Enum(AttendanceStatus), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
     similarity_score: Mapped[float | None] = mapped_column(Float)
@@ -253,6 +277,9 @@ class AttendanceRecord(Base, TimestampMixin):
     device: Mapped[CaptureDevice | None] = relationship()
 
     __table_args__ = (
+        UniqueConstraint(
+            "employee_id", "worksite_id", "offline_batch_id", name="uq_attendance_idempotency"
+        ),
         Index("ix_attendance_employee_date", "employee_id", "occurred_at"),
         Index("ix_attendance_worksite_date", "worksite_id", "occurred_at"),
         Index("ix_attendance_occurred_at", "occurred_at"),
@@ -288,7 +315,7 @@ class AuditLog(Base):
     ip_address: Mapped[str | None] = mapped_column(String(80))
     user_agent: Mapped[str | None] = mapped_column(String(255))
     metadata_json: Mapped[dict | None] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (
         Index("ix_audit_action_created", "action", "created_at"),

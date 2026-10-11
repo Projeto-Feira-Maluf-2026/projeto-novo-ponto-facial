@@ -27,7 +27,13 @@ def test_vercel_routes_every_api_path_to_the_python_entrypoint() -> None:
 def test_vercel_blob_sdk_is_installed_in_the_lightweight_function() -> None:
     requirements = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
 
-    assert "vercel>=0.7.0,<1.0.0" in requirements
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+
+    sdk = next(Requirement(line) for line in requirements.splitlines()
+               if line.startswith("vercel=="))
+    pinned = next(spec.version for spec in sdk.specifier if spec.operator == "==")
+    assert Version(pinned) in Requirement("vercel>=0.7.0,<1.0.0").specifier
 
 
 def test_vercel_detects_only_the_explicit_python_entrypoint() -> None:

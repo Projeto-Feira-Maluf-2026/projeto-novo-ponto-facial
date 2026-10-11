@@ -11,12 +11,12 @@ Variaveis obrigatorias:
 DATABASE_URL=postgresql+asyncpg://...
 SUPABASE_URL=https://SEU-PROJETO.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-PASSWORD_PEPPER=segredo-aleatorio-com-ao-menos-32-caracteres
+PASSWORD_PEPPER=<gere-segredo-aleatorio-de-pelo-menos-64-caracteres>
 FIELD_ENCRYPTION_KEY=chave-fernet-valida
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 VITE_API_URL=/api/v1
-# URL pública do projeto Vercel Container facial.
+# URL pÃºblica do projeto Vercel Container facial.
 VITE_FACE_API_URL=https://curitiba-gestao-face.vercel.app/api/v1
 ```
 
@@ -44,7 +44,7 @@ limitacao sem tentar importar as bibliotecas nativas.
 ## Backend facial em Vercel Container
 
 Vincule `api/vercel.json` ao projeto facial e publique a raiz com o entrypoint
-`api/Dockerfile.vercel`. O processo deve receber, no mínimo, as mesmas
+`api/Dockerfile.vercel`. O processo deve receber, no mÃ­nimo, as mesmas
 variaveis `DATABASE_URL`, `SUPABASE_*`, `PASSWORD_PEPPER` e `FIELD_ENCRYPTION_KEY` da API
 comum, alem destas:
 

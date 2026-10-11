@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 
 import { supabase } from './supabase';
+import { authenticatedReadCache } from './authenticatedReadCache';
 
 import type {
   AttendanceDecision,
@@ -110,35 +111,8 @@ const faceHealthApi = createApi(faceHealthBaseUrl, 10_000);
 
 const enableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
 
-type CachedRead = { expiresAt: number; value?: unknown; inFlight?: Promise<unknown> };
-const readCache = new Map<string, CachedRead>();
-
-function cachedRead<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
-  const now = Date.now();
-  const cached = readCache.get(key);
-  if (cached?.value !== undefined && cached.expiresAt > now) {
-    return Promise.resolve(cached.value as T);
-  }
-  if (cached?.inFlight) return cached.inFlight as Promise<T>;
-
-  const inFlight = loader()
-    .then((value) => {
-      readCache.set(key, { value, expiresAt: Date.now() + ttlMs });
-      return value;
-    })
-    .catch((error) => {
-      readCache.delete(key);
-      throw error;
-    });
-  readCache.set(key, { expiresAt: 0, inFlight });
-  return inFlight;
-}
-
-function invalidateReads(...prefixes: string[]) {
-  for (const key of readCache.keys()) {
-    if (prefixes.some((prefix) => key.startsWith(prefix))) readCache.delete(key);
-  }
-}
+const cachedRead = authenticatedReadCache.read;
+const invalidateReads = authenticatedReadCache.invalidate;
 
 const fallbackMetrics: DashboardMetrics = {
   total_employees: 1264,
@@ -385,6 +359,7 @@ export const apiClient = {
   },
   punch: async (payload: PunchPayload) => {
     const response = await faceApi.post<AttendanceDecision>('/attendance/punch', payload);
+    invalidateReads('dashboard');
     return response.data;
   },
   identifyFaces: async (imagesBase64: string[], worksiteId?: string | null, signal?: AbortSignal) => {

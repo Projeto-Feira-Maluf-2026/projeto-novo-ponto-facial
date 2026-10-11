@@ -32,6 +32,7 @@ coverage.xml
 .venv/
 venv/
 api/.venv/
+api/.venv-audit/
 .vercel_python_packages/
 __pycache__/
 *.py[cod]
