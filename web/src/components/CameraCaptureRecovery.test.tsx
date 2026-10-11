@@ -20,6 +20,7 @@ function setup() {
   } });
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   return getUserMedia;
 }
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
