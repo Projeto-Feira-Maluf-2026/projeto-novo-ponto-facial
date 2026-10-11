@@ -1,4 +1,5 @@
 import { Camera, RefreshCcw, Video } from 'lucide-react';
+import { isRecoverableCameraError, openCameraStream } from '../utils/cameraStream';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Detection } from '@mediapipe/tasks-vision';
 import type { FaceLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision';
@@ -83,7 +84,7 @@ const DISTANT_SCAN_INTERVAL_MS = 180;
 const DISTANT_DETECTION_TTL_MS = 280;
 const DISTANT_DETECTOR_MAX_EDGE = 640;
 const CAMERA_RELEASE_DELAY_MS = 180;
-const CAMERA_START_RETRIES = 2;
+const CAMERA_RECOVERY_RETRIES = 2;
 const SELECTED_CAMERA_STORAGE_KEY = 'ponto-facial:selected-camera';
 
 function readStoredCameraId() {
@@ -361,7 +362,7 @@ export function cameraAccessErrorMessage(error: unknown) {
     return 'Nenhuma webcam foi encontrada. Reconecte ou habilite a câmera no Windows e tente novamente.';
   }
   if (errorName === 'NotReadableError' || errorName === 'TrackStartError') {
-    return 'A webcam está ocupada ou indisponível. Feche OBS, Teams e outros aplicativos que usam a câmera e tente novamente.';
+    return 'A câmera está indisponível ou ocupada. Selecione outra câmera ou feche aplicativos que possam estar usando a webcam e tente novamente.';
   }
   if (errorName === 'OverconstrainedError' || errorName === 'ConstraintNotSatisfiedError') {
     return 'A webcam não aceita a configuração solicitada. Selecione outra câmera ou tente novamente.';
@@ -380,6 +381,7 @@ interface CameraCaptureProps {
   faceOverlayTargets?: FaceOverlayTarget[];
   detectedFaceBox?: FaceSourceBox | null;
   onReadyChange?: (ready: boolean) => void;
+  onErrorChange?: (error: string) => void;
   onFacePresenceChange?: (present: boolean) => void;
   onFaceCountChange?: (count: number) => void;
 }
@@ -392,6 +394,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     faceOverlayTargets = [],
     detectedFaceBox,
     onReadyChange,
+    onErrorChange,
     onFacePresenceChange,
     onFaceCountChange,
   }, ref) => {
@@ -408,6 +411,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const faceOverlayRef = useRef<FaceOverlayState | undefined>(faceOverlay);
     const faceOverlayTargetsRef = useRef<FaceOverlayTarget[]>(faceOverlayTargets);
     const onReadyChangeRef = useRef(onReadyChange);
+    const onErrorChangeRef = useRef(onErrorChange);
     const onFacePresenceChangeRef = useRef(onFacePresenceChange);
     const onFaceCountChangeRef = useRef(onFaceCountChange);
     const normalizedFaceBoxRef = useRef<FaceBox | null>(null);
@@ -432,9 +436,12 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
 
     useEffect(() => {
       onReadyChangeRef.current = onReadyChange;
+      onErrorChangeRef.current = onErrorChange;
       onFacePresenceChangeRef.current = onFacePresenceChange;
       onFaceCountChangeRef.current = onFaceCountChange;
-    }, [onFaceCountChange, onFacePresenceChange, onReadyChange]);
+    }, [onFaceCountChange, onFacePresenceChange, onReadyChange, onErrorChange]);
+
+    useEffect(() => { onErrorChangeRef.current?.(error); }, [error]);
 
     const stop = useCallback(() => {
       startRequestIdRef.current += 1;
@@ -500,62 +507,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (previousStream) {
           await new Promise((resolve) => window.setTimeout(resolve, CAMERA_RELEASE_DELAY_MS));
         }
-        const preferredVideo: MediaTrackConstraints = {
-          ...(requestedDeviceId
-            ? { deviceId: { exact: requestedDeviceId } }
-            : { facingMode: { ideal: 'user' } }),
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 30 },
-        };
-
-        let initialError: unknown;
-        for (let attempt = 0; attempt <= CAMERA_START_RETRIES && !stream; attempt += 1) {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: preferredVideo });
-          } catch (cameraError) {
-            initialError = cameraError;
-            const errorName = cameraError && typeof cameraError === 'object' && 'name' in cameraError
-              ? String(cameraError.name)
-              : '';
-            if (!['NotReadableError', 'TrackStartError'].includes(errorName) || attempt === CAMERA_START_RETRIES) {
-              break;
-            }
-            await new Promise((resolve) => window.setTimeout(resolve, 220 * (attempt + 1)));
-          }
-        }
-        if (!stream) {
-          const errorName = initialError && typeof initialError === 'object' && 'name' in initialError
-            ? String(initialError.name)
-            : '';
-          const canRetryWithDefaults = [
-            'NotFoundError',
-            'DevicesNotFoundError',
-            'NotReadableError',
-            'TrackStartError',
-            'OverconstrainedError',
-            'ConstraintNotSatisfiedError',
-          ].includes(errorName);
-          if (!canRetryWithDefaults) throw initialError;
-          stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
-        }
-
-        const resolutionTrack = stream.getVideoTracks()[0];
-        if (resolutionTrack?.applyConstraints && resolutionTrack.getCapabilities) {
-          try {
-            const capabilities = resolutionTrack.getCapabilities();
-            const maximumWidth = Math.min(capabilities.width?.max || 1920, 2560);
-            const maximumHeight = Math.min(capabilities.height?.max || 1080, 1440);
-            await resolutionTrack.applyConstraints({
-              width: { ideal: maximumWidth },
-              height: { ideal: maximumHeight },
-              frameRate: { ideal: 30, max: 30 },
-            });
-          } catch {
-            // Algumas webcams anunciam resoluções que o driver não consegue aplicar.
-            // Nesse caso, mantemos o melhor modo escolhido pelo navegador.
-          }
-        }
+        stream = await openCameraStream(
+          navigator.mediaDevices, requestedDeviceId, refreshDevices,
+          () => mountedRef.current && requestId === startRequestIdRef.current,
+        );
 
         if (requestId !== startRequestIdRef.current) {
           stream.getTracks().forEach((track) => track.stop());
@@ -617,16 +572,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (streamRef.current === stream) streamRef.current = null;
         if (requestId === startRequestIdRef.current) {
           setError(cameraAccessErrorMessage(cameraError));
-          const retryableErrors = new Set([
-            'NotReadableError',
-            'TrackStartError',
-            'NotFoundError',
-            'DevicesNotFoundError',
-            'OverconstrainedError',
-            'ConstraintNotSatisfiedError',
-          ]);
-          const errorName = cameraError instanceof DOMException ? cameraError.name : '';
-          if (retryableErrors.has(errorName)) {
+          if (isRecoverableCameraError(cameraError)
+            && cameraFailureCountRef.current < CAMERA_RECOVERY_RETRIES) {
             cameraFailureCountRef.current += 1;
             const retryDelay = Math.min(1_200 * cameraFailureCountRef.current, 5_000);
             restartTimerRef.current = window.setTimeout(() => {
@@ -1344,15 +1291,17 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         </div>
 
         <div className="camera-device-controls">
-          {videoInputs.length > 1 && (
+          {videoInputs.length > 0 && (
             <label className="camera-device-picker">
               <Video size={14} aria-hidden="true" />
               <span className="sr-only">Selecionar câmera</span>
               <select
                 value={selectedDeviceId}
+                disabled={starting}
                 onChange={(event) => selectCamera(event.target.value)}
                 aria-label="Selecionar câmera"
               >
+                <option value="">Câmera padrão do navegador</option>
                 {videoInputs.map((device, index) => (
                   <option key={device.deviceId || `camera-${index}`} value={device.deviceId}>
                     {device.label || `Câmera ${index + 1}`}

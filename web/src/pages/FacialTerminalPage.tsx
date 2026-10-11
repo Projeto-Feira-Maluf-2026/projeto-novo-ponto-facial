@@ -177,6 +177,7 @@ export function FacialTerminalPage() {
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [worksiteId, setWorksiteId] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState('');
   const [autoEnabled, setAutoEnabled] = useState(true);
   const [mode, setMode] = useState<TerminalMode>('starting');
   const [analysis, setAnalysis] = useState<FaceAnalyzeResponse | null>(null);
@@ -426,8 +427,8 @@ export function FacialTerminalPage() {
     let timer = 0;
 
     if (!cameraReady) {
-      setMode('starting');
-      setGuidance('Iniciando a câmera…');
+      setMode(cameraError ? 'attention' : 'starting');
+      setGuidance(cameraError || 'Iniciando a câmera…');
       return () => controller.abort();
     }
     if (presentationExperienceOpen) {
@@ -515,7 +516,7 @@ export function FacialTerminalPage() {
       controller.abort();
       requestInFlightRef.current = false;
     };
-  }, [autoEnabled, cameraReady, presentationExperienceOpen, submitAutomaticPunches, worksiteId]);
+  }, [autoEnabled, cameraReady, cameraError, presentationExperienceOpen, submitAutomaticPunches, worksiteId]);
 
   const faceOverlay = useMemo<FaceOverlayState>(() => ({
     label: mode === 'confirming'
@@ -671,6 +672,7 @@ export function FacialTerminalPage() {
             faceOverlayTargets={recognizedFaceTargets}
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
+            onErrorChange={setCameraError}
             onFacePresenceChange={handleLocalFacePresence}
             onFaceCountChange={handleLocalFaceCount}
           />
