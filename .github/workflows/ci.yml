@@ -51,6 +51,10 @@ jobs:
         with:
           node-version: "24"
       - name: Test and build web
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_synthetic_ci_only
+          VITE_API_URL: /api/v1
         run: |
           npm ci
           npm test --workspace=web -- --run
@@ -89,4 +93,4 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: sb_publishable_test
           PASSWORD_PEPPER: ci-only-password-pepper-value-1234567890
           FIELD_ENCRYPTION_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
-        run: uv run --project api --locked --extra dev pytest tests/test_postgres_attendance_concurrency.py -q
+        run: uv run --project api --locked --extra dev pytest -c api/pyproject.toml tests/test_postgres_attendance_concurrency.py -q
