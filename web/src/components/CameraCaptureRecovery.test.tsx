@@ -20,11 +20,28 @@ function setup() {
   } });
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   return getUserMedia;
 }
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('camera recovery controls', () => {
+  it('releases the selected stream when switching back to the browser default', async () => {
+    const getUserMedia = setup();
+    const stop = vi.fn();
+    const usbTrack = { stop, readyState: 'live', muted: false, getSettings: () => ({ deviceId: 'usb' }) };
+    const defaultTrack = { stop: vi.fn(), readyState: 'live', muted: false, getSettings: () => ({ deviceId: 'default-camera' }) };
+    getUserMedia.mockResolvedValueOnce({ getTracks: () => [usbTrack], getVideoTracks: () => [usbTrack] })
+      .mockResolvedValue({ getTracks: () => [defaultTrack], getVideoTracks: () => [defaultTrack] });
+    const view = render(createElement(CameraCapture));
+    await waitFor(() => expect(view.getByRole('combobox')).toHaveValue('usb'));
+    fireEvent.change(view.getByRole('combobox'), { target: { value: '' } });
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(getUserMedia.mock.calls[1][0].video).not.toHaveProperty('deviceId');
+    view.unmount();
+  });
+
   it('offers the camera selector after failure and lets the operator recover', async () => {
     const getUserMedia = setup();
     const onReady = vi.fn();

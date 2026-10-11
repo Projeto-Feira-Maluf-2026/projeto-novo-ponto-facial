@@ -1249,7 +1249,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       selectedDeviceIdRef.current = deviceId;
       setSelectedDeviceId(deviceId);
       storeCameraId(deviceId);
-      void start(deviceId);
+      void start(deviceId, true);
     };
 
     return (
