@@ -70,7 +70,7 @@ describe('PresentationResultExperience', () => {
   it('starts the cinematic experience without activation or pause controls', () => {
     render(<PresentationResultSummary result={result} onClose={() => undefined} />);
 
-    expect(screen.getByRole('heading', { name: /Você acabou de atravessar um sistema inteiro/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Uma presença.*Uma obra inteira.*em movimento/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ativar experiência completa/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pausar movimento/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Continuar movimento/i })).not.toBeInTheDocument();
@@ -123,5 +123,11 @@ describe('PresentationResultExperience', () => {
     expect(participantList).toHaveTextContent('Bruno Participante');
     expect(participantList).toHaveTextContent('E-mail enviado');
     expect(participantList).toHaveTextContent('Registro confirmado');
+  });
+
+  it('does not describe an unconfirmed notification as a successful delivery', () => {
+    render(<PresentationResultSummary result={{...result,participants:[{...participant,emailSent:false}]}} onClose={()=>undefined} />);
+    expect(screen.getByText(/O envio de e-mail não foi confirmado nesta leitura/)).toBeInTheDocument();
+    expect(screen.queryByText('E-mail enviado')).not.toBeInTheDocument();
   });
 });

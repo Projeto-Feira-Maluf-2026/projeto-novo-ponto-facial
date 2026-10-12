@@ -19,6 +19,7 @@ import {
   useState,
 } from 'react';
 
+import { useMovingTabIndicator } from '../animations/useMovingTabIndicator';
 import { DataTable } from '../components/DataTable';
 import { apiClient } from '../services/api';
 import type { DashboardMetrics, Device, Worksite } from '../types/domain';
@@ -67,6 +68,7 @@ function VisibleDigitalTwin({ worksite, activityPulse }: { worksite: Worksite; a
 }
 
 export function WorksitesPage() {
+  const tabsRef = useRef<HTMLDivElement>(null);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -79,6 +81,7 @@ export function WorksitesPage() {
   const [attendancePulse, setAttendancePulse] = useState(0);
 
   const selectedWorksite = worksites.find((item) => item.id === selectedWorksiteId) ?? worksites[0] ?? null;
+  useMovingTabIndicator(tabsRef, selectedWorksite?.id ?? null);
   const selectedDevices = selectedWorksite
     ? devices.filter((device) => device.worksite_id === selectedWorksite.id)
     : [];
@@ -211,7 +214,8 @@ export function WorksitesPage() {
           <div className="worksite-command-grid">
             <aside className="worksite-portfolio" aria-label="Escolher obra">
               <div className="worksite-selector-heading"><span>Portfólio de obras</span><strong>{String(worksites.length).padStart(2, '0')}</strong></div>
-              <div className="worksite-selector-list" role="tablist" aria-orientation="vertical">
+              <div ref={tabsRef} className="worksite-selector-list" role="tablist" aria-orientation="vertical">
+                <span className="worksite-tab-indicator" data-tab-indicator aria-hidden="true" />
                 {worksites.map((worksite, index) => {
                   const selected = worksite.id === selectedWorksite.id;
                   const deviceCount = devices.filter((device) => device.worksite_id === worksite.id).length;

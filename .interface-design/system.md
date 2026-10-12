@@ -89,3 +89,22 @@
 - Durante uma presença contínua, os rostos já registrados ficam bloqueados por posição até saírem do quadro; uma nova pessoa que entra continua elegível sem duplicar quem permaneceu diante da câmera.
 - A montagem normal anima módulos de primeiro nível, não todos os seus descendentes. O efeito espacial permanece sem criar dezenas de camadas de composição em telas densas.
 - O indicador da navegação usa transição CSS nativa; engines de motion ficam restritas às rotas e experiências que realmente precisam delas, sem custo no carregamento inicial.
+
+
+## Apresentação — revisão de 11/10/2026
+
+- Tema local daisyUI `curitiba-film`, componentes prefixados `film-`, sem alterar o tema do ERP.
+- Canteiro WebGL preservado; capítulo 01 usa quatro imagens sintéticas de concreto/vidro/latão em sequência vinculada ao scroll.
+- Arquitetura: deck de cards com perspectiva, saída alternada pelos lados, tilt e spotlight; em movimento reduzido volta ao fluxo linear.
+- Impacto: narrativa horizontal em desktop; mobile mantém sequência vertical e alvos de 48 px.
+- Cortina de abertura/fechamento, máscaras tipográficas e transições de rota compartilham os tokens da marca.
+- Preferência do sistema e preferência reduzida do produto têm prioridade sobre efeitos. A exceção de comparação `motion=full` é somente DEV.
+- Imagens IA são ilustrações do processo, nunca registros/fotos de participantes; escola e autoria permanecem reais.
+
+
+### Direção final solicitada: inspiração iPhone
+
+- A apresentação usa branco `#fff`, cinza suave `#f5f5f7`, grafite `#1d1d1f`, texto secundário `#616168` e verde `#3a5a40` como acento.
+- Tipografia de sistema (`-apple-system`, BlinkMacSystemFont, Segoe UI), com hierarquia mais firme e formas limpas.
+- Cards com raio de 24 px, sombras suaves, imagem clara e perspectiva. A profundidade alcança as cenas completas, preservando a navegação fixa.
+- Nova série de imagens IA clara/prata em substituição à série inicial de verde/latão; nenhum retrato inventado da equipe.
