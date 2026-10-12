@@ -378,6 +378,8 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
       const tick = (time: number) => lenis.raf(time * 1000);
       gsap.ticker.add(tick);
       lenis.on('scroll', ScrollTrigger.update);
+      const navigateDeck = (event: Event) => lenis.scrollTo((event as CustomEvent<number>).detail, { immediate: true, force: true });
+      root.addEventListener('film:navigate', navigateDeck);
       const common = { scroller: root, invalidateOnRefresh: true };
       gsap.fromTo('.film-curtain', { yPercent: 0 }, { yPercent: -100, duration: .85, ease: 'power3.inOut' });
       gsap.fromTo('[data-film-line]', { yPercent: 110, rotation: 3, opacity: 0 }, { yPercent: 0, rotation: 0, opacity: 1, duration: .9, delay: .15, stagger: .09, ease: 'power3.out' });
@@ -415,7 +417,13 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
           scrollTrigger: { trigger: '.film-hero', start: 'top top', end: 'bottom 20%', scrub: .45, ...common } });
         const cards = gsap.utils.toArray<HTMLElement>('[data-film-slab]');
         gsap.set(cards, { yPercent: -50, x: index => index*16, z: index => -index*60, rotationY: index => index*4, scale: index => 1-index*.04, opacity: index => index === 0 ? 1 : .5, zIndex: index => 4-index });
-        const deck = gsap.timeline({ scrollTrigger: { trigger: '.film-architecture', start: 'top top', end: 'bottom bottom', scrub: .45, ...common } });
+        const updateDeck = (progress: number) => {
+          const active = Math.min(3,Math.floor(progress*4));
+          cards.forEach((card,index)=>card.querySelectorAll('button').forEach(button=>button.tabIndex=index===active ? 0 : -1));
+          root.querySelectorAll<HTMLButtonElement>('[data-deck-control]').forEach((button,index)=>button.setAttribute('aria-pressed',String(index===active)));
+        };
+        updateDeck(0);
+        const deck = gsap.timeline({ scrollTrigger: { trigger: '.film-architecture', start: 'top top', end: 'bottom bottom', scrub: .45, onUpdate: trigger=>updateDeck(trigger.progress), ...common } });
         for (let index=1; index<cards.length; index+=1) {
           const side = index % 2 ? -1 : 1;
           deck.to(cards[index-1], { xPercent: side*85, x: 0, rotationY: side*28, rotationZ: side*5, z: -180, scale: .76, opacity: .15, duration: .5, ease: 'power2.inOut' }, index-.5)
@@ -426,7 +434,7 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
           scrollTrigger: { trigger: '.film-school', start: 'top bottom', end: 'bottom top', scrub: .6, ...common } });
       }
       const timer = window.setTimeout(() => { if (!disposed) ScrollTrigger.refresh(); }, 100);
-      return () => { window.clearTimeout(timer); lenis.destroy(); gsap.ticker.remove(tick); };
+      return () => { window.clearTimeout(timer); root.removeEventListener('film:navigate', navigateDeck); lenis.destroy(); gsap.ticker.remove(tick); root.querySelectorAll('[data-film-slab] button').forEach(button=>button.removeAttribute('tabindex')); };
     }, root);
     const refresh = () => { if (!disposed) ScrollTrigger.refresh(); };
     document.fonts?.ready.then(refresh).catch(() => undefined);

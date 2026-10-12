@@ -7,6 +7,7 @@ import type { PresentationResult } from './presentationResult';
 import { queuePresentationResultForNavigation } from './presentationResultTransfer';
 import { projectTeam } from './presentationTeam';
 import { AttendanceSequence } from './AttendanceSequence';
+import { ArchitectureCard } from './ArchitectureCard';
 import './presentation-film.css';
 
 const PresentationCinematicLayer = lazy(async () => {
@@ -131,8 +132,18 @@ export function PresentationResultSummary({ result, onClose }: PresentationResul
               ['Inteligência facial', 'InsightFace + ONNX', 'Características e comparação de rostos.'],
               ['Operação', 'FastAPI', 'Regras da jornada e vínculo com a obra.'],
               ['Histórico', 'PostgreSQL', 'Registros consultáveis e auditáveis.'],
-            ].map(([title, tech, description], index) => <li key={title} data-film-slab><div className="film-slab-surface" data-tilt data-tilt-strength="8"><span>{String(index + 1).padStart(2,'0')}</span><div><h3>{title}</h3><p>{description}</p></div><small>{tech}</small><img className="film-slab-art" src={`/presentation/${['capture','identity','record','confirmation'][index]}-light.webp`} alt="" width="960" height="960" loading="lazy" decoding="async" /></div></li>)}
-          </ol></div>
+            ].map(([title, tech, description], index) => <li key={title} data-film-slab><ArchitectureCard title={title} tech={tech} description={description} index={index} /></li>)}
+          </ol><div className="film-deck-controls" role="group" aria-label="Explorar camadas da arquitetura">
+            {['Interface','Inteligência facial','Operação','Histórico'].map((label,index)=><button key={label} type="button" data-deck-control={index} aria-label={`Mostrar camada: ${label}`} aria-pressed={index===0} onClick={()=>{
+              const root=storyRef.current, chapter=root?.querySelector<HTMLElement>('#arquitetura');
+              if (!root || !chapter) return;
+              const top=chapter.getBoundingClientRect().top-root.getBoundingClientRect().top+root.scrollTop;
+              const card=chapter.querySelectorAll<HTMLElement>('[data-film-slab]')[index];
+              const destination=window.matchMedia('(min-width: 901px)').matches ? top+(chapter.offsetHeight-root.clientHeight)*(index+.4)/4 : (card?.getBoundingClientRect().top ?? 0)-root.getBoundingClientRect().top+root.scrollTop-120;
+              if (root.dataset.motionEngine==='gsap') root.dispatchEvent(new CustomEvent('film:navigate',{detail:destination}));
+              else chapter.querySelectorAll<HTMLElement>('[data-film-slab]')[index]?.scrollIntoView({block:'center',behavior:'instant'});
+            }}><span aria-hidden="true" /></button>)}
+          </div></div>
         </section>
 
         <section id="impacto" className="film-impact"><div className="film-impact-scene">

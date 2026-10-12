@@ -17,7 +17,7 @@ editoriais; não são fotografias de participantes nem evidência biométrica.
 | --- | --- |
 | Staggered Fade In / Scroll Reveal | Abertura por linhas, títulos por palavras e capítulos/equipe |
 | Scroll Scrubbing / Sticky Sections | Transformação sincronizada entre imagem, identidade, registro e retorno |
-| Card Stack / cards em 3D | Deck da arquitetura; cards saem alternadamente para os lados |
+| Card Stack / cards em 3D | Deck da arquitetura; cards saem alternadamente para os lados, com controle por botões e flip acessível para detalhes |
 | Card Lift / Spotlight / Tilt | Superfícies dos cards, com atualização de cursor em requestAnimationFrame |
 | Horizontal Scroll | Portaria, gestão e participante no capítulo de impacto, em desktop |
 | Parallax / Image Scale | Fotografia da escola e continuidade da cena da obra |
@@ -83,7 +83,7 @@ Referências adicionais da revisão clara: https://developer.apple.com/design/hu
 
 ## Validação e rollback
 
-62 testes frontend passaram com a revisão dos cards e imagens; testes de
+63 testes frontend passaram com a revisão dos cards e imagens; testes de
 navegação cobrem destinos internos e a preservação dos gestos do navegador. Tipos
 e build passaram. Auditoria npm: zero vulnerabilidades conhecidas no lockfile final.
 Revisão manual: desktop, 390×844, movimento normal/reduzido, assets e console.
