@@ -6,6 +6,7 @@ import { useAuth } from './auth/AuthContext';
 import { userHasRole, type AppRole } from './auth/permissions';
 import { Layout } from './components/Layout';
 import { BrandMark } from './components/BrandMark';
+import { useSmoothNavigation } from './animations/useSmoothNavigation';
 import { useUtilityEffects } from './effects/useUtilityEffects';
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const DevicesPage = lazy(() => import('./pages/DevicesPage').then((module) => ({ default: module.DevicesPage })));
@@ -34,6 +35,7 @@ function RouteLoading() {
 
 export default function App() {
   useUtilityEffects();
+  useSmoothNavigation();
   const { loading, session, signOut, user } = useAuth();
   const privilegedRoles: AppRole[] = ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'];
   const initialPath = userHasRole(user, privilegedRoles) ? '/' : '/terminal-facial';

@@ -34,8 +34,9 @@ export function DataTable<T extends { id: string }>({
 
   return (
     <div ref={tableRef} className="table-shell app-view-transition">
+      {loading && <span className="sr-only" role="status">Carregando dados da tabela.</span>}
       <div className="data-table-scroll">
-        <table className="data-table" aria-label={ariaLabel}>
+        <table className="data-table" aria-label={ariaLabel} aria-busy={loading}>
           <thead>
             <tr>
               {columns.map((column) => (
