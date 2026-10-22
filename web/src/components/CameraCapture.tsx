@@ -383,6 +383,8 @@ interface CameraCaptureProps {
   onErrorChange?: (error: string) => void;
   onFacePresenceChange?: (present: boolean) => void;
   onFaceCountChange?: (count: number) => void;
+  /** Suspende o rastreamento local (ex.: apresentação aberta) sem desligar a câmera. */
+  trackingPaused?: boolean;
 }
 
 export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>(
@@ -396,6 +398,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     onErrorChange,
     onFacePresenceChange,
     onFaceCountChange,
+    trackingPaused = false,
   }, ref) => {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -413,6 +416,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const onErrorChangeRef = useRef(onErrorChange);
     const onFacePresenceChangeRef = useRef(onFacePresenceChange);
     const onFaceCountChangeRef = useRef(onFaceCountChange);
+    const trackingPausedRef = useRef(trackingPaused);
+    trackingPausedRef.current = trackingPaused;
     const normalizedFaceBoxRef = useRef<FaceBox | null>(null);
     const normalizedFaceBoxesRef = useRef<FaceBox[]>([]);
     const nativeNormalizedFaceBoxesRef = useRef<FaceBox[]>([]);
@@ -937,6 +942,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (
           cancelled
           || document.hidden
+          || trackingPausedRef.current
           || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS
         ) return;
 

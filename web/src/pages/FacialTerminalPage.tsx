@@ -25,6 +25,7 @@ import { apiClient } from '../services/api';
 import { usePresentationMode } from '../presentation/PresentationContext';
 import {
   shouldOfferPresentationResult,
+  type PresentationEmailStatus,
   type PresentationResult,
 } from '../presentation/presentationResult';
 import type {
@@ -63,7 +64,7 @@ type RecentRecord = {
   punchType?: PunchType | null;
   status: 'ACCEPTED' | 'MANUAL_REVIEW';
   occurredAt: Date;
-  emailSent: boolean;
+  email: PresentationEmailStatus;
 };
 
 type PunchCandidate = {
@@ -93,9 +94,16 @@ function faceBoxIou(left: CameraFaceBox, right: CameraFaceBox) {
   return union > 0 ? intersection / union : 0;
 }
 
-const PresentationResultExperience = lazy(() => import('../presentation/PresentationResultExperience').then((module) => ({
-  default: module.PresentationResultExperience,
+const loadPresentationShow = () => import('../presentation/PresentationShow');
+const PresentationShow = lazy(() => loadPresentationShow().then((module) => ({
+  default: module.PresentationShow,
 })));
+
+function emailStatus(result: AttendanceDecision): PresentationEmailStatus {
+  if (result.email_notification_sent) return 'sent';
+  if (result.email_notification_queued) return 'queued';
+  return 'none';
+}
 
 const punchLabels: Record<PunchType, string> = {
   ENTRY: 'Entrada',
@@ -192,7 +200,12 @@ export function FacialTerminalPage() {
   const presentationExperienceOpen = presentation.active && presentationResult !== null;
 
   useEffect(() => {
-    if (!presentation.active) setPresentationResult(null);
+    if (!presentation.active) {
+      setPresentationResult(null);
+      return;
+    }
+    // Baixa a apresentação antes do primeiro reconhecimento: ela abre na hora.
+    void loadPresentationShow().catch(() => undefined);
   }, [presentation.active]);
 
   useEffect(() => {
@@ -259,7 +272,14 @@ export function FacialTerminalPage() {
     }
     if ((!wasPresent && count > 0) || count > previousCount) triggerScanRef.current?.();
   }, []);
-  const closePresentationResult = useCallback(() => setPresentationResult(null), []);
+  const closePresentationResult = useCallback(() => {
+    // A apresentação dura mais que a janela de duplicidade do servidor. Quem
+    // continua diante da câmera ao fim dela não pode virar uma nova batida
+    // (por exemplo, "saída para o intervalo"): a leitura só rearma quando o
+    // quadro esvaziar ou alguém novo entrar.
+    if (localFacePresentRef.current) awaitingFaceExitRef.current = true;
+    setPresentationResult(null);
+  }, []);
 
   const submitAutomaticPunches = useCallback(async (candidates: PunchCandidate[], signal?: AbortSignal) => {
     if (!worksiteId || punchInFlightRef.current || !candidates.length) return 0;
@@ -314,7 +334,7 @@ export function FacialTerminalPage() {
           occurredAt: result.record?.occurred_at
             ? parseApiDate(result.record.occurred_at)
             : new Date(),
-          emailSent: result.email_notification_sent,
+          email: emailStatus(result),
         } satisfies RecentRecord;
         completedRecords.push(completedRecord);
         if (!result.reasons.includes('duplicate_capture')) {
@@ -358,7 +378,7 @@ export function FacialTerminalPage() {
           publishAttendancePulse(
             worksiteId,
             newlyCompletedRecords.length,
-            batch.decisions.filter((result) => result.email_notification_sent).length,
+            newlyCompletedRecords.filter((record) => record.email !== 'none').length,
           );
         }
         const allCompleted = completed === validCandidates.length;
@@ -378,7 +398,7 @@ export function FacialTerminalPage() {
           registration: record.registration,
           punchType: record.punchType,
           occurredAt: record.occurredAt,
-          emailSent: record.emailSent,
+          email: record.email,
         }));
         if (shouldOfferPresentationResult(presentation.active, presentationParticipants)) {
           setPresentationResult({
@@ -668,6 +688,7 @@ export function FacialTerminalPage() {
             onErrorChange={setCameraError}
             onFacePresenceChange={handleLocalFacePresence}
             onFaceCountChange={handleLocalFaceCount}
+            trackingPaused={presentationExperienceOpen}
           />
         </div>
 
@@ -701,7 +722,7 @@ export function FacialTerminalPage() {
                 <small>
                   {latestRecord.punchType ? punchLabels[latestRecord.punchType] : 'Ponto'} ·{' '}
                   {latestRecord.occurredAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                  {latestRecord.emailSent ? ' · E-mail enviado' : ''}
+                  {latestRecord.email === 'sent' ? ' · E-mail enviado' : latestRecord.email === 'queued' ? ' · E-mail a caminho' : ''}
                 </small>
               </div>
             )}
@@ -721,7 +742,7 @@ export function FacialTerminalPage() {
       {fullscreen ? <div className="facial-terminal-fullscreen">{content}</div> : content}
       {presentationExperienceOpen && presentationResult && (
         <Suspense fallback={null}>
-          <PresentationResultExperience
+          <PresentationShow
             result={presentationResult}
             onClose={closePresentationResult}
           />

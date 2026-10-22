@@ -113,6 +113,79 @@ def test_adaptive_detector_keeps_near_face_on_fastest_pass() -> None:
     provider._faces_for_sizes.assert_called_once_with(image, [(320, 320)])
 
 
+def _provider_with_detected_faces(faces: list) -> tuple[InsightFaceArcFaceProvider, MagicMock]:
+    provider = InsightFaceArcFaceProvider(
+        detection_sizes=[(320, 320)],
+        expected_embedding_dimension=4,
+        minimum_detection_confidence=0.32,
+    )
+    provider.initialize = MagicMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(state=FaceProviderState.READY, failure=None)
+    )
+
+    def embed(_image, face) -> None:
+        face.normed_embedding = np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+
+    recognition = MagicMock()
+    recognition.get.side_effect = embed
+    provider._app = SimpleNamespace(models={"detection": object(), "recognition": recognition})
+    provider._embedding_dimension = 4
+    provider._faces_for_sizes = MagicMock(return_value=faces)  # type: ignore[method-assign]
+    return provider, recognition
+
+
+def test_embedding_runs_only_for_the_selected_face() -> None:
+    image = np.zeros((384, 384, 3), dtype=np.uint8)
+    strong = SimpleNamespace(
+        bbox=np.asarray([60, 60, 320, 330], dtype=np.float32),
+        kps=np.asarray([[120, 150], [250, 150], [185, 210], [140, 270], [230, 270]]),
+        det_score=0.92,
+    )
+    echo = SimpleNamespace(
+        bbox=np.asarray([0, 0, 30, 30], dtype=np.float32),
+        kps=None,
+        det_score=0.35,
+    )
+    provider, recognition = _provider_with_detected_faces([strong, echo])
+
+    result = provider.analyze(image)
+
+    assert result.state == FaceProviderState.READY
+    assert result.embedding is not None
+    recognition.get.assert_called_once_with(image, strong)
+
+
+def test_multiple_faces_are_rejected_without_computing_embeddings() -> None:
+    image = np.zeros((384, 384, 3), dtype=np.uint8)
+    faces = [
+        SimpleNamespace(bbox=np.asarray([10, 10, 150, 160]), kps=None, det_score=0.9),
+        SimpleNamespace(bbox=np.asarray([200, 10, 360, 160]), kps=None, det_score=0.88),
+    ]
+    provider, recognition = _provider_with_detected_faces(faces)
+
+    result = provider.analyze(image)
+
+    assert result.state == FaceProviderState.MULTIPLE_FACES
+    recognition.get.assert_not_called()
+
+
+def test_locate_detects_without_embedding() -> None:
+    image = np.zeros((384, 384, 3), dtype=np.uint8)
+    face = SimpleNamespace(
+        bbox=np.asarray([60, 60, 320, 330], dtype=np.float32),
+        kps=np.asarray([[120, 150], [250, 150], [185, 210], [140, 270], [230, 270]]),
+        det_score=0.9,
+    )
+    provider, recognition = _provider_with_detected_faces([face])
+
+    result = provider.locate(image)
+
+    assert result.state == FaceProviderState.READY
+    assert result.bounding_box is not None
+    assert result.embedding is None
+    recognition.get.assert_not_called()
+
+
 def test_secondary_face_threshold_cannot_be_lower_than_detector_floor() -> None:
     with pytest.raises(ValidationError, match="Thresholds de deteccao facial"):
         Settings(

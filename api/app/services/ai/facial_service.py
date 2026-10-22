@@ -345,13 +345,14 @@ class FaceEmbeddingService:
 
         inference = self.provider.analyze(image.image_bgr)
         quality = self.validator.quality_report(image, inference)
+        # Blur, exposicao e contraste sao medidos sobre os pixels originais. Um
+        # quadro realcado so muda a localizacao do rosto, entao repetir a
+        # inferencia por esses motivos custava ate quatro passadas extras sem
+        # alterar o resultado. O realce continua para rosto nao encontrado,
+        # deteccao fraca e qualidade geral baixa, onde a caixa influencia a nota.
         retryable_quality_reasons = {
             FaceQualityReason.NO_FACE,
             FaceQualityReason.LOW_DETECTION_CONFIDENCE,
-            FaceQualityReason.IMAGE_TOO_BLURRY,
-            FaceQualityReason.UNDEREXPOSED,
-            FaceQualityReason.OVEREXPOSED,
-            FaceQualityReason.LOW_CONTRAST,
             FaceQualityReason.LOW_OVERALL_QUALITY,
         }
         should_retry = (
@@ -362,6 +363,7 @@ class FaceEmbeddingService:
             }
             or bool(set(quality.reasons) & retryable_quality_reasons)
         )
+        locate = getattr(self.provider, "locate", self.provider.analyze)
 
         if should_retry:
             best_ready = (
@@ -370,7 +372,7 @@ class FaceEmbeddingService:
                 else None
             )
             for enhanced_bgr in _enhanced_detection_frames(image.image_bgr):
-                locator_inference = self.provider.analyze(enhanced_bgr)
+                locator_inference = locate(enhanced_bgr)
                 if locator_inference.state == FaceProviderState.MULTIPLE_FACES:
                     inference = locator_inference
                     quality = self.validator.quality_report(image, locator_inference)

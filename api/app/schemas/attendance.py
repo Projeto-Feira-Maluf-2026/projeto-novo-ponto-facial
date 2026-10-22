@@ -97,6 +97,8 @@ class AttendanceDecision(BaseModel):
     temporal_evidence_count: int = 0
     temporal_similarity_median: float | None = None
     email_notification_sent: bool = False
+    # Em lote, o e-mail sai em segundo plano depois da resposta ao terminal.
+    email_notification_queued: bool = False
     record: AttendanceRead | None = None
 
 

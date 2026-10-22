@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scopes
+from app.core.config import settings
 from app.core.errors import AppError
 from app.core.permissions import Scope
 from app.core.runtime import is_lightweight_serverless
@@ -47,6 +48,7 @@ async def punch(
 @router.post("/punch/batch", response_model=AttendanceBatchDecision)
 async def punch_batch(
     payload: PunchBatchCreate,
+    background_tasks: BackgroundTasks,
     current_user: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> AttendanceBatchDecision:
@@ -67,13 +69,25 @@ async def punch_batch(
     try:
         for punch_payload in payload.punches:
             decisions.append(await service.register_punch(punch_payload))
+        # Uma unica transacao para o grupo inteiro: N rostos custam um commit,
+        # nao N. Os e-mails continuam saindo somente depois da gravacao.
+        await session.commit()
     except LookupError as exc:
+        await session.rollback()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except Exception:
+        await session.rollback()
+        raise
 
-    email_results = await service.send_pending_email_notifications()
+    # O SMTP levava de 1 a 3 segundos e segurava a resposta do terminal (e,
+    # portanto, a apresentacao). O registro ja esta gravado; a confirmacao por
+    # e-mail sai logo depois da resposta, sem atrasar a leitura.
+    queued_record_ids = set(service.pending_email_notifications)
+    if queued_record_ids:
+        background_tasks.add_task(service.send_pending_email_notifications)
     for decision in decisions:
-        if decision.record is not None:
-            decision.email_notification_sent = email_results.get(decision.record.id, False)
+        if decision.record is not None and decision.record.id in queued_record_ids:
+            decision.email_notification_queued = settings.EMAIL_NOTIFICATIONS_ENABLED
 
     return AttendanceBatchDecision(
         decisions=decisions,
