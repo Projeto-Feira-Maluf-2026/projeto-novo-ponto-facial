@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, or_, select, update
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scopes
 from app.core.config import settings
+from app.core.time import as_utc_naive
 from app.core.errors import AppError
 from app.core.permissions import Scope
 from app.db.session import get_session
@@ -85,7 +86,7 @@ async def _load_identification_gallery(
         )
     )
     if worksite_id:
-        now = datetime.utcnow()
+        now = as_utc_naive(datetime.now(UTC))
         statement = statement.join(
             EmployeeWorksite,
             EmployeeWorksite.employee_id == Employee.id,
@@ -271,6 +272,12 @@ async def face_capabilities() -> FaceCapabilitiesResponse:
         threshold_profile=settings.FACE_THRESHOLD_PROFILE,
         thresholds_calibrated=settings.FACE_THRESHOLDS_CALIBRATED,
         liveness_available=False,
+        pad_required=settings.ENVIRONMENT in {"staging", "production"},
+        pad_available=False,
+        biometric_attendance_available=(
+            settings.ENVIRONMENT in {"test", "development"}
+            and provider_info.state.value == "READY"
+        ),
         limitations=[
             "Liveness temporal/challenge-response ainda nao esta disponivel nesta sprint.",
             "Thresholds biometricos permanecem bloqueados para producao ate calibracao.",
@@ -279,7 +286,11 @@ async def face_capabilities() -> FaceCapabilitiesResponse:
 
 
 @router.post("/analyze-face", response_model=FaceAnalyzeResponse)
-async def analyze_face(payload: FaceAnalyzeRequest, request: Request) -> FaceAnalyzeResponse:
+async def analyze_face(
+    payload: FaceAnalyzeRequest,
+    request: Request,
+    _: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
+) -> FaceAnalyzeResponse:
     processed = FaceEmbeddingService().from_image_base64(payload.image_base64)
     return _analysis_response(request, processed)
 
@@ -486,7 +497,7 @@ async def invalidate_template_version(
             select(FaceTemplate.employee_id).where(*conditions).distinct()
         )
     )
-    now = datetime.utcnow()
+    now = as_utc_naive(datetime.now(UTC))
     result = await session.execute(
         update(FaceTemplate)
         .where(*conditions)

@@ -11,10 +11,15 @@ from pydantic import ValidationError
 
 from app.core.config import Settings
 from app.core.errors import FaceServiceUnavailableError
-from app.services.ai.base import FaceProviderState
+from app.services.ai.base import (
+    FaceBoundingBox,
+    FaceFailure,
+    FaceInferenceResult,
+    FaceProviderState,
+)
 from app.services.ai.fake_provider import FakeFaceProvider
 from app.services.ai.facial_service import FaceEmbeddingService
-from app.services.ai.image_validation import FaceImageValidator
+from app.services.ai.image_validation import FaceImageValidator, FaceQualityReason
 from app.services.ai.image_validation import ImageMetrics, ValidatedFaceImage
 from app.services.ai.insightface_provider import (
     InsightFaceArcFaceProvider,
@@ -39,6 +44,29 @@ def test_fake_provider_is_blocked_outside_tests() -> None:
             ENVIRONMENT="production",
             FACE_PROVIDER="fake",
         )
+
+
+@pytest.mark.parametrize("origin", ["*", "https://example.com/path", "https://user:pass@example.com", "http://localhost:5173"])
+def test_production_cors_rejects_wildcards_paths_credentials_and_http(origin):
+    with pytest.raises(ValidationError, match="CORS"):
+        Settings(_env_file=None, **SUPABASE_SETTINGS, ENVIRONMENT="production",
+                 FACE_PROVIDER="insightface", CORS_ORIGINS=origin)
+
+
+def test_production_cors_rejects_regex():
+    with pytest.raises(ValidationError, match="CORS"):
+        Settings(_env_file=None, **SUPABASE_SETTINGS, ENVIRONMENT="production",
+                 FACE_PROVIDER="insightface", CORS_ORIGIN_REGEX=".*")
+
+
+def test_configuration_errors_never_print_secret_inputs():
+    values = {**SUPABASE_SETTINGS, "FIELD_ENCRYPTION_KEY": "invalid-private-key",
+              "PASSWORD_PEPPER": "synthetic-private-pepper" * 3}
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None, **values)
+    output = str(error.value)
+    assert "invalid-private-key" not in output
+    assert values["PASSWORD_PEPPER"] not in output
 
 
 def test_detection_sizes_are_parsed_as_ordered_square_scales() -> None:
@@ -82,12 +110,8 @@ def test_adaptive_detector_escalates_only_until_distant_face_is_resolved() -> No
     image = np.zeros((720, 1280, 3), dtype=np.uint8)
     distant_face = SimpleNamespace(bbox=np.asarray([580, 280, 680, 380]))
     resolved_face = SimpleNamespace(bbox=np.asarray([420, 180, 760, 560]))
-    provider = InsightFaceArcFaceProvider(
-        detection_sizes=[(320, 320), (640, 640), (1280, 1280)]
-    )
-    provider._faces_for_sizes = MagicMock(
-        side_effect=[[], [distant_face], [resolved_face]]
-    )
+    provider = InsightFaceArcFaceProvider(detection_sizes=[(320, 320), (640, 640), (1280, 1280)])
+    provider._faces_for_sizes = MagicMock(side_effect=[[], [distant_face], [resolved_face]])
 
     faces = provider._adaptive_faces(image)
 
@@ -102,9 +126,7 @@ def test_adaptive_detector_escalates_only_until_distant_face_is_resolved() -> No
 def test_adaptive_detector_keeps_near_face_on_fastest_pass() -> None:
     image = np.zeros((720, 1280, 3), dtype=np.uint8)
     near_face = SimpleNamespace(bbox=np.asarray([360, 120, 800, 620]))
-    provider = InsightFaceArcFaceProvider(
-        detection_sizes=[(320, 320), (640, 640), (1280, 1280)]
-    )
+    provider = InsightFaceArcFaceProvider(detection_sizes=[(320, 320), (640, 640), (1280, 1280)])
     provider._faces_for_sizes = MagicMock(return_value=[near_face])
 
     faces = provider._adaptive_faces(image)
@@ -319,3 +341,70 @@ def test_mirrored_retry_reuses_validated_pixels_without_decoding_again() -> None
     assert np.array_equal(analyzed[:, -1], pixels[:, 0])
     assert processed.image.sha256 == image.sha256
     validator.from_base64.assert_not_called()
+
+
+@pytest.mark.parametrize("failure_stage", ["original", "enhanced", "canonical"])
+@pytest.mark.parametrize(
+    "failure_state", [FaceProviderState.INTERNAL_ERROR, FaceProviderState.MULTIPLE_FACES]
+)
+def test_enhancement_cannot_mask_provider_failure(
+    failure_stage: str, failure_state: FaceProviderState
+) -> None:
+    image = ValidatedFaceImage(
+        image_bgr=np.zeros((100, 100, 3), dtype=np.uint8),
+        original_bytes=b"validated",
+        sha256="sha",
+        mime_type="image/jpeg",
+        width=100,
+        height=100,
+        image_metrics=ImageMetrics(100.0, 120.0, 30.0, 0.0, 0.0),
+    )
+    metadata = dict(
+        model_name=None,
+        model_version=None,
+        detector_name=None,
+        normalization_version=None,
+        execution_provider=None,
+        embedding_dimension=2,
+        inference_ms=1.0,
+    )
+    ready = FaceInferenceResult(
+        **metadata,
+        state=FaceProviderState.READY,
+        face_count=1,
+        embedding=[1.0, 0.0],
+        bounding_box=FaceBoundingBox(x=20, y=20, width=60, height=60),
+    )
+    failure = FaceInferenceResult(
+        **metadata,
+        state=failure_state,
+        face_count=2 if failure_state == FaceProviderState.MULTIPLE_FACES else 0,
+        failure=FaceFailure(failure_state, "Unavailable"),
+    )
+    responses = {
+        "original": [failure],
+        "enhanced": [ready, failure],
+        "canonical": [ready, ready, failure],
+    }
+    provider = SimpleNamespace(
+        info=MagicMock(return_value=SimpleNamespace(state=FaceProviderState.READY)),
+        analyze=MagicMock(side_effect=responses[failure_stage]),
+    )
+    quality = SimpleNamespace(
+        reasons=[FaceQualityReason.LOW_OVERALL_QUALITY],
+        accepted=False,
+        quality_score=0.5,
+    )
+    validator = SimpleNamespace(quality_report=MagicMock(return_value=quality))
+    config = SimpleNamespace(ENVIRONMENT="test", FACE_THRESHOLDS_CALIBRATED=True)
+    service = FaceEmbeddingService(provider, validator, config)
+
+    if failure_state == FaceProviderState.INTERNAL_ERROR:
+        with pytest.raises(FaceServiceUnavailableError) as error:
+            service.from_mirrored_image(image)
+        assert error.value.code == "INTERNAL_ERROR"
+    else:
+        result = service.from_mirrored_image(image)
+        assert result.inference.state == FaceProviderState.MULTIPLE_FACES
+        assert result.inference.embedding is None
+    assert provider.analyze.call_count == len(responses[failure_stage])

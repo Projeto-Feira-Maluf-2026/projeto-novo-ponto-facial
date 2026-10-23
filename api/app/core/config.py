@@ -1,6 +1,7 @@
 from functools import cached_property
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
 from pydantic import Field, model_validator
@@ -9,11 +10,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
+def _dotenv_files() -> tuple[Path, ...]:
+    """Local .env files, unless the process explicitly asks for hermetic configuration.
+
+    The test suite sets PONTO_SKIP_DOTENV=1 so a developer's real .env (database,
+    SMTP, Blob tokens) can never leak into tests that only expect synthetic values.
+    """
+    if os.getenv("PONTO_SKIP_DOTENV", "").strip() == "1":
+        return ()
+    return (PROJECT_ROOT / ".env", PROJECT_ROOT / ".env.email.local")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(PROJECT_ROOT / ".env", PROJECT_ROOT / ".env.email.local"),
+        env_file=_dotenv_files(),
         env_file_encoding="utf-8",
         extra="ignore",
+        hide_input_in_errors=True,
     )
 
     PROJECT_NAME: str = "Curitiba Empreiteira - Ponto Facial"
@@ -30,12 +43,23 @@ class Settings(BaseSettings):
     REDIS_REQUIRED: bool = False
     HEALTHCHECK_TIMEOUT_SECONDS: float = 1.5
     AUTH_TIMEOUT_SECONDS: float = 4.5
+    RATE_LIMIT_REDIS_TIMEOUT_SECONDS: float = Field(default=0.3, ge=0.05, le=2)
+    RATE_LIMIT_FALLBACK_MAX_KEYS: int = Field(default=4096, ge=16, le=65536)
+    RATE_LIMIT_ATTENDANCE_PER_MINUTE: int = Field(default=600, ge=5, le=6000)
+    RATE_LIMIT_AI_PER_MINUTE: int = Field(default=600, ge=5, le=6000)
+    RATE_LIMIT_MUTATIONS_PER_MINUTE: int = Field(default=120, ge=1, le=1200)
+    RATE_LIMIT_REPORTS_PER_MINUTE: int = Field(default=10, ge=1, le=100)
+    RATE_LIMIT_HEARTBEAT_PER_MINUTE: int = Field(default=60, ge=1, le=600)
+    REQUEST_MAX_BODY_BYTES: int = Field(default=64 * 1024 * 1024, ge=1024 * 1024, le=128 * 1024 * 1024)
+    REQUEST_TIMEOUT_SECONDS: float = Field(default=60, ge=1, le=120)
+    REPORT_MAX_ROWS: int = Field(default=10000, ge=1, le=100000)
+    REPORT_MAX_PERIOD_DAYS: int = Field(default=366, ge=1, le=3660)
     FACE_EAGER_INITIALIZE: bool = True
 
     PASSWORD_PEPPER: str = Field(min_length=32)
     FIELD_ENCRYPTION_KEY: str = Field(min_length=44, max_length=44)
 
-    CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:8080"
+    CORS_ORIGINS: str = ""
     CORS_ORIGIN_REGEX: str | None = None
     BLOB_READ_WRITE_TOKEN: str | None = None
     EMAIL_NOTIFICATIONS_ENABLED: bool = False
@@ -146,6 +170,22 @@ class Settings(BaseSettings):
             raise ValueError(f"ENVIRONMENT deve ser um de {sorted(allowed_environments)}")
         self.ENVIRONMENT = environment
         self.FACE_PROVIDER = provider
+        if environment in {"staging", "production"}:
+            # Mutation quotas are distributed; readiness must never advertise
+            # deployed API readiness while their mandatory Redis is unavailable.
+            self.REDIS_REQUIRED = True
+
+        origins = [*self.cors_origins, self.FRONTEND_URL.rstrip("/")]
+        for origin in origins:
+            parsed = urlsplit(origin)
+            if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                    or parsed.username or parsed.password or parsed.query or parsed.fragment
+                    or parsed.path or "*" in origin):
+                raise ValueError("CORS e FRONTEND_URL exigem origens HTTP(S) exatas sem caminho")
+            if environment in {"staging", "production"} and parsed.scheme != "https":
+                raise ValueError("Staging e production exigem origens CORS HTTPS")
+        if environment in {"staging", "production"} and self.CORS_ORIGIN_REGEX:
+            raise ValueError("Staging e production exigem allowlist CORS exata sem regex")
 
         if not self.DATABASE_URL.startswith(("postgres://", "postgresql://", "postgresql+asyncpg://")):
             raise ValueError("DATABASE_URL deve apontar para o PostgreSQL do Supabase")

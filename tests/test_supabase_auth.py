@@ -1,4 +1,4 @@
-from base64 import urlsafe_b64encode
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from datetime import UTC, datetime, timedelta
 import json
 
@@ -113,6 +113,49 @@ def test_invalid_role_metadata_does_not_grant_admin_access() -> None:
 
     assert user.role == UserRole.FUNCIONARIO
     assert "audit:read" not in user.scopes
+
+
+@pytest.mark.parametrize("role", ["SUPER_ADMIN", "RH", "GESTOR_OBRA", "SUPERVISOR"])
+def test_user_editable_metadata_cannot_grant_privileges(role: str) -> None:
+    user = AuthService._to_read_model(
+        user_payload(app_metadata={}, user_metadata={"role": role})
+    )
+    assert user.role == UserRole.FUNCIONARIO
+    assert "attendance:correct" not in user.scopes
+    assert "attendance:read" not in user.scopes
+    assert "employees:write" not in user.scopes
+
+
+@pytest.mark.asyncio
+async def test_expired_signed_token_cannot_reuse_cached_authorization(monkeypatch) -> None:
+    AuthService._cache.clear()
+    token, jwks = signed_access_token()
+    monkeypatch.setattr(settings, "SUPABASE_JWKS_JSON", jwks)
+    await AuthService().authenticate(token)
+    segment = token.split(".")[1]
+    payload = json.loads(urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
+    monkeypatch.setattr("app.services.auth.time", lambda: payload["exp"] + 1)
+    with pytest.raises(PermissionError):
+        await AuthService().authenticate(token)
+
+
+@pytest.mark.asyncio
+async def test_auth_outage_does_not_extend_stale_authorization(monkeypatch) -> None:
+    from hashlib import sha256
+    from time import monotonic
+
+    AuthService._cache.clear()
+    monkeypatch.setattr(settings, "SUPABASE_JWKS_JSON", None)
+    key = sha256(b"stale-token").hexdigest()
+    AuthService._cache[key] = (monotonic() - 61, AuthService._to_read_model(user_payload()))
+
+    async def timeout(*_args, **_kwargs):
+        raise httpx.ReadTimeout("supabase timeout")
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", timeout)
+    with pytest.raises(AppError) as captured:
+        await AuthService().authenticate("stale-token")
+    assert captured.value.status_code == 503
 
 
 @pytest.mark.asyncio

@@ -9,16 +9,18 @@ from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.errors import AppError
 from app.core.time import as_local, as_utc_naive, local_day_utc_bounds
 from app.models.entities import (
     AttendanceRecord,
+    CaptureDevice,
     Employee,
     EmployeeWorksite,
     FaceTemplate,
     SuspiciousAttempt,
     Worksite,
 )
-from app.models.enums import AlertSeverity, AttendanceStatus, FraudType, PunchType
+from app.models.enums import AlertSeverity, AttendanceStatus, DeviceStatus, FraudType, PunchType
 from app.schemas.attendance import (
     AttendanceCorrection,
     AttendanceDecision,
@@ -170,7 +172,17 @@ class AttendanceService:
         if not worksite or not worksite.active:
             raise LookupError("Obra nao encontrada ou inativa")
 
-        quality_score = max(0.0, float(payload.face.quality_score or 0.0))
+        if payload.device_id:
+            device = await self.session.get(CaptureDevice, payload.device_id)
+            if (
+                device is None
+                or device.status != DeviceStatus.ACTIVE
+                or device.worksite_id != worksite.id
+            ):
+                raise LookupError("Dispositivo nao encontrado ou indisponivel para esta obra")
+
+        # Client quality estimates are UI hints, never evidence for acceptance.
+        quality_score = 0.0
         vectors: list[tuple[list[float], float]] = []
         temporal_similarity_median: float | None = None
         submitted_images = list(dict.fromkeys([
@@ -178,6 +190,7 @@ class AttendanceService:
             *([payload.face.image_base64] if payload.face.image_base64 else []),
         ]))
         rejected_frame_reasons: list[str] = []
+        pad_decision = None
         if submitted_images:
             processed_frames = await asyncio.to_thread(
                 lambda: [
@@ -185,6 +198,25 @@ class AttendanceService:
                     for image in submitted_images
                 ]
             )
+            if settings.ENVIRONMENT in {"staging", "production"}:
+                from app.services.ai.presentation_attack import evaluate_presentation_attack
+
+                pad_decision = await asyncio.to_thread(
+                    evaluate_presentation_attack,
+                    [processed.image.image_bgr for processed in processed_frames],
+                )
+                if not pad_decision.evaluated:
+                    raise AppError("PAD_UNAVAILABLE", "Validacao de presenca indisponivel", 503)
+                if not pad_decision.accepted:
+                    await self._flag_attempt(payload, FraudType.VIDEO_REPLAY, 1.0, [pad_decision.reason])
+                    await self.session.commit()
+                    return AttendanceDecision(
+                        accepted=False, status=AttendanceStatus.REJECTED,
+                        employee_id=None, punch_type=None, confidence_score=0.0,
+                        similarity_score=None, liveness_evaluated=True,
+                        liveness_score=pad_decision.score, quality_score=None,
+                        reasons=[pad_decision.reason],
+                    )
             for processed in processed_frames:
                 if attendance_frame_is_usable(processed):
                     vectors.append(
@@ -221,9 +253,6 @@ class AttendanceService:
                     reasons=reasons,
                     temporal_evidence_count=len(vectors),
                 )
-        elif payload.face.embedding is not None:
-            vectors.append((payload.face.embedding, quality_score))
-
         if not vectors:
             await self._flag_attempt(payload, FraudType.UNKNOWN_FACE, 1.0, ["missing_embedding"])
             await self._commit()
@@ -267,7 +296,7 @@ class AttendanceService:
                 )
 
         quality_score = max([quality_score, *[candidate_quality for _, candidate_quality in vectors]])
-        occurred_at = as_utc_naive(payload.occurred_at or datetime.now(UTC))
+        occurred_at = as_utc_naive(datetime.now(UTC))
         employee, similarity, second_similarity, match_confidence, match_reason = await self._match_employee(
             vectors,
             payload.employee_id,
@@ -372,57 +401,70 @@ class AttendanceService:
                 ),
             )
 
+        # Serialize duplicate detection and punch sequence across API instances.
+        # The employee row always exists, unlike an attendance row for a first punch.
+        # PostgreSQL releases this lock at commit/rollback (including dependency cleanup).
+        await self.session.execute(
+            select(Employee.id).where(Employee.id == employee.id).with_for_update()
+        )
+
         # O detector pode, em um frame ruim, recortar duas regiões sobrepostas
         # do mesmo rosto. Uma segunda confirmação do mesmo terminal dentro desta
         # janela representa a mesma presença, não o próximo evento da jornada.
-        if payload.offline_batch_id and payload.offline_batch_id.startswith("terminal-"):
-            duplicate_checked_at = datetime.now(UTC).replace(tzinfo=None)
-            duplicate_record = await self.session.scalar(
-                select(AttendanceRecord)
-                .where(
-                    AttendanceRecord.employee_id == employee.id,
-                    AttendanceRecord.worksite_id == worksite.id,
-                    AttendanceRecord.status.in_(
-                        [AttendanceStatus.ACCEPTED, AttendanceStatus.MANUAL_REVIEW]
-                    ),
-                    # Use o relogio do servidor para que um timestamp antigo ou
-                    # adiantado do navegador nao contorne o rate limit.
-                    AttendanceRecord.created_at
-                    >= duplicate_checked_at - TERMINAL_DUPLICATE_CAPTURE_WINDOW,
-                    AttendanceRecord.created_at <= duplicate_checked_at,
-                )
-                .order_by(desc(AttendanceRecord.created_at))
-                .limit(1)
+        duplicate_checked_at = datetime.now(UTC).replace(tzinfo=None)
+        duplicate_condition = and_(
+            AttendanceRecord.created_at >= duplicate_checked_at - TERMINAL_DUPLICATE_CAPTURE_WINDOW,
+            AttendanceRecord.created_at <= duplicate_checked_at,
+        )
+        if payload.offline_batch_id:
+            duplicate_condition = or_(
+                AttendanceRecord.offline_batch_id == payload.offline_batch_id,
+                duplicate_condition,
             )
-            if duplicate_record is not None:
-                duplicate_accepted = duplicate_record.status == AttendanceStatus.ACCEPTED
-                return AttendanceDecision(
-                    accepted=duplicate_accepted,
-                    status=duplicate_record.status,
-                    employee_id=employee.id,
-                    employee_name=employee.name,
-                    employee_registration=employee.registration,
-                    employee_photo_url=employee.photo_url,
-                    punch_type=duplicate_record.punch_type,
-                    confidence_score=duplicate_record.confidence_score or match_confidence,
-                    similarity_score=duplicate_record.similarity_score or similarity,
-                    second_best_similarity_score=second_similarity,
-                    match_margin=margin,
-                    match_confidence_score=match_confidence,
-                    liveness_score=None,
-                    quality_score=duplicate_record.quality_score or quality_score,
-                    reasons=["duplicate_capture"],
-                    temporal_evidence_count=len(vectors),
-                    temporal_similarity_median=(
-                        round(temporal_similarity_median, 4)
-                        if temporal_similarity_median is not None
-                        else None
-                    ),
-                    email_notification_sent=False,
-                    record=AttendanceRead.model_validate(duplicate_record),
-                )
+        duplicate_record = await self.session.scalar(
+            select(AttendanceRecord)
+            .where(
+                AttendanceRecord.employee_id == employee.id,
+                AttendanceRecord.worksite_id == worksite.id,
+                AttendanceRecord.status.in_(
+                    [AttendanceStatus.ACCEPTED, AttendanceStatus.MANUAL_REVIEW]
+                ),
+                # Use o relogio do servidor para que um timestamp antigo ou
+                # adiantado do navegador nao contorne o rate limit.
+                duplicate_condition,
+            )
+            .order_by(desc(AttendanceRecord.created_at))
+            .limit(1)
+        )
+        if duplicate_record is not None:
+            duplicate_accepted = duplicate_record.status == AttendanceStatus.ACCEPTED
+            return AttendanceDecision(
+                accepted=duplicate_accepted,
+                status=duplicate_record.status,
+                employee_id=employee.id,
+                employee_name=employee.name,
+                employee_registration=employee.registration,
+                employee_photo_url=employee.photo_url,
+                punch_type=duplicate_record.punch_type,
+                confidence_score=duplicate_record.confidence_score or match_confidence,
+                similarity_score=duplicate_record.similarity_score or similarity,
+                second_best_similarity_score=second_similarity,
+                match_margin=margin,
+                match_confidence_score=match_confidence,
+                liveness_score=None,
+                quality_score=duplicate_record.quality_score or quality_score,
+                reasons=["duplicate_capture"],
+                temporal_evidence_count=len(vectors),
+                temporal_similarity_median=(
+                    round(temporal_similarity_median, 4)
+                    if temporal_similarity_median is not None
+                    else None
+                ),
+                email_notification_sent=False,
+                record=AttendanceRead.model_validate(duplicate_record),
+            )
 
-        punch_type = payload.punch_type or await self._infer_next_punch(
+        punch_type = await self._infer_next_punch(
             employee.id,
             occurred_at,
         )
@@ -439,7 +481,7 @@ class AttendanceService:
             latitude=None,
             longitude=None,
             similarity_score=similarity,
-            liveness_score=None,
+            liveness_score=pad_decision.score if pad_decision else None,
             quality_score=quality_score,
             confidence_score=confidence,
             offline_batch_id=payload.offline_batch_id,
@@ -449,7 +491,11 @@ class AttendanceService:
                 "second_best_similarity_score": second_similarity,
                 "match_margin": margin,
                 "match_confidence_score": match_confidence,
-                "liveness_evaluated": False,
+                "liveness_evaluated": bool(pad_decision and pad_decision.evaluated),
+                "pad_model_version": pad_decision.model_version if pad_decision else None,
+                "time_source": "server",
+                "client_occurred_at": (payload.occurred_at.isoformat() if payload.occurred_at else None),
+                "client_punch_type": payload.punch_type.value if payload.punch_type else None,
                 "temporal_evidence_count": len(vectors),
                 "temporal_similarity_median": temporal_similarity_median,
             },
@@ -509,7 +555,8 @@ class AttendanceService:
             second_best_similarity_score=second_similarity,
             match_margin=margin,
             match_confidence_score=match_confidence,
-            liveness_score=None,
+            liveness_evaluated=bool(pad_decision and pad_decision.evaluated),
+            liveness_score=pad_decision.score if pad_decision else None,
             quality_score=quality_score,
             reasons=[] if status == AttendanceStatus.ACCEPTED else ["manual_review"],
             temporal_evidence_count=len(vectors),
@@ -633,7 +680,7 @@ class AttendanceService:
         )
         if employee_id:
             statement = statement.where(FaceTemplate.employee_id == employee_id)
-        elif worksite_id:
+        if worksite_id:
             reference_time = occurred_at or datetime.now(UTC).replace(tzinfo=None)
             statement = statement.join(
                 EmployeeWorksite,

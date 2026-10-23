@@ -20,8 +20,11 @@ import {
 } from 'react';
 
 import { useMovingTabIndicator } from '../animations/useMovingTabIndicator';
+import { useAuth } from '../auth/AuthContext';
+import { userCan } from '../auth/permissions';
 import { DataTable } from '../components/DataTable';
 import { apiClient } from '../services/api';
+import { describeApiError } from '../services/apiErrors';
 import type { DashboardMetrics, Device, Worksite } from '../types/domain';
 import { readAttendancePulse, subscribeAttendancePulse } from '../utils/attendancePulse';
 
@@ -71,6 +74,10 @@ export function WorksitesPage() {
   const tabsRef = useRef<HTMLDivElement>(null);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
+  // RH reads worksites but not devices; show "—" instead of a misleading zero.
+  const [devicesVisible, setDevicesVisible] = useState(false);
+  const { user } = useAuth();
+  const canCreateWorksite = userCan(user, 'worksites:write');
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
@@ -99,15 +106,16 @@ export function WorksitesPage() {
       ]);
       setWorksites(worksitePage.items);
       setDevices(devicePage?.items ?? []);
+      setDevicesVisible(devicePage !== null);
       setMetrics(dashboard);
-      setMessage((current) => current === 'Entre novamente e verifique se a API está online.' ? '' : current);
+      setMessage('');
       setSelectedWorksiteId((current) => (
         worksitePage.items.some((item) => item.id === current)
           ? current
           : worksitePage.items[0]?.id ?? ''
       ));
-    } catch {
-      setMessage('Entre novamente e verifique se a API está online.');
+    } catch (error) {
+      setMessage(describeApiError(error, 'listar as obras'));
     } finally {
       setLoading(false);
     }
@@ -157,8 +165,8 @@ export function WorksitesPage() {
       setShowForm(false);
       setMessage('Obra cadastrada.');
       await loadWorksites();
-    } catch {
-      setMessage('Não foi possível cadastrar a obra.');
+    } catch (error) {
+      setMessage(describeApiError(error, 'cadastrar a obra'));
     } finally {
       setSaving(false);
     }
@@ -171,24 +179,24 @@ export function WorksitesPage() {
           <span><RadioTower size={16} /> Cobertura operacional</span>
           <p>Cadastros, atividade e infraestrutura de cada frente de trabalho.</p>
         </div>
-        <button onClick={() => setShowForm((value) => !value)} className="btn btn-primary">
+        {canCreateWorksite && <button onClick={() => setShowForm((value) => !value)} className="btn btn-primary">
           <Plus size={18} />
           {showForm ? 'Fechar cadastro' : 'Nova obra'}
-        </button>
+        </button>}
       </section>
 
       {message && <div className="feedback-banner app-view-transition" role="status">{message}</div>}
 
-      {showForm && (
+      {showForm && canCreateWorksite && (
         <form onSubmit={onSubmit} className="form-panel app-view-transition md:grid-cols-2 xl:grid-cols-4">
           <div className="form-panel-heading md:col-span-2 xl:col-span-4">
             <span>Novo local de operação</span>
             <h2>Cadastrar obra</h2>
           </div>
-          <label className="field-label"><span>Nome</span><input value={form.name} onChange={(event) => setField('name', event.target.value)} required className="input-field" /></label>
-          <label className="field-label"><span>Código</span><input value={form.code} onChange={(event) => setField('code', event.target.value.toUpperCase())} required className="input-field" /></label>
-          <label className="field-label md:col-span-2"><span>Endereço</span><input value={form.address} onChange={(event) => setField('address', event.target.value)} required className="input-field" /></label>
-          <label className="field-label"><span>Responsável</span><input value={form.manager_name} onChange={(event) => setField('manager_name', event.target.value)} className="input-field" /></label>
+          <label className="field-label"><span>Nome</span><input value={form.name} onChange={(event) => setField('name', event.target.value)} required minLength={2} maxLength={160} className="input-field" /></label>
+          <label className="field-label"><span>Código</span><input value={form.code} onChange={(event) => setField('code', event.target.value.toUpperCase())} required minLength={2} maxLength={40} className="input-field" /></label>
+          <label className="field-label md:col-span-2"><span>Endereço</span><input value={form.address} onChange={(event) => setField('address', event.target.value)} required minLength={5} maxLength={255} className="input-field" /></label>
+          <label className="field-label"><span>Responsável</span><input value={form.manager_name} onChange={(event) => setField('manager_name', event.target.value)} maxLength={160} className="input-field" /></label>
           <div className="flex flex-col items-stretch gap-2 md:col-span-2 sm:flex-row sm:items-end xl:col-span-4">
             <button disabled={saving} className="btn btn-primary"><Plus size={18} /> {saving ? 'Salvando' : 'Salvar obra'}</button>
           </div>
@@ -197,7 +205,7 @@ export function WorksitesPage() {
 
       <dl className="worksite-statline" aria-label="Resumo das obras">
         <div><dt><Building2 size={17} /> Obras cadastradas</dt><dd>{worksites.length}</dd></div>
-        <div><dt><Camera size={17} /> Câmeras e terminais</dt><dd>{devices.length}</dd></div>
+        <div><dt><Camera size={17} /> Câmeras e terminais</dt><dd>{devicesVisible ? devices.length : '—'}</dd></div>
         <div><dt><Activity size={17} /> Registros hoje</dt><dd>{metrics?.records_today ?? 0}</dd></div>
       </dl>
 
@@ -274,7 +282,7 @@ export function WorksitesPage() {
                 </div>
                 <dl className="worksite-signal-grid">
                   <div><dt><Activity size={16} /> Movimentações hoje</dt><dd>{selectedMovement}</dd><small>Registros desta obra</small></div>
-                  <div><dt><Camera size={16} /> Câmeras e terminais</dt><dd>{selectedDevices.length}</dd><small>{selectedDevices.filter((device) => device.status === 'ACTIVE').length} ativos</small></div>
+                  <div><dt><Camera size={16} /> Câmeras e terminais</dt><dd>{devicesVisible ? selectedDevices.length : '—'}</dd><small>{devicesVisible ? `${selectedDevices.filter((device) => device.status === 'ACTIVE').length} ativos` : 'Sem acesso a dispositivos'}</small></div>
                   <div><dt><UsersRound size={16} /> Responsável</dt><dd className="is-text">{selectedWorksite.manager_name || 'Não informado'}</dd><small>Cadastro administrativo</small></div>
                   <div><dt><Building2 size={16} /> Código operacional</dt><dd className="is-text">{selectedWorksite.code}</dd><small>Identificação da obra</small></div>
                 </dl>
@@ -292,8 +300,8 @@ export function WorksitesPage() {
         ) : (
           <div className="worksite-ops-empty">
             <span><Building2 size={24} /></span>
-            <div><strong>Nenhuma obra para visualizar</strong><p>Cadastre a primeira obra para ativar o gêmeo digital e seus terminais.</p></div>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowForm(true)}><Plus size={17} /> Cadastrar obra</button>
+            <div><strong>Nenhuma obra para visualizar</strong><p>{canCreateWorksite ? 'Cadastre a primeira obra para ativar o gêmeo digital e seus terminais.' : 'Nenhuma obra está liberada para o seu perfil. Peça acesso a um administrador.'}</p></div>
+            {canCreateWorksite && <button type="button" className="btn btn-secondary" onClick={() => setShowForm(true)}><Plus size={17} /> Cadastrar obra</button>}
           </div>
         )}
       </section>

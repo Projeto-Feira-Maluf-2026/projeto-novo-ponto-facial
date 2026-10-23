@@ -35,7 +35,7 @@ import type {
   PunchType,
   Worksite,
 } from '../types/domain';
-import { parseApiDate } from '../utils/dateTime';
+import { formatInAppTimeZone, parseApiDate } from '../utils/dateTime';
 import { publishAttendancePulse } from '../utils/attendancePulse';
 import { readTerminalWorksiteId, saveTerminalWorksiteId } from '../utils/terminalPreferences';
 
@@ -117,11 +117,11 @@ const initialRecognition: LiveRecognition = {
 };
 
 function formatDate(value: Date) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-  }).format(value);
+  return formatInAppTimeZone(value, { weekday: 'long', day: '2-digit', month: 'long' });
+}
+
+function formatClock(value: Date) {
+  return formatInAppTimeZone(value, { hour: '2-digit', minute: '2-digit' });
 }
 
 function attendanceReasonMessage(reasons: string[]) {
@@ -195,6 +195,18 @@ export function FacialTerminalPage() {
   const [guidance, setGuidance] = useState('Iniciando a câmera…');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
   const [clock, setClock] = useState(new Date());
+  const [online, setOnline] = useState(() => navigator.onLine);
+
+  useEffect(() => {
+    // navigator.onLine read during render never updated the "Sem conexão" badge.
+    const updateConnection = () => setOnline(navigator.onLine);
+    window.addEventListener('online', updateConnection);
+    window.addEventListener('offline', updateConnection);
+    return () => {
+      window.removeEventListener('online', updateConnection);
+      window.removeEventListener('offline', updateConnection);
+    };
+  }, []);
   const [fullscreen, setFullscreen] = useState(false);
   const [presentationResult, setPresentationResult] = useState<PresentationResult | null>(null);
   const presentationExperienceOpen = presentation.active && presentationResult !== null;
@@ -310,6 +322,9 @@ export function FacialTerminalPage() {
         offline_batch_id: `terminal-${scanId}-${index + 1}`,
         occurred_at: occurredAt,
       })), signal);
+      // A cancelled scan may have committed on the server. Do not present its
+      // response in a different worksite or after the operator pauses the scan.
+      if (signal?.aborted) return 0;
       const completedRecords: RecentRecord[] = [];
       const newlyCompletedRecords: RecentRecord[] = [];
       let successfulRecognition: LiveRecognition | null = null;
@@ -324,16 +339,17 @@ export function FacialTerminalPage() {
           || 'Funcionário';
         const resolvedEmployeeId = result.employee_id || candidate.employeeId || '';
         if (result.status !== 'ACCEPTED' && result.status !== 'MANUAL_REVIEW') return;
+        // Only a persisted record can confirm attendance. Never fabricate a
+        // record identifier or timestamp from a recognition-only response.
+        if (!result.record?.id || !result.record.occurred_at) return;
 
         const completedRecord = {
-          id: result.record?.id || crypto.randomUUID(),
+          id: result.record.id,
           employee: employeeName,
           registration: result.employee_registration || employee?.registration,
           punchType: result.punch_type,
           status: result.status,
-          occurredAt: result.record?.occurred_at
-            ? parseApiDate(result.record.occurred_at)
-            : new Date(),
+          occurredAt: parseApiDate(result.record.occurred_at),
           email: emailStatus(result),
         } satisfies RecentRecord;
         completedRecords.push(completedRecord);
@@ -427,6 +443,7 @@ export function FacialTerminalPage() {
       setGuidance(attendanceReasonMessage(batch.decisions[0]?.reasons || []));
       return 0;
     } catch {
+      if (signal?.aborted) return 0;
       resultHoldUntilRef.current = Date.now() + SERVICE_RETRY_HOLD_MS;
       setMode('attention');
       setGuidance('O serviço de ponto não respondeu. A câmera continuará tentando.');
@@ -660,6 +677,7 @@ export function FacialTerminalPage() {
               onClick={() => setAutoEnabled((current) => !current)}
               className="icon-button"
               aria-label={autoEnabled ? 'Pausar leitura automática' : 'Iniciar leitura automática'}
+              aria-pressed={autoEnabled}
               title={autoEnabled ? 'Pausar leitura' : 'Iniciar leitura'}
             >
               {autoEnabled ? <Pause size={17} /> : <Play size={17} />}
@@ -669,6 +687,7 @@ export function FacialTerminalPage() {
               onClick={() => setFullscreen((current) => !current)}
               className="icon-button"
               aria-label={fullscreen ? 'Sair da tela cheia' : 'Usar tela cheia'}
+              aria-pressed={fullscreen}
               title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
             >
               {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
@@ -705,14 +724,14 @@ export function FacialTerminalPage() {
             >
               <ResultIcon size={20} />
             </div>
-            <div className="min-w-0" aria-live="polite">
+            <div className="min-w-0" role="status" aria-live="polite" aria-atomic="true">
               <strong>{resultPresentation.title}</strong>
               <span>{guidance}</span>
             </div>
           </div>
           <div className="terminal-compact-meta">
             <time className="terminal-compact-clock" dateTime={clock.toISOString()}>
-              <strong>{clock.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
+              <strong>{formatClock(clock)}</strong>
               <span>{formatDate(clock)}</span>
             </time>
             {latestRecord && (
@@ -721,12 +740,12 @@ export function FacialTerminalPage() {
                 <strong>{latestRecord.employee}</strong>
                 <small>
                   {latestRecord.punchType ? punchLabels[latestRecord.punchType] : 'Ponto'} ·{' '}
-                  {latestRecord.occurredAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {formatClock(latestRecord.occurredAt)}
                   {latestRecord.email === 'sent' ? ' · E-mail enviado' : latestRecord.email === 'queued' ? ' · E-mail a caminho' : ''}
                 </small>
               </div>
             )}
-            {!navigator.onLine && (
+            {!online && (
               <span className="terminal-offline-note">
                 <WifiOff size={16} /> Sem conexão
               </span>

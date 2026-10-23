@@ -36,7 +36,7 @@ function RouteLoading() {
 export default function App() {
   useUtilityEffects();
   useSmoothNavigation();
-  const { loading, session, signOut, user } = useAuth();
+  const { loading, retrySessionCheck, session, signOut, status, user } = useAuth();
   const privilegedRoles: AppRole[] = ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'];
   const initialPath = userHasRole(user, privilegedRoles) ? '/' : '/terminal-facial';
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -100,6 +100,26 @@ export default function App() {
           <div className="auth-loading-spinner" aria-hidden="true" />
           <h1>Preparando seu acesso</h1>
           <p>Validando a sessão.</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (status === 'unavailable') {
+    return (
+      <main className="login-page" aria-label="Serviço de login indisponível">
+        <section className="auth-loading-card" role="alert">
+          <BrandMark className="auth-loading-mark" title="Curitiba Empreiteira" />
+          <h1>Não foi possível validar sua sessão</h1>
+          <p>O serviço de login não respondeu. Sua sessão foi mantida neste aparelho.</p>
+          <div className="auth-unavailable-actions">
+            <button type="button" className="btn btn-primary" onClick={retrySessionCheck}>
+              Tentar novamente
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => void signOut()}>
+              Entrar com outra conta
+            </button>
+          </div>
         </section>
       </main>
     );

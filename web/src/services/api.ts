@@ -1,6 +1,8 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 
 import { supabase } from './supabase';
+import { authenticatedReadCache } from './authenticatedReadCache';
+import { ApiError, toApiError } from './apiErrors';
 
 import type {
   AttendanceDecision,
@@ -110,35 +112,8 @@ const faceHealthApi = createApi(faceHealthBaseUrl, 10_000);
 
 const enableMocks = import.meta.env.VITE_ENABLE_MOCKS === 'true';
 
-type CachedRead = { expiresAt: number; value?: unknown; inFlight?: Promise<unknown> };
-const readCache = new Map<string, CachedRead>();
-
-function cachedRead<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
-  const now = Date.now();
-  const cached = readCache.get(key);
-  if (cached?.value !== undefined && cached.expiresAt > now) {
-    return Promise.resolve(cached.value as T);
-  }
-  if (cached?.inFlight) return cached.inFlight as Promise<T>;
-
-  const inFlight = loader()
-    .then((value) => {
-      readCache.set(key, { value, expiresAt: Date.now() + ttlMs });
-      return value;
-    })
-    .catch((error) => {
-      readCache.delete(key);
-      throw error;
-    });
-  readCache.set(key, { expiresAt: 0, inFlight });
-  return inFlight;
-}
-
-function invalidateReads(...prefixes: string[]) {
-  for (const key of readCache.keys()) {
-    if (prefixes.some((prefix) => key.startsWith(prefix))) readCache.delete(key);
-  }
-}
+const cachedRead = authenticatedReadCache.read;
+const invalidateReads = authenticatedReadCache.invalidate;
 
 const fallbackMetrics: DashboardMetrics = {
   total_employees: 1264,
@@ -207,9 +182,53 @@ async function fallback<T>(request: Promise<{ data: T }>, value: T): Promise<T> 
   try {
     const response = await request;
     return response.data;
-  } catch {
-    throw new Error('API indisponivel');
+  } catch (error) {
+    // Keep the cause (401, 403, offline, 5xx) so screens can explain it.
+    throw toApiError(error);
   }
+}
+
+/** Largest page the API accepts (`size` le=200 on list endpoints). */
+export const LIST_PAGE_SIZE = 200;
+/** Upper bound for a full list load; beyond it the UI reports a partial list. */
+export const LIST_MAX_PAGES = 25;
+
+type PageGetter<T> = (page: number, size: number) => Promise<{ data: Page<T> }>;
+
+/**
+ * Loads every page of a list endpoint. A single `size=20` request silently
+ * hid the 21st employee, worksite or device from screens and the terminal.
+ */
+export async function fetchAllPages<T extends { id: string }>(getPage: PageGetter<T>): Promise<{ data: Page<T> }> {
+  const byId = new Map<string, T>();
+  let total = 0;
+  for (let page = 1; page <= LIST_MAX_PAGES; page += 1) {
+    const { data } = await getPage(page, LIST_PAGE_SIZE);
+    total = data.total;
+    for (const item of data.items) byId.set(item.id, item);
+    if (data.items.length < LIST_PAGE_SIZE || byId.size >= total) break;
+  }
+  const items = [...byId.values()];
+  return { data: { items, total: Math.max(total, items.length), page: 1, size: items.length } };
+}
+
+const listAll = <T extends { id: string }>(path: string) => fetchAllPages<T>(
+  (page, size) => api.get<Page<T>>(path, { params: { page, size } }),
+);
+
+/** Report export answers errors as Blob; read its JSON so limits reach the user. */
+async function blobErrorToApiError(error: unknown): Promise<ApiError> {
+  const candidate = error as { response?: { status?: number; data?: unknown } };
+  const data = candidate.response?.data;
+  if (typeof Blob !== 'undefined' && data instanceof Blob && data.type.includes('json')) {
+    try {
+      const parsed = JSON.parse(await data.text());
+      return toApiError({ ...candidate, response: { ...candidate.response, data: parsed } });
+    } catch {
+      return toApiError(error);
+    }
+  }
+  return toApiError(error);
 }
 
 export interface EmployeeCreatePayload {
@@ -270,9 +289,9 @@ export interface PunchPayload {
 
 export const apiClient = {
   dashboard: () => cachedRead('dashboard', 12_000, () => fallback(api.get<DashboardMetrics>('/dashboard'), fallbackMetrics)),
-  employees: () => cachedRead('employees', 20_000, () => fallback(api.get<Page<Employee>>('/employees?size=20'), fallbackEmployees)),
-  worksites: () => cachedRead('worksites', 30_000, () => fallback(api.get<Page<Worksite>>('/worksites?size=20'), fallbackWorksites)),
-  devices: () => cachedRead('devices', 20_000, () => fallback(api.get<Page<Device>>('/devices?size=20'), fallbackDevices)),
+  employees: () => cachedRead('employees', 20_000, () => fallback(listAll<Employee>('/employees'), fallbackEmployees)),
+  worksites: () => cachedRead('worksites', 30_000, () => fallback(listAll<Worksite>('/worksites'), fallbackWorksites)),
+  devices: () => cachedRead('devices', 20_000, () => fallback(listAll<Device>('/devices'), fallbackDevices)),
   createDevice: async (payload: DeviceCreatePayload) => {
     const response = await api.post<Device>('/devices', payload);
     invalidateReads('devices', 'dashboard');
@@ -385,6 +404,7 @@ export const apiClient = {
   },
   punch: async (payload: PunchPayload) => {
     const response = await faceApi.post<AttendanceDecision>('/attendance/punch', payload);
+    invalidateReads('dashboard');
     return response.data;
   },
   identifyFaces: async (imagesBase64: string[], worksiteId?: string | null, signal?: AbortSignal) => {
@@ -417,7 +437,8 @@ export const apiClient = {
     return response.data;
   },
   exportReport: async (payload: ReportExportPayload) => {
-    const response = await api.post<Blob>('/reports/export', payload, { responseType: 'blob' });
+    const response = await api.post<Blob>('/reports/export', payload, { responseType: 'blob' })
+      .catch(async (error: unknown) => { throw await blobErrorToApiError(error); });
     const disposition = String(response.headers['content-disposition'] ?? '');
     const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
     const basicName = disposition.match(/filename="?([^";]+)"?/i)?.[1];

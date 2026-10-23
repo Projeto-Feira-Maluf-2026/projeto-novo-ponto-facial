@@ -67,6 +67,8 @@ async def test_accepted_punch_notifies_employee_after_commit() -> None:
     )
     session = SimpleNamespace(
         get=AsyncMock(return_value=worksite),
+        execute=AsyncMock(),
+        scalar=AsyncMock(return_value=None),
         add=MagicMock(),
         commit=AsyncMock(),
         refresh=AsyncMock(),

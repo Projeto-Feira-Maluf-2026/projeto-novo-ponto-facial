@@ -155,6 +155,9 @@ class FaceCapabilitiesResponse(BaseModel):
     threshold_profile: str
     thresholds_calibrated: bool
     liveness_available: bool
+    pad_required: bool = False
+    pad_available: bool = False
+    biometric_attendance_available: bool = False
     limitations: list[str]
 
 

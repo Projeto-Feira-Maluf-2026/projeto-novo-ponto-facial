@@ -22,7 +22,8 @@ import { EmployeePhoto } from '../components/EmployeePhoto';
 import { playModalExit } from '../animations/motion';
 import { useModalMotion } from '../animations/useMotion';
 import { useAuth } from '../auth/AuthContext';
-import { roleForUser } from '../auth/permissions';
+import { roleForUser, userCan } from '../auth/permissions';
+import { describeApiError } from '../services/apiErrors';
 import { apiClient } from '../services/api';
 import type {
   Employee,
@@ -30,6 +31,7 @@ import type {
   EnrollmentSessionResponse,
   Worksite,
 } from '../types/domain';
+import { formatInAppTimeZone, parseApiDate } from '../utils/dateTime';
 import { readTerminalWorksiteId } from '../utils/terminalPreferences';
 
 const initialForm = {
@@ -98,6 +100,8 @@ function friendlyCaptureFeedback(instruction: string, reasons: string[]) {
 export function EmployeesPage() {
   const { user } = useAuth();
   const canDeletePermanently = roleForUser(user) === 'SUPER_ADMIN';
+  // Supervisors and site managers read the roster; only RH and admins change it.
+  const canManageEmployees = userCan(user, 'employees:write');
   const [searchParams, setSearchParams] = useSearchParams();
   const presentationRegistration = searchParams.get('novo') === 'apresentacao';
   const presentationFormOpenedRef = useRef(false);
@@ -166,8 +170,11 @@ export function EmployeesPage() {
     try {
       const page = await apiClient.employees();
       setEmployees(page.items);
-    } catch {
-      setMessage('Entre novamente e verifique se a API está online.');
+      if (page.items.length < page.total) {
+        setMessage(`Mostrando ${page.items.length} de ${page.total} funcionários. Use a busca para localizar os demais.`);
+      }
+    } catch (error) {
+      setMessage(describeApiError(error, 'listar os funcionários'));
     } finally {
       setLoadingEmployees(false);
     }
@@ -266,8 +273,8 @@ export function EmployeesPage() {
         setSearchParams({}, { replace: true });
         void openEnrollment(createdEmployee);
       }
-    } catch {
-      setMessage(editingEmployee ? 'Não foi possível atualizar o funcionário.' : 'Não foi possível cadastrar o funcionário.');
+    } catch (error) {
+      setMessage(describeApiError(error, editingEmployee ? 'atualizar o funcionário' : 'cadastrar o funcionário'));
     } finally {
       setSaving(false);
     }
@@ -284,8 +291,8 @@ export function EmployeesPage() {
       if (detailEmployee?.id === employee.id) setDetailEmployee(null);
       setMessage(`${employee.name} e todos os dados associados foram excluídos permanentemente.`);
       setPendingDeletion(null);
-    } catch {
-      setMessage('Não foi possível excluir o cadastro. Nenhum dado foi removido; tente novamente.');
+    } catch (error) {
+      setMessage(`${describeApiError(error, 'excluir o cadastro')} Nenhum dado foi removido.`);
     } finally {
       setSaving(false);
     }
@@ -502,7 +509,7 @@ export function EmployeesPage() {
 
   return (
     <div className="app-view-transition space-y-5">
-      <section className="page-actions">
+      {canManageEmployees && <section className="page-actions">
         <button
           onClick={() => showForm ? closeEmployeeForm() : openCreateForm()}
           className="btn btn-primary"
@@ -510,7 +517,7 @@ export function EmployeesPage() {
           <UserPlus size={18} />
           {showForm ? 'Fechar formulário' : 'Adicionar funcionário'}
         </button>
-      </section>
+      </section>}
 
       {message && (
         <div className="feedback-banner app-view-transition" role="status">
@@ -525,16 +532,16 @@ export function EmployeesPage() {
         </section>
       )}
 
-      {showForm && (
+      {showForm && canManageEmployees && (
         <form onSubmit={onSaveEmployee} className="form-panel app-view-transition md:grid-cols-2 xl:grid-cols-3" data-presentation-registration={presentationRegistration || undefined}>
           <div className="form-panel-heading md:col-span-2 xl:col-span-3"><span>{presentationRegistration ? 'Participante da feira' : editingEmployee ? 'Edição de cadastro' : 'Novo cadastro'}</span><h2>{editingEmployee ? editingEmployee.name : presentationRegistration ? 'Cadastro rápido com e-mail' : 'Adicionar funcionário'}</h2>{presentationRegistration && <p>Após salvar, a câmera abrirá automaticamente para cadastrar o rosto.</p>}</div>
           <label className="field-label">
             <span>Matrícula</span>
-            <input value={form.registration} onChange={(event) => setField('registration', event.target.value)} required disabled={Boolean(editingEmployee)} className="input-field" />
+            <input value={form.registration} onChange={(event) => setField('registration', event.target.value)} required minLength={2} maxLength={40} disabled={Boolean(editingEmployee)} className="input-field" />
           </label>
           <label className="field-label">
             <span>Nome</span>
-            <input value={form.name} onChange={(event) => setField('name', event.target.value)} required className="input-field" />
+            <input value={form.name} onChange={(event) => setField('name', event.target.value)} required minLength={2} maxLength={160} className="input-field" />
           </label>
           <label className="field-label">
             <span>Email</span>
@@ -542,11 +549,11 @@ export function EmployeesPage() {
           </label>
           {!editingEmployee && <label className="field-label">
             <span>Documento</span>
-            <input value={form.document} onChange={(event) => setField('document', event.target.value)} className="input-field" />
+            <input value={form.document} onChange={(event) => setField('document', event.target.value)} maxLength={32} className="input-field" />
           </label>}
           {!editingEmployee && <label className="field-label">
             <span>Telefone</span>
-            <input value={form.phone} onChange={(event) => setField('phone', event.target.value)} className="input-field" />
+            <input value={form.phone} onChange={(event) => setField('phone', event.target.value)} maxLength={32} inputMode="tel" autoComplete="tel" className="input-field" />
           </label>}
           {!editingEmployee && <label className="field-label">
             <span>Obra</span>
@@ -653,12 +660,12 @@ export function EmployeesPage() {
                 <button type="button" onClick={() => setDetailEmployee(row)} className="icon-button" title="Ver detalhes" aria-label={`Ver detalhes de ${row.name}`}>
                   <Eye size={16} />
                 </button>
-                <button type="button" onClick={() => openEnrollment(row)} className="icon-button" title="Cadastrar face" aria-label={`Cadastrar face de ${row.name}`}>
+                {canManageEmployees && <button type="button" onClick={() => openEnrollment(row)} className="icon-button" title="Cadastrar face" aria-label={`Cadastrar face de ${row.name}`}>
                   <Camera size={16} />
-                </button>
-                <button type="button" onClick={() => openEditForm(row)} className="icon-button" title="Editar" aria-label={`Editar ${row.name}`}>
+                </button>}
+                {canManageEmployees && <button type="button" onClick={() => openEditForm(row)} className="icon-button" title="Editar" aria-label={`Editar ${row.name}`}>
                   <Edit3 size={16} />
-                </button>
+                </button>}
                 {canDeletePermanently && <button type="button" onClick={() => setPendingDeletion(row)} className="icon-button text-red-700 dark:text-red-300" title="Excluir permanentemente" aria-label={`Excluir permanentemente ${row.name}`}>
                   <Trash2 size={16} />
                 </button>}
@@ -700,19 +707,19 @@ export function EmployeesPage() {
               <div><dt><IdCard size={16} /> Matrícula</dt><dd>{detailEmployee.registration}</dd></div>
               <div><dt><Mail size={16} /> E-mail</dt><dd>{detailEmployee.email || 'Não informado'}</dd></div>
               <div><dt><Fingerprint size={16} /> Biometria facial</dt><dd>{detailEmployee.biometric_reenrollment_required ? 'Recadastro necessário' : detailEmployee.consent_biometric_at ? 'Cadastro ativo' : 'Cadastro pendente'}</dd></div>
-              <div><dt><CalendarDays size={16} /> Atualizado em</dt><dd>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(detailEmployee.updated_at))}</dd></div>
+              <div><dt><CalendarDays size={16} /> Atualizado em</dt><dd>{formatInAppTimeZone(parseApiDate(detailEmployee.updated_at), { dateStyle: 'medium' })}</dd></div>
             </dl>
             {detailEmployee.biometric_reenrollment_reason && (
               <div className="employee-biometric-note" role="status">{detailEmployee.biometric_reenrollment_reason}</div>
             )}
-            <div className="employee-drawer-actions">
+            {canManageEmployees && <div className="employee-drawer-actions">
               <button type="button" className="btn btn-primary" onClick={() => { setDetailEmployee(null); void openEnrollment(detailEmployee); }}>
                 <Camera size={17} /> {detailEmployee.consent_biometric_at ? 'Atualizar face' : 'Cadastrar face'}
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => { setDetailEmployee(null); openEditForm(detailEmployee); }}>
                 <Edit3 size={17} /> Editar cadastro
               </button>
-            </div>
+            </div>}
             <p className="employee-data-note">Horas, cargo e obra atual não aparecem aqui porque esses campos ainda não são retornados pelo cadastro da API.</p>
           </aside>
         </div>
