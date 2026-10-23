@@ -1,0 +1,32 @@
+name: py-audit-fix (temporário)
+on:
+  push:
+    branches: [chore/python-audit-fix]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: '0.10.11'
+      - name: Corrige pacotes Python vulneráveis no uv.lock
+        run: |
+          uv export --project api --locked --extra dev --extra ai --no-emit-project --format requirements-txt --output-file "$RUNNER_TEMP/req.txt"
+          uvx --python 3.12 pip-audit==2.10.1 --requirement "$RUNNER_TEMP/req.txt" --disable-pip --no-deps --format json --output "$RUNNER_TEMP/audit.json" || true
+          pkgs=$(jq -r '.dependencies[] | select(.vulns|length>0) | .name' "$RUNNER_TEMP/audit.json" | sort -u)
+          jq -r '.dependencies[] | select(.vulns|length>0) | .name as $n | .version as $v | .vulns[] | "::warning title=pip-audit::\($n) \($v) \(.id) fix: \(.fix_versions|join(","))"' "$RUNNER_TEMP/audit.json"
+          [ -z "$pkgs" ] && echo "::notice::sem vulnerabilidades" && exit 0
+          args=""; for p in $pkgs; do args="$args --upgrade-package $p"; done
+          uv lock --project api $args
+          uv export --project api --locked --no-dev --no-hashes --no-emit-project --output-file requirements.txt --quiet
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/uv.lock requirements.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "Atualiza pacotes Python com correções de segurança: $(echo $pkgs | tr '\n' ' ')"
+          git push
