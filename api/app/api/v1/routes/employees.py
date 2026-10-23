@@ -79,10 +79,9 @@ async def create_employee(
     _: UserRead = Depends(require_scopes(Scope.EMPLOYEES_WRITE)),
     session: AsyncSession = Depends(get_session),
 ) -> EmployeeRead:
-    try:
-        employee = await EmployeeService(session).create(payload)
-    except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    # Domain errors (409 conflict, 422 unknown worksite, 403 scope) carry safe
+    # messages; anything else reaches the generic handler without database text.
+    employee = await EmployeeService(session).create(payload)
     return EmployeeRead.model_validate(employee)
 
 

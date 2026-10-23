@@ -33,7 +33,7 @@ import type {
   FaceCapabilitiesResponse,
   Worksite,
 } from '../types/domain';
-import { parseApiDate } from '../utils/dateTime';
+import { formatInAppTimeZone, parseApiDate } from '../utils/dateTime';
 import { readAttendancePulse, subscribeAttendancePulse } from '../utils/attendancePulse';
 
 const punchLabels: Record<AttendanceRecord['punch_type'], string> = {
@@ -170,7 +170,7 @@ export function PresentationPage() {
   const employeesById = useMemo(() => new Map(employees.map((employee) => [employee.id, employee])), [employees]);
   const worksitesById = useMemo(() => new Map(worksites.map((worksite) => [worksite.id, worksite])), [worksites]);
   const startedAtLabel = presentation.startedAt
-    ? new Date(presentation.startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    ? formatInAppTimeZone(new Date(presentation.startedAt), { hour: '2-digit', minute: '2-digit' })
     : 'agora';
 
   return (
@@ -232,7 +232,7 @@ export function PresentationPage() {
             <li data-ok={capabilities?.provider_ready === true}><Cpu size={17} /><div><strong>IA facial</strong><small>{capabilities?.provider_ready ? `${capabilities.model_name || 'Modelo'} pronto` : 'Backend facial indisponível'}</small></div></li>
             <li data-ok={browserCamera === 'ready' || browserCamera === 'prompt'}><Camera size={17} /><div><strong>Webcam deste computador</strong><small>{browserCamera === 'ready' ? `${browserCameraCount} câmera(s) pronta(s)` : browserCamera === 'prompt' ? `${browserCameraCount} detectada(s); a permissão será solicitada no terminal` : browserCamera === 'denied' ? 'Permissão bloqueada; libere a câmera no cadeado do navegador' : browserCamera === 'missing' ? 'Nenhuma webcam disponível neste navegador' : 'Verificando câmera…'}</small></div></li>
             <li data-ok={activeDevices.length > 0}><Camera size={17} /><div><strong>Dispositivos</strong><small>{activeDevices.length ? `${activeDevices.length} ativo(s) no sistema` : 'Nenhum dispositivo ativo'}</small></div></li>
-            <li data-ok={Boolean(lastRefresh)}><Database size={17} /><div><strong>Dados</strong><small>{lastRefresh ? `Atualizados às ${lastRefresh.toLocaleTimeString('pt-BR')} em ${apiLatency ?? '—'} ms` : 'Aguardando resposta'}</small></div></li>
+            <li data-ok={Boolean(lastRefresh)}><Database size={17} /><div><strong>Dados</strong><small>{lastRefresh ? `Atualizados às ${formatInAppTimeZone(lastRefresh, { timeStyle: 'medium' })} em ${apiLatency ?? '—'} ms` : 'Aguardando resposta'}</small></div></li>
           </ul>
         </article>
       </section>
@@ -248,7 +248,7 @@ export function PresentationPage() {
                 <li key={record.id}>
                   <span className="presentation-record-icon"><CheckCircle2 size={17} /></span>
                   <div><strong>{employee?.name || 'Funcionário cadastrado'}</strong><small>{worksite?.name || 'Obra'} · {punchLabels[record.punch_type]}</small></div>
-                  <time dateTime={record.occurred_at}>{parseApiDate(record.occurred_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</time>
+                  <time dateTime={record.occurred_at}>{formatInAppTimeZone(parseApiDate(record.occurred_at), { hour: '2-digit', minute: '2-digit' })}</time>
                 </li>
               );
             })}</ul>

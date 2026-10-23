@@ -9,14 +9,14 @@ class WorksiteCreate(BaseModel):
     name: str = Field(min_length=2, max_length=160)
     code: str = Field(min_length=2, max_length=40)
     address: str = Field(min_length=5, max_length=255)
-    manager_name: str | None = None
+    manager_name: str | None = Field(default=None, max_length=160)
     active: bool = True
 
 
 class WorksiteUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=160)
     address: str | None = Field(default=None, min_length=5, max_length=255)
-    manager_name: str | None = None
+    manager_name: str | None = Field(default=None, max_length=160)
     active: bool | None = None
 
 

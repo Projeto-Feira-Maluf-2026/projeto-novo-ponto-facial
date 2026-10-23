@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +13,7 @@ from app.models.enums import DeviceStatus
 from app.schemas.common import Page
 from app.schemas.devices import CameraTestRequest, CameraTestResponse, DeviceCreate, DeviceHeartbeat, DeviceRead
 from app.services.devices import (
+    CameraConfigurationError,
     DeviceService,
     camera_config_from_metadata,
     read_camera_jpeg,
@@ -18,6 +22,15 @@ from app.services.devices import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+INVALID_STORED_CAMERA = "Configuracao salva da camera invalida. Cadastre a camera novamente."
+
+
+def stored_camera_config(device):
+    try:
+        return camera_config_from_metadata(device.metadata_json)
+    except CameraConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=INVALID_STORED_CAMERA) from exc
 
 
 def to_device_read(device) -> DeviceRead:
@@ -52,7 +65,8 @@ async def test_camera(
     payload: CameraTestRequest,
     _: UserRead = Depends(require_scopes(Scope.DEVICES_WRITE)),
 ) -> CameraTestResponse:
-    return test_camera_connection(payload.camera)
+    # OpenCV blocks while it connects; keep the event loop free for other requests.
+    return await asyncio.to_thread(test_camera_connection, payload.camera)
 
 
 @router.post("/heartbeat", response_model=DeviceRead)
@@ -73,7 +87,7 @@ async def test_saved_camera(
     device = await session.get(CaptureDevice, device_id)
     if not device:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera nao encontrada")
-    result = test_camera_connection(camera_config_from_metadata(device.metadata_json))
+    result = await asyncio.to_thread(test_camera_connection, stored_camera_config(device))
     await DeviceService(session).update_connection_status(device_id, result.status)
     return result
 
@@ -87,10 +101,16 @@ async def camera_snapshot(
     device = await session.get(CaptureDevice, device_id)
     if not device:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera nao encontrada")
+    config = stored_camera_config(device)
     try:
-        image = read_camera_jpeg(camera_config_from_metadata(device.metadata_json))
-        await DeviceService(session).update_connection_status(device_id, DeviceStatus.ACTIVE)
+        image = await asyncio.to_thread(read_camera_jpeg, config)
     except Exception as exc:
+        # The exception text may come from OpenCV/FFmpeg and can echo the stream URL.
+        logger.warning("Falha ao capturar snapshot device_id=%s error_type=%s", device_id, type(exc).__name__)
         await DeviceService(session).update_connection_status(device_id, DeviceStatus.MAINTENANCE)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Nao foi possivel obter imagem da camera",
+        ) from exc
+    await DeviceService(session).update_connection_status(device_id, DeviceStatus.ACTIVE)
     return Response(content=image, media_type="image/jpeg")

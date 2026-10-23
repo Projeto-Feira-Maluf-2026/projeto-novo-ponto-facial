@@ -34,7 +34,7 @@ import type {
   PunchType,
   Worksite,
 } from '../types/domain';
-import { parseApiDate } from '../utils/dateTime';
+import { formatInAppTimeZone, parseApiDate } from '../utils/dateTime';
 import { publishAttendancePulse } from '../utils/attendancePulse';
 import { readTerminalWorksiteId, saveTerminalWorksiteId } from '../utils/terminalPreferences';
 
@@ -109,11 +109,11 @@ const initialRecognition: LiveRecognition = {
 };
 
 function formatDate(value: Date) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-  }).format(value);
+  return formatInAppTimeZone(value, { weekday: 'long', day: '2-digit', month: 'long' });
+}
+
+function formatClock(value: Date) {
+  return formatInAppTimeZone(value, { hour: '2-digit', minute: '2-digit' });
 }
 
 function attendanceReasonMessage(reasons: string[]) {
@@ -187,6 +187,18 @@ export function FacialTerminalPage() {
   const [guidance, setGuidance] = useState('Iniciando a câmera…');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
   const [clock, setClock] = useState(new Date());
+  const [online, setOnline] = useState(() => navigator.onLine);
+
+  useEffect(() => {
+    // navigator.onLine read during render never updated the "Sem conexão" badge.
+    const updateConnection = () => setOnline(navigator.onLine);
+    window.addEventListener('online', updateConnection);
+    window.addEventListener('offline', updateConnection);
+    return () => {
+      window.removeEventListener('online', updateConnection);
+      window.removeEventListener('offline', updateConnection);
+    };
+  }, []);
   const [fullscreen, setFullscreen] = useState(false);
   const [presentationResult, setPresentationResult] = useState<PresentationResult | null>(null);
   const presentationExperienceOpen = presentation.active && presentationResult !== null;
@@ -698,7 +710,7 @@ export function FacialTerminalPage() {
           </div>
           <div className="terminal-compact-meta">
             <time className="terminal-compact-clock" dateTime={clock.toISOString()}>
-              <strong>{clock.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
+              <strong>{formatClock(clock)}</strong>
               <span>{formatDate(clock)}</span>
             </time>
             {latestRecord && (
@@ -707,12 +719,12 @@ export function FacialTerminalPage() {
                 <strong>{latestRecord.employee}</strong>
                 <small>
                   {latestRecord.punchType ? punchLabels[latestRecord.punchType] : 'Ponto'} ·{' '}
-                  {latestRecord.occurredAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {formatClock(latestRecord.occurredAt)}
                   {latestRecord.emailSent ? ' · E-mail enviado' : ''}
                 </small>
               </div>
             )}
-            {!navigator.onLine && (
+            {!online && (
               <span className="terminal-offline-note">
                 <WifiOff size={16} /> Sem conexão
               </span>

@@ -24,6 +24,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ALL_ROLES, roleForUser, type AppRole } from '../auth/permissions';
 import { BrandMark } from './BrandMark';
 import { usePresentationMode } from '../presentation/PresentationContext';
+import { formatInAppTimeZone } from '../utils/dateTime';
 
 interface NavItem {
   to: string;
@@ -145,10 +146,7 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
     .join('')
     .toUpperCase();
 
-  const currentDate = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date());
+  const currentDate = formatInAppTimeZone(new Date(), { day: '2-digit', month: 'short' });
 
   useEffect(() => {
     const updateConnection = () => setOnline(navigator.onLine);

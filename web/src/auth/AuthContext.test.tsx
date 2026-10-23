@@ -15,13 +15,17 @@ vi.mock('../services/supabase', () => ({ supabase: { auth: {
   },
 } } }));
 
-import { AuthProvider, useAuth } from './AuthContext';
+import { AuthProvider, isSessionRejected, useAuth } from './AuthContext';
 
 const session = (id: string) => ({ user: { id }, access_token: `synthetic-${id}` } as Session);
 function Probe() {
   const authContext = useAuth();
-  return <><span>{authContext.loading ? 'loading' : authContext.user?.id || 'signed-out'}</span>
-    <button onClick={() => void authContext.signOut()}>Sair</button></>;
+  const label = authContext.loading ? 'loading'
+    : authContext.status === 'unavailable' ? 'unavailable'
+      : authContext.user?.id || 'signed-out';
+  return <><span>{label}</span>
+    <button onClick={() => void authContext.signOut()}>Sair</button>
+    <button onClick={authContext.retrySessionCheck}>Tentar</button></>;
 }
 beforeEach(() => {
   authenticatedReadCache.reset();
@@ -67,4 +71,48 @@ it('verificação inicial tardia não restaura a sessão anterior após um novo 
   const loader = vi.fn(async () => 'cache reset indevido');
   expect(await authenticatedReadCache.read('employees', 30_000, loader)).toBe('dados B');
   expect(loader).not.toHaveBeenCalled();
+});
+
+it('falha de rede ao validar mantém a sessão salva e permite tentar de novo', async () => {
+  auth.getUser.mockResolvedValueOnce({
+    data: { user: null },
+    error: { name: 'AuthRetryableFetchError', status: 0, message: 'Failed to fetch' },
+  });
+  render(<AuthProvider><Probe /></AuthProvider>);
+  await screen.findByText('unavailable');
+  expect(auth.signOut).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Tentar' }));
+  await screen.findByText('user-A');
+  expect(auth.signOut).not.toHaveBeenCalled();
+});
+
+it('serviço de login fora do ar (5xx) não é tratado como sessão inválida', async () => {
+  auth.getSession.mockResolvedValueOnce({
+    data: { session: null },
+    error: { name: 'AuthRetryableFetchError', status: 503, message: 'Service Unavailable' },
+  });
+  render(<AuthProvider><Probe /></AuthProvider>);
+  await screen.findByText('unavailable');
+  expect(auth.signOut).not.toHaveBeenCalled();
+});
+
+it('sessão recusada pelo Supabase é descartada localmente', async () => {
+  auth.getUser.mockResolvedValueOnce({
+    data: { user: null },
+    error: { name: 'AuthApiError', status: 403, message: 'invalid JWT' },
+  });
+  render(<AuthProvider><Probe /></AuthProvider>);
+  await screen.findByText('signed-out');
+  expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+});
+
+it('classifica apenas respostas de sessão inválida como rejeição', () => {
+  expect(isSessionRejected({ status: 401 })).toBe(true);
+  expect(isSessionRejected({ status: 403 })).toBe(true);
+  expect(isSessionRejected({ status: 0 })).toBe(false);
+  expect(isSessionRejected({ status: 429 })).toBe(false);
+  expect(isSessionRejected({ status: 503 })).toBe(false);
+  expect(isSessionRejected(new Error('AUTH_REQUEST_TIMEOUT'))).toBe(false);
+  expect(isSessionRejected(null)).toBe(false);
 });
