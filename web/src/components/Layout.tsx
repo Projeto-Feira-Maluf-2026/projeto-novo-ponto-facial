@@ -50,37 +50,37 @@ const presentationNavItem: NavItem = {
 const pageCopy: Record<string, { title: string; description: string; eyebrow: string }> = {
   '/': {
     title: 'Visão geral',
-    description: 'Presença, registros e disponibilidade de toda a operação em um só lugar.',
-    eyebrow: 'Central operacional',
+    description: 'Como está o dia nas obras, num lugar só.',
+    eyebrow: 'Resumo do dia',
   },
   '/terminal-facial': {
     title: 'Ponto automático',
-    description: 'Terminal autônomo de reconhecimento e registro.',
-    eyebrow: 'Operação em campo',
+    description: 'Olhe para a câmera e o ponto é registrado sozinho.',
+    eyebrow: 'Na obra',
   },
   '/funcionarios': {
     title: 'Funcionários',
-    description: 'Equipe, vínculos e cadastros biométricos.',
-    eyebrow: 'Gestão de pessoas',
+    description: 'Quem trabalha em cada obra e quem já cadastrou o rosto.',
+    eyebrow: 'Pessoas',
   },
   '/obras': {
     title: 'Obras',
-    description: 'Locais de trabalho, responsáveis e áreas permitidas.',
-    eyebrow: 'Estrutura operacional',
+    description: 'Os locais de trabalho, quem cuida de cada um e o movimento de hoje.',
+    eyebrow: 'Locais',
   },
   '/dispositivos': {
     title: 'Câmeras',
-    description: 'Fontes de vídeo e disponibilidade dos equipamentos.',
-    eyebrow: 'Infraestrutura',
+    description: 'As câmeras que leem o ponto e se cada uma está funcionando.',
+    eyebrow: 'Equipamentos',
   },
   '/relatorios': {
     title: 'Relatórios',
-    description: 'Consolide registros para conferência e fechamento.',
-    eyebrow: 'Inteligência de dados',
+    description: 'Baixe os pontos do período para conferir e fechar a folha.',
+    eyebrow: 'Fechamento',
   },
   '/apresentacao': {
     title: 'Modo apresentação',
-    description: 'Demonstração guiada com dados reais do sistema.',
+    description: 'Tudo o que você precisa para mostrar o projeto na feira.',
     eyebrow: 'Feira de tecnologia',
   },
 };
@@ -326,8 +326,18 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
             </span>
           </NavLink>
           <div className="topbar-page-context min-w-0">
-            <p className="topbar-context">{current.eyebrow}</p>
-            <strong className="topbar-title">{current.title}</strong>
+            {isTerminal ? (
+              <>
+                <p className="topbar-context">{current.eyebrow}</p>
+                <strong className="topbar-title">{current.title}</strong>
+              </>
+            ) : (
+              // A página já mostra o título grande; o topo não precisa repeti-lo.
+              <span className="topbar-inline-brand">
+                <BrandMark className="topbar-inline-mark" />
+                <strong>Curitiba Empreiteira</strong>
+              </span>
+            )}
           </div>
           <nav className="desktop-primary-nav" aria-label="Navegação principal">
             {visibleNavItems.map((item) => {

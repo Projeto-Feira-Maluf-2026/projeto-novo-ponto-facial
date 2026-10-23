@@ -1,0 +1,223 @@
+/* Dashboard: indicadores com hierarquia clara e gráfico de barras por horário. */
+.premium-dashboard {
+  --dash-bar: #3f7d4a;
+  --dash-bar-muted: rgba(63, 125, 74, 0.42);
+  --dash-grid: rgba(19, 39, 31, 0.08);
+  --dash-ink: #13271f;
+  --dash-muted: #5b6b61;
+  --dash-tip: #13271f;
+  --dash-tip-ink: #ffffff;
+}
+
+html.dark .premium-dashboard {
+  --dash-bar: #6fa555;
+  --dash-bar-muted: rgba(111, 165, 85, 0.45);
+  --dash-grid: rgba(242, 241, 232, 0.08);
+  --dash-ink: #eef0e8;
+  --dash-muted: #a9b6ac;
+  --dash-tip: #f2f1e8;
+  --dash-tip-ink: #0b1710;
+}
+
+/* ---------- Indicadores ---------- */
+
+.dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dashboard-metrics .metric-tile {
+  position: relative;
+  grid-column: auto;
+  min-height: 0;
+}
+
+.dashboard-metrics .metric-tile strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-meter {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  left: 20px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--dash-grid);
+}
+
+.metric-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dash-bar);
+  transform-origin: left;
+  animation: dash-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s both;
+}
+
+@keyframes dash-grow {
+  from { transform: scaleX(0); }
+}
+
+@media (max-width: 1199px) {
+  .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .dashboard-metrics { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- Barras por horário ---------- */
+
+.activity-bars {
+  display: grid;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.activity-bars .activity-chart-summary strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-bars-plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(6px, 1.4vw, 16px);
+  height: 230px;
+  margin: 26px 0 30px 34px;
+}
+
+.activity-bars-grid {
+  position: absolute;
+  right: 0;
+  left: -34px;
+  height: 0;
+  border-top: 1px dashed var(--dash-grid);
+  pointer-events: none;
+}
+
+.activity-bars-grid i {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  color: var(--dash-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-bar {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  border-radius: 8px;
+  outline: none;
+  cursor: default;
+}
+
+.activity-bar-fill {
+  position: relative;
+  width: min(100%, 44px);
+  border-radius: 4px 4px 0 0;
+  background: var(--dash-bar-muted);
+  transform-origin: bottom;
+  transition: background-color 0.18s ease;
+  animation: dash-rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.activity-bar:nth-child(5) .activity-bar-fill { animation-delay: 0.05s; }
+.activity-bar:nth-child(6) .activity-bar-fill { animation-delay: 0.1s; }
+.activity-bar:nth-child(7) .activity-bar-fill { animation-delay: 0.15s; }
+.activity-bar:nth-child(8) .activity-bar-fill { animation-delay: 0.2s; }
+.activity-bar:nth-child(9) .activity-bar-fill { animation-delay: 0.25s; }
+.activity-bar:nth-child(n + 10) .activity-bar-fill { animation-delay: 0.3s; }
+
+@keyframes dash-rise {
+  from { transform: scaleY(0); }
+}
+
+.activity-bar[data-peak] .activity-bar-fill,
+.activity-bar:hover .activity-bar-fill,
+.activity-bar:focus-visible .activity-bar-fill {
+  background: var(--dash-bar);
+}
+
+.activity-bar:focus-visible {
+  box-shadow: 0 0 0 2px var(--dash-bar);
+}
+
+.activity-bar-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  color: var(--dash-ink);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.activity-bar-hour {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  color: var(--dash-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.activity-bar[data-peak] .activity-bar-hour {
+  color: var(--dash-ink);
+  font-weight: 700;
+}
+
+.activity-bar-tip {
+  position: absolute;
+  bottom: calc(var(--fill, 0%) + 10px);
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--dash-tip);
+  color: var(--dash-tip-ink);
+  font-size: 13px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.activity-bar-tip small { opacity: 0.75; }
+
+.activity-bar:hover .activity-bar-tip,
+.activity-bar:focus-visible .activity-bar-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* A dica fica acima do rótulo do pico quando os dois aparecem juntos. */
+.activity-bar[data-peak]:hover .activity-bar-label,
+.activity-bar[data-peak]:focus-visible .activity-bar-label {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-bar-fill,
+  .metric-meter span { animation: none; }
+}
+
+.dashboard-metrics .metric-tile:has(.metric-meter) {
+  padding-bottom: 34px;
+}

@@ -1,20 +1,28 @@
 import {
   ArrowRight,
+  Check,
   Eye,
   EyeOff,
   LoaderCircle,
   LockKeyhole,
   Mail,
 } from 'lucide-react';
-import { FormEvent, useRef, useState } from 'react';
+import { FormEvent, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { useLoginMotion } from '../animations/useMotion';
 import { useAuth } from '../auth/AuthContext';
 import { BrandMark } from '../components/BrandMark';
+import './login.css';
+
+/** Confirmações ilustrativas que flutuam ao fundo: mostram o que o sistema faz, sem dados reais. */
+const AMBIENT_CHIPS = [
+  { label: 'Entrada', detail: '07:42', x: '9%', y: '18%' },
+  { label: 'Rosto reconhecido', detail: 'Obra Batel', x: '74%', y: '14%' },
+  { label: 'Volta do intervalo', detail: '13:05', x: '6%', y: '72%' },
+  { label: 'Saída', detail: '17:31', x: '78%', y: '76%' },
+];
 
 export function LoginPage() {
-  const loginRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -22,11 +30,14 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  useLoginMotion(loginRef);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (loading) return;
+    if (!email.trim() || !password) {
+      setError('Preencha o e-mail e a senha para entrar.');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -39,133 +50,113 @@ export function LoginPage() {
         || message.includes('network') || status >= 500;
       setError(
         message.includes('profile_missing')
-          ? 'Sua conta não possui um perfil de acesso. Solicite a liberação ao administrador.'
+          ? 'Sua conta ainda não tem um perfil de acesso. Peça a liberação ao administrador.'
           : status === 429
-            ? 'Muitas tentativas de login seguidas. Aguarde alguns minutos e tente novamente.'
+            ? 'Muitas tentativas de login seguidas. Aguarde alguns minutos e tente de novo.'
             : unreachable
-              ? 'Não foi possível conectar ao serviço de login. Tente novamente em instantes.'
-              : 'E-mail ou senha incorretos. Verifique os dados e tente novamente.',
+              ? 'Não conseguimos falar com o serviço de login. Confira a internet e tente de novo.'
+              : 'E-mail ou senha não conferem. Confira e tente de novo.',
       );
     } finally {
       setLoading(false);
     }
   };
 
+  const clearError = () => {
+    if (error) setError('');
+  };
+
   return (
-    <main ref={loginRef} className="login-page">
-      <div className="login-window">
-        <aside className="login-context">
-          <div className="login-context-grid" aria-hidden="true" />
-          <div className="login-architecture" aria-hidden="true">
-            <svg viewBox="0 0 700 800" preserveAspectRatio="xMidYMid slice" focusable="false">
-              <g className="login-blueprint-city">
-                <path className="login-blueprint-line" d="M24 694H676M44 724H654" />
-                <path className="login-blueprint-volume" d="M28 694V532h112v162M54 532v-48h61v48M152 694V578h92v116" />
-                <path className="login-blueprint-volume" d="M506 694V498h140v196M535 498v-66h76v66" />
+    <main className="auth">
+      <div className="auth-backdrop" aria-hidden="true">
+        <span className="auth-glow auth-glow-a" />
+        <span className="auth-glow auth-glow-b" />
+        <span className="auth-grid" />
+        <span className="auth-scanline" />
+        {AMBIENT_CHIPS.map((chip, index) => (
+          <span
+            key={chip.label}
+            className="auth-chip"
+            style={{ '--x': chip.x, '--y': chip.y, '--i': index } as CSSProperties}
+          >
+            <span className="auth-chip-icon"><Check size={13} /></span>
+            <strong>{chip.label}</strong>
+            <small>{chip.detail}</small>
+          </span>
+        ))}
+      </div>
 
-                <g className="login-blueprint-building">
-                  <path className="login-blueprint-volume login-blueprint-main" d="M255 694V214l42-34h210v514Z" />
-                  <path className="login-blueprint-line" d="M297 180v514M507 214 297 180M355 190v504M418 199v495M476 208v486" />
-                  <path className="login-blueprint-line" d="M255 694h274v20H236v-20ZM281 180v-26h242v540" />
-                  <path className="login-blueprint-floor" d="M255 618h252" />
-                  <path className="login-blueprint-floor" d="M255 550h252" />
-                  <path className="login-blueprint-floor" d="M255 482h252" />
-                  <path className="login-blueprint-floor" d="M255 414h252" />
-                  <path className="login-blueprint-floor" d="M255 346h252" />
-                  <path className="login-blueprint-floor" d="M255 278h252" />
-                  <path className="login-blueprint-floor" d="M271 228h236" />
-                  <path className="login-blueprint-accent" d="M320 618v-48h58v48M436 550v-48h44v48M373 414v-48h62v48" />
-                </g>
+      <section className="auth-card">
+        <header className="auth-identity">
+          <span className="auth-logo">
+            <BrandMark className="auth-logo-mark" />
+          </span>
+          <p className="auth-wordmark">Curitiba Empreiteira</p>
+          <p className="auth-tagline">Ponto facial para a obra</p>
+        </header>
 
-                <g className="login-blueprint-crane">
-                  <path className="login-blueprint-line" d="M560 694V142M548 694h24M552 142h16M560 142H262M560 156h84M282 142l-34 20M319 142l-34 20M356 142l-34 20M393 142l-34 20M430 142l-34 20" />
-                  <path className="login-blueprint-line" d="M302 142v180M295 322h14M626 156v94M618 250h16" />
-                </g>
+        <form onSubmit={onSubmit} className="auth-form" noValidate>
+          <h1 className="auth-title">Entrar na sua conta</h1>
 
-                <path className="login-blueprint-scan" d="M176 96V736" />
-              </g>
-            </svg>
-          </div>
-          <div className="login-brand">
-            <BrandMark className="login-brand-mark" />
-            <div>
-              <strong>Curitiba Empreiteira</strong>
-            </div>
-          </div>
+          <label className="auth-field" htmlFor="login-email">
+            <span className="auth-label">E-mail</span>
+            <span className="auth-control" data-invalid={Boolean(error) || undefined}>
+              <Mail size={18} aria-hidden="true" />
+              <input
+                id="login-email"
+                type="email"
+                value={email}
+                onChange={(event) => { setEmail(event.target.value); clearError(); }}
+                placeholder="nome@empresa.com"
+                autoComplete="email"
+                inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? 'login-error' : undefined}
+                required
+              />
+            </span>
+          </label>
 
-          <div className="login-context-content">
-            <h2>Controle de ponto facial</h2>
-          </div>
-        </aside>
-
-        <section className="login-access">
-          <div className="login-mobile-brand">
-            <BrandMark className="login-brand-mark" />
-            <strong>Curitiba Empreiteira</strong>
-          </div>
-
-          <form onSubmit={onSubmit} className="login-form" noValidate>
-            <div className="login-form-heading">
-              <h1>Entrar</h1>
-            </div>
-
-            <div className={`login-input ${error ? 'is-invalid' : ''}`}>
-              <Mail size={19} aria-hidden="true" />
-              <label htmlFor="login-email">
-                <span>E-mail corporativo</span>
-                <input
-                  id="login-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => { setEmail(event.target.value); if (error) setError(''); }}
-                  placeholder="nome@empresa.com"
-                  autoComplete="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? 'login-error' : undefined}
-                  required
-                />
-              </label>
-            </div>
-
-            <div className={`login-input ${error ? 'is-invalid' : ''}`}>
-              <LockKeyhole size={19} aria-hidden="true" />
-              <label htmlFor="login-password">
-                <span>Senha</span>
-                <input
-                  id="login-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(event) => { setPassword(event.target.value); if (error) setError(''); }}
-                  placeholder="Digite sua senha"
-                  autoComplete="current-password"
-                  aria-invalid={Boolean(error)}
-                  aria-describedby={error ? 'login-error' : undefined}
-                  required
-                />
-              </label>
+          <label className="auth-field" htmlFor="login-password">
+            <span className="auth-label">Senha</span>
+            <span className="auth-control" data-invalid={Boolean(error) || undefined}>
+              <LockKeyhole size={18} aria-hidden="true" />
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => { setPassword(event.target.value); clearError(); }}
+                placeholder="Sua senha"
+                autoComplete="current-password"
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? 'login-error' : undefined}
+                required
+              />
               <button
                 type="button"
-                className="login-password-toggle"
+                className="auth-reveal"
                 onClick={() => setShowPassword((current) => !current)}
                 aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
-            </div>
+            </span>
+          </label>
 
-            {error && <div id="login-error" className="login-error" role="alert">{error}</div>}
+          {error && <p id="login-error" className="auth-error" role="alert">{error}</p>}
 
-            <button type="submit" className="login-submit" disabled={loading || !email.trim() || !password}>
-              <span>{loading ? 'Entrando…' : 'Entrar'}</span>
-              {loading ? <LoaderCircle className="login-spinner" size={18} /> : <ArrowRight size={18} />}
-            </button>
+          <button type="submit" className="auth-submit" disabled={loading} aria-busy={loading}>
+            <span>{loading ? 'Entrando…' : 'Entrar'}</span>
+            {loading ? <LoaderCircle className="auth-spinner" size={18} /> : <ArrowRight size={18} />}
+          </button>
+        </form>
 
-          </form>
-        </section>
-      </div>
+        <p className="auth-help">Não consegue entrar? Fale com quem administra o sistema na sua obra.</p>
+      </section>
+
+      <footer className="auth-footer">Projeto da Feira de Tecnologia · Colégio Estadual Alfredo Moisés Maluf</footer>
     </main>
   );
 }

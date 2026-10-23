@@ -32,9 +32,9 @@ const kindOptions: Array<{ value: ReportKind; label: string }> = [
 ];
 
 const formatOptions = [
-  { key: 'pdf' as const, label: 'PDF', description: 'Documento pronto para auditoria', icon: FileText },
-  { key: 'xlsx' as const, label: 'Excel', description: 'Planilha para fechamento de folha', icon: FileSpreadsheet },
-  { key: 'csv' as const, label: 'CSV', description: 'Dados simples para integração', icon: Table2 },
+  { key: 'pdf' as const, label: 'PDF', description: 'Para imprimir ou guardar', icon: FileText },
+  { key: 'xlsx' as const, label: 'Excel', description: 'Para fechar a folha', icon: FileSpreadsheet },
+  { key: 'csv' as const, label: 'CSV', description: 'Para outros sistemas', icon: Table2 },
 ];
 
 function presetRange(kind: ReportKind) {
@@ -128,8 +128,8 @@ function ReportExportPanel() {
         <header className="report-section-heading">
           <span className="report-section-index">01</span>
           <div>
-            <h2 id="report-filter-heading">Defina o recorte</h2>
-            <p>Escolha o período e limite os registros quando precisar de um funcionário ou obra.</p>
+            <h2 id="report-filter-heading">Escolha o período</h2>
+            <p>Defina as datas. Se quiser, filtre por um funcionário ou uma obra.</p>
           </div>
         </header>
         <div className="report-filter-grid">
@@ -166,7 +166,7 @@ function ReportExportPanel() {
         <legend className="sr-only">Formato do arquivo</legend>
         <header className="report-section-heading">
           <span className="report-section-index">02</span>
-          <div><h2>Escolha o arquivo</h2><p>O conteúdo é o mesmo; escolha o formato adequado ao próximo uso.</p></div>
+          <div><h2>Escolha o arquivo</h2><p>Os dados são os mesmos; muda só o tipo de arquivo.</p></div>
         </header>
         <div className="report-format-list">
           {formatOptions.map(({ key, label, description, icon: Icon }) => (

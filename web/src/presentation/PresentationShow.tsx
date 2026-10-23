@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Check, Eye, Lock, Moon, Pause, Play, ShieldCheck, Sun, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Eye, Lock, Mail, Moon, Pause, Play, ShieldCheck, Sun, X } from 'lucide-react';
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import type { PunchType } from '../types/domain';
@@ -9,6 +9,7 @@ import {
   type PresentationParticipantResult,
   type PresentationResult,
 } from './presentationResult';
+import { FACE_POINTS } from './facePoints';
 import { projectTeam } from './presentationTeam';
 import './presentation-show.css';
 
@@ -38,6 +39,37 @@ const SCENE_DURATIONS = {
 
 type SceneId = keyof typeof SCENE_DURATIONS;
 const SCENES = Object.keys(SCENE_DURATIONS) as SceneId[];
+
+const SCENE_LABELS: Record<SceneId, string> = {
+  welcome: 'Boas-vindas',
+  face: 'O rosto',
+  code: 'O código',
+  match: 'A comparação',
+  record: 'O registro',
+  care: 'Os dados',
+  school: 'A escola',
+  team: 'A equipe',
+  finale: 'Até logo',
+};
+
+/** Explosão de confete em CSS: ângulos e distâncias fixos, sem aleatoriedade por render. */
+function Burst({ count = 18 }: { count?: number }) {
+  return (
+    <span className="show-burst" aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <span
+          key={index}
+          style={{
+            '--a': `${(index / count) * 360 + (index % 2 ? 9 : -6)}deg`,
+            '--d': `${110 + (index * 37) % 90}px`,
+            '--s': (index % 3) + 1,
+            '--i': index,
+          } as CSSProperties}
+        />
+      ))}
+    </span>
+  );
+}
 
 type ShowTheme = 'light' | 'dark';
 const THEME_STORAGE_KEY = 'curitiba:presentation-theme';
@@ -71,29 +103,6 @@ function signatureBars(seed: string, count: number) {
     return 0.28 + ((state >>> 0) % 1000) / 1000 * 0.72;
   });
 }
-
-/** Pontos de referência ilustrativos do rosto (olhos, sobrancelhas, nariz, boca e contorno). */
-const FACE_POINTS: Array<[number, number]> = (() => {
-  const points: Array<[number, number]> = [];
-  for (let step = 0; step <= 16; step += 1) {
-    const angle = Math.PI * (0.06 + (step / 16) * 0.88);
-    points.push([200 - Math.cos(angle) * 128, 196 + Math.sin(angle) * 168]);
-  }
-  [[-1, 0], [1, 0]].forEach(([side]) => {
-    for (let step = 0; step < 5; step += 1) points.push([200 + side * (40 + step * 15), 160 - Math.sin((step / 4) * Math.PI) * 14]);
-    for (let step = 0; step < 6; step += 1) {
-      const angle = (step / 6) * Math.PI * 2;
-      points.push([200 + side * 64 + Math.cos(angle) * 22, 196 + Math.sin(angle) * 9]);
-    }
-  });
-  for (let step = 0; step < 5; step += 1) points.push([200, 190 + step * 18]);
-  [[-22, 276], [-11, 280], [0, 282], [11, 280], [22, 276]].forEach(([x, y]) => points.push([200 + x, y]));
-  for (let step = 0; step <= 10; step += 1) {
-    const angle = Math.PI * (step / 10);
-    points.push([200 - Math.cos(angle) * 44, 322 + Math.sin(angle) * 14 - (step === 0 || step === 10 ? 0 : 4)]);
-  }
-  return points;
-})();
 
 function MotionText({ text, className }: { text: string; className?: string }) {
   let offset = 0;
@@ -181,8 +190,15 @@ function FaceMesh() {
 
 function CodeSignature({ seed }: { seed: string }) {
   const bars = useMemo(() => signatureBars(seed, 72), [seed]);
+  const values = useMemo(
+    () => signatureBars(`${seed}#valores`, 24).map((value, index) => ((value - 0.64) * (index % 3 === 0 ? -1 : 1)).toFixed(3)),
+    [seed],
+  );
   return (
     <div className="show-visual show-code" aria-hidden="true">
+      <div className="show-code-stream">
+        <span>{[...values, ...values].map((value, index) => <i key={index}>{value}</i>)}</span>
+      </div>
       <div className="show-code-ring">
         {bars.map((length, index) => (
           <span
@@ -248,6 +264,9 @@ function Receipt({ result }: { result: PresentationResult }) {
         </ul>
         <footer><Check size={16} /> Salvo no histórico</footer>
         <span className="show-receipt-stamp">Registrado</span>
+        {participants.some((participant) => participant.email !== 'none') && (
+          <span className="show-envelope"><Mail size={20} /></span>
+        )}
       </div>
     </div>
   );
@@ -382,12 +401,18 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
         <span className="show-grid" />
       </div>
       <ConstructionBackdrop level={index} />
+      <span key={`numeral-${index}`} className="show-numeral" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+      <span key={`sweep-${index}`} className="show-sweep" aria-hidden="true" />
 
       <header className="show-topbar">
         <div className="show-brand">
           <img src="/curitiba-mark.svg" alt="" width="32" height="32" />
           <span>Curitiba Empreiteira<small>Ponto facial · Feira de Tecnologia</small></span>
         </div>
+        <p key={`chapter-${index}`} className="show-chapter" aria-hidden="true">
+          <span>{String(index + 1).padStart(2, '0')} / {String(SCENES.length).padStart(2, '0')}</span>
+          {SCENE_LABELS[scene]}
+        </p>
         <div className="show-controls">
           <button
             type="button"
@@ -450,6 +475,7 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
             <p className="show-hint">Nos próximos segundos, a gente mostra o que aconteceu por trás dessa leitura.</p>
           </div>
           <div className="show-visual show-badge" aria-hidden="true">
+            <Burst />
             <svg viewBox="0 0 220 220">
               <circle className="show-badge-ring" cx="110" cy="110" r="92" />
               <circle className="show-badge-glow" cx="110" cy="110" r="70" />
@@ -537,6 +563,7 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
         </section>
 
         <section className="show-scene show-scene-finale" data-state={sceneState(8)} aria-hidden={index !== 8}>
+          <Burst count={28} />
           <div className="show-copy show-copy-center">
             <span className="show-eyebrow">Obrigado!</span>
             <h2 className="show-greeting"><MotionText text={group ? 'Valeu pela visita!' : `Valeu, ${firstName(lead.name)}!`} /></h2>

@@ -176,8 +176,8 @@ export function WorksitesPage() {
     <div className="app-view-transition space-y-5 premium-worksites">
       <section className="page-actions">
         <div className="page-actions-context">
-          <span><RadioTower size={16} /> Cobertura operacional</span>
-          <p>Cadastros, atividade e infraestrutura de cada frente de trabalho.</p>
+          <span><RadioTower size={16} /> Visão das obras</span>
+          <p>Quantas obras existem, quantas câmeras cada uma tem e o movimento de hoje.</p>
         </div>
         {canCreateWorksite && <button onClick={() => setShowForm((value) => !value)} className="btn btn-primary">
           <Plus size={18} />
@@ -206,22 +206,22 @@ export function WorksitesPage() {
       <dl className="worksite-statline" aria-label="Resumo das obras">
         <div><dt><Building2 size={17} /> Obras cadastradas</dt><dd>{worksites.length}</dd></div>
         <div><dt><Camera size={17} /> Câmeras e terminais</dt><dd>{devicesVisible ? devices.length : '—'}</dd></div>
-        <div><dt><Activity size={17} /> Registros hoje</dt><dd>{metrics?.records_today ?? 0}</dd></div>
+        <div><dt><Activity size={17} /> Pontos hoje</dt><dd>{metrics?.records_today ?? 0}</dd></div>
       </dl>
 
       <section className="worksite-command" aria-labelledby="worksite-command-title">
         <header className="worksite-command-header">
           <div>
-            <span className="section-eyebrow"><Building2 size={14} /> Gêmeo digital</span>
-            <h2 id="worksite-command-title">Obra em contexto</h2>
-            <p>Explore a implantação 3D e confira os sinais operacionais cadastrados para cada local.</p>
+            <span className="section-eyebrow"><Building2 size={14} /> Visualização 3D</span>
+            <h2 id="worksite-command-title">Cada obra em 3D</h2>
+            <p>Gire a maquete e veja, ao lado, os dados de cada obra.</p>
           </div>
         </header>
 
         {selectedWorksite ? (
           <div className="worksite-command-grid">
             <aside className="worksite-portfolio" aria-label="Escolher obra">
-              <div className="worksite-selector-heading"><span>Portfólio de obras</span><strong>{String(worksites.length).padStart(2, '0')}</strong></div>
+              <div className="worksite-selector-heading"><span>Suas obras</span><strong>{String(worksites.length).padStart(2, '0')}</strong></div>
               <div ref={tabsRef} className="worksite-selector-list" role="tablist" aria-orientation="vertical">
                 <span className="worksite-tab-indicator" data-tab-indicator aria-hidden="true" />
                 {worksites.map((worksite, index) => {
@@ -281,13 +281,13 @@ export function WorksitesPage() {
                   <span className={`status-pill ${selectedWorksite.active ? 'status-pill-online' : 'status-pill-neutral'}`}><span className="status-dot" /> {selectedWorksite.active ? 'Operacional' : 'Inativa'}</span>
                 </div>
                 <dl className="worksite-signal-grid">
-                  <div><dt><Activity size={16} /> Movimentações hoje</dt><dd>{selectedMovement}</dd><small>Registros desta obra</small></div>
+                  <div><dt><Activity size={16} /> Pontos hoje</dt><dd>{selectedMovement}</dd><small>Batidos nesta obra</small></div>
                   <div><dt><Camera size={16} /> Câmeras e terminais</dt><dd>{devicesVisible ? selectedDevices.length : '—'}</dd><small>{devicesVisible ? `${selectedDevices.filter((device) => device.status === 'ACTIVE').length} ativos` : 'Sem acesso a dispositivos'}</small></div>
-                  <div><dt><UsersRound size={16} /> Responsável</dt><dd className="is-text">{selectedWorksite.manager_name || 'Não informado'}</dd><small>Cadastro administrativo</small></div>
-                  <div><dt><Building2 size={16} /> Código operacional</dt><dd className="is-text">{selectedWorksite.code}</dd><small>Identificação da obra</small></div>
+                  <div><dt><UsersRound size={16} /> Responsável</dt><dd className="is-text">{selectedWorksite.manager_name || 'Não informado'}</dd><small>Quem cuida da obra</small></div>
+                  <div><dt><Building2 size={16} /> Código</dt><dd className="is-text">{selectedWorksite.code}</dd><small>Usado nos relatórios</small></div>
                 </dl>
                 <div className="worksite-readiness">
-                  <span>Prontidão do cadastro</span>
+                  <span>O que falta no cadastro</span>
                   <div>
                     <i data-ready={Boolean(selectedWorksite.manager_name)} /> Responsável
                     <i data-ready={Boolean(selectedWorksite.address)} /> Endereço

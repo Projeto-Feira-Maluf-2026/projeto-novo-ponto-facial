@@ -46,6 +46,8 @@ interface WorldBuild {
   interactables: Object3D[];
   gateBeacon: Group;
   pulseRing: Mesh<RingGeometry, MeshBasicMaterial>;
+  archetype: Archetype;
+  buildingHeight: number;
 }
 
 const palettes = [
@@ -101,98 +103,266 @@ function addBox(
   return object;
 }
 
-function createBuilding(
-  random: () => number,
-  palette: (typeof palettes)[number],
-  name: string,
-  variant: number,
-) {
-  const building = new Group();
-  building.name = name;
-  building.userData.assetLabel = name;
+type Archetype = 'tower' | 'warehouse' | 'office' | 'houses' | 'retrofit';
 
-  const width = 7.2 + random() * 2.4;
-  const depth = 5.2 + random() * 1.5;
-  const floors = 5 + Math.floor(random() * 5);
+export const ARCHETYPE_LABELS: Record<Archetype, string> = {
+  tower: 'Torre residencial',
+  warehouse: 'Galpão industrial',
+  office: 'Edifício comercial',
+  houses: 'Condomínio de casas',
+  retrofit: 'Reforma de prédio',
+};
+
+const ARCHETYPE_ORDER: Archetype[] = ['tower', 'office', 'warehouse', 'houses', 'retrofit'];
+
+/** O nome da obra sugere o tipo; sem pista, o código escolhe sempre o mesmo modelo. */
+export function pickArchetype(worksite: Pick<Worksite, 'name' | 'code'>, seed: number): Archetype {
+  const text = `${worksite.name} ${worksite.code}`.toLowerCase();
+  if (/reforma|retrofit|restaur|revitaliz/.test(text)) return 'retrofit';
+  if (/galp|industrial|\bcic\b|log[ií]stic|f[aá]brica|armaz/.test(text)) return 'warehouse';
+  if (/casa|condom|vila|loteamento|sobrado/.test(text)) return 'houses';
+  if (/torre|residencial|apart|edif[ií]cio/.test(text)) return 'tower';
+  if (/comercial|escrit|corporat|office|shopping/.test(text)) return 'office';
+  return ARCHETYPE_ORDER[seed % ARCHETYPE_ORDER.length];
+}
+
+function materialsFor(palette: (typeof palettes)[number]) {
+  return {
+    concrete: new MeshStandardMaterial({ color: palette.wall, roughness: 0.84, metalness: 0.03 }),
+    core: new MeshStandardMaterial({ color: palette.side, roughness: 0.9 }),
+    accent: new MeshStandardMaterial({ color: palette.accent, roughness: 0.62, metalness: 0.18 }),
+    structure: new MeshStandardMaterial({ color: 0xaaa9a4, roughness: 0.94 }),
+    mullion: new MeshStandardMaterial({ color: 0x505a5a, roughness: 0.42, metalness: 0.55 }),
+    steel: new MeshStandardMaterial({ color: 0x6a7270, roughness: 0.45, metalness: 0.62 }),
+    safetyMesh: new MeshStandardMaterial({ color: 0x4f8a57, transparent: true, opacity: 0.42, roughness: 0.9, depthWrite: false }),
+    roof: new MeshStandardMaterial({ color: 0x8a5a44, roughness: 0.8 }),
+    timber: new MeshStandardMaterial({ color: 0xb08a5c, roughness: 0.9 }),
+    plant: new MeshStandardMaterial({ color: 0x6f8f62, roughness: 0.95 }),
+    dark: new MeshStandardMaterial({ color: 0x3b4442, roughness: 0.6, metalness: 0.3 }),
+    glass: new MeshPhysicalMaterial({
+      color: palette.glass,
+      transparent: true,
+      opacity: 0.8,
+      roughness: 0.14,
+      metalness: 0.15,
+      transmission: 0.08,
+      clearcoat: 0.45,
+    }),
+  };
+}
+
+type WorldMaterials = ReturnType<typeof materialsFor>;
+
+function labelGroup(name: string) {
+  const group = new Group();
+  group.name = name;
+  group.userData.assetLabel = name;
+  return group;
+}
+
+/** Torre esbelta com sacadas; os últimos andares ainda em estrutura, com tela de proteção. */
+function buildTower(random: () => number, m: WorldMaterials, name: string) {
+  const building = labelGroup(name);
+  const width = 5.6 + random() * 1.2;
+  const depth = 4.8 + random() * 0.8;
+  const floors = 10 + Math.floor(random() * 4);
   const floorHeight = 0.86;
-  const completeFloors = Math.max(3, floors - 1 - Math.floor(random() * 2));
-  const builtHeight = completeFloors * floorHeight;
-
-  const concrete = new MeshStandardMaterial({ color: palette.wall, roughness: 0.84, metalness: 0.03 });
-  const core = new MeshStandardMaterial({ color: palette.side, roughness: 0.9 });
-  const accent = new MeshStandardMaterial({ color: palette.accent, roughness: 0.62, metalness: 0.18 });
-  const structure = new MeshStandardMaterial({ color: 0xaaa9a4, roughness: 0.94 });
-  const mullion = new MeshStandardMaterial({ color: 0x505a5a, roughness: 0.42, metalness: 0.55 });
-  const glass = new MeshPhysicalMaterial({
-    color: palette.glass,
-    transparent: true,
-    opacity: 0.78,
-    roughness: 0.18,
-    metalness: 0.12,
-    transmission: 0.08,
-    clearcoat: 0.35,
-  });
-
-  addBox(building, [width, builtHeight, depth], [0, builtHeight / 2 + 0.32, 0], concrete, { name, outline: true });
-  addBox(building, [width + 1.1, 0.5, depth + 0.9], [0, 0.25, 0.1], structure, { outline: true });
-  addBox(building, [1.28, builtHeight + 0.12, depth + 0.18], [-width / 2 + 0.78, builtHeight / 2 + 0.35, 0], core, { outline: true });
-
-  const facadeWidth = width * (variant === 2 ? 0.7 : 0.76);
-  const facadeX = width * 0.08;
-  addBox(
-    building,
-    [facadeWidth, builtHeight - 0.38, 0.09],
-    [facadeX, builtHeight / 2 + 0.34, depth / 2 + 0.055],
-    glass,
-    { cast: false, receive: false, outline: true },
-  );
-
-  const bayCount = 4 + variant;
-  for (let column = 0; column <= bayCount; column += 1) {
-    const x = facadeX - facadeWidth / 2 + (column * facadeWidth) / bayCount;
-    addBox(building, [0.055, builtHeight - 0.3, 0.065], [x, builtHeight / 2 + 0.34, depth / 2 + 0.115], mullion, { cast: false });
+  const complete = floors - 2 - Math.floor(random() * 2);
+  const built = complete * floorHeight;
+  addBox(building, [width + 1.2, 0.5, depth + 1], [0, 0.25, 0], m.structure, { outline: true });
+  addBox(building, [width, built, depth], [0, built / 2 + 0.5, 0], m.concrete, { name, outline: true });
+  addBox(building, [1.1, built + 0.4, 1.4], [-width / 2 + 0.6, built / 2 + 0.6, -depth / 2 + 0.75], m.core, { outline: true });
+  for (let floor = 1; floor <= complete; floor += 1) {
+    const y = 0.5 + floor * floorHeight;
+    addBox(building, [width * 0.86, 0.1, 0.8], [0.2, y - 0.02, depth / 2 + 0.4], m.structure, { outline: true });
+    addBox(building, [width * 0.86, 0.34, 0.03], [0.2, y + 0.17, depth / 2 + 0.79], m.glass, { cast: false, receive: false });
+    addBox(building, [width * 0.7, floorHeight * 0.62, 0.05], [0.3, y - floorHeight / 2 + 0.02, depth / 2 + 0.03], m.glass, { cast: false });
   }
-  for (let floor = 1; floor < completeFloors; floor += 1) {
-    addBox(
-      building,
-      [facadeWidth, 0.055, 0.065],
-      [facadeX, 0.35 + floor * floorHeight, depth / 2 + 0.116],
-      mullion,
-      { cast: false },
-    );
+  for (let floor = complete; floor < floors; floor += 1) {
+    const y = 0.5 + floor * floorHeight;
+    addBox(building, [width + 0.16, 0.14, depth + 0.16], [0, y, 0], m.structure, { outline: true });
+    ([-1, 1] as const).forEach((sx) => ([-1, 1] as const).forEach((sz) => (
+      addBox(building, [0.2, floorHeight, 0.2], [sx * (width / 2 - 0.25), y + floorHeight / 2, sz * (depth / 2 - 0.25)], m.structure)
+    )));
+    addBox(building, [width + 0.3, floorHeight, 0.03], [0, y + floorHeight / 2, depth / 2 + 0.2], m.safetyMesh, { cast: false, receive: false });
   }
-
-  if (variant === 1) {
-    addBox(building, [0.34, builtHeight + 0.18, 0.18], [width * 0.34, builtHeight / 2 + 0.33, depth / 2 + 0.13], accent);
-  } else if (variant === 2) {
-    addBox(building, [facadeWidth, 0.22, 0.2], [facadeX, builtHeight - 0.38, depth / 2 + 0.13], accent);
-  } else {
-    addBox(building, [0.24, builtHeight + 0.1, depth + 0.2], [width / 2 - 0.42, builtHeight / 2 + 0.34, 0], accent);
-  }
-
-  for (let floor = completeFloors; floor < floors; floor += 1) {
-    const slabY = 0.32 + floor * floorHeight;
-    addBox(building, [width + 0.18, 0.14, depth + 0.18], [0, slabY, 0], structure, { outline: true });
-    const columns: Array<[number, number]> = [
-      [-width / 2 + 0.28, -depth / 2 + 0.28],
-      [width / 2 - 0.28, -depth / 2 + 0.28],
-      [-width / 2 + 0.28, depth / 2 - 0.28],
-      [width / 2 - 0.28, depth / 2 - 0.28],
-    ];
-    columns.forEach(([x, z]) => addBox(building, [0.2, floorHeight, 0.2], [x, slabY + floorHeight / 2, z], structure));
-  }
-
-  const roofHeight = 0.32 + floors * floorHeight;
-  addBox(building, [2.25, 0.4, 1.5], [-width * 0.18, roofHeight + 0.2, -depth * 0.08], core, { outline: true });
-  addBox(building, [width * 0.45, 0.12, 1.1], [width * 0.16, roofHeight + 0.08, depth * 0.24], accent);
+  addBox(building, [width + 0.16, 0.14, depth + 0.16], [0, 0.5 + floors * floorHeight, 0], m.structure, { outline: true });
   return building;
+}
+
+/** Galpão largo e baixo, telhado em dente de serra, docas de carga e um vão ainda sem fechamento. */
+function buildWarehouse(random: () => number, m: WorldMaterials, name: string) {
+  const building = labelGroup(name);
+  const width = 12.5 + random() * 1.5;
+  const depth = 7.6 + random() * 1;
+  const height = 3.6 + random() * 0.6;
+  const closed = width * 0.72;
+  const openWidth = width - closed;
+  addBox(building, [width + 1.6, 0.35, depth + 2.6], [0, 0.175, 0.6], m.structure, { outline: true });
+  addBox(building, [closed, height, depth], [-openWidth / 2, height / 2 + 0.35, 0], m.concrete, { name, outline: true });
+  const teeth = 5;
+  const toothWidth = closed / teeth;
+  for (let index = 0; index < teeth; index += 1) {
+    const x = -width / 2 + toothWidth * (index + 0.5);
+    const slope = addBox(building, [toothWidth * 1.02, 0.12, depth], [x - 0.15, height + 0.95, 0], m.accent, { outline: true });
+    slope.rotation.z = 0.42;
+    addBox(building, [0.12, 1.1, depth], [x + toothWidth / 2 - 0.2, height + 0.9, 0], m.glass, { cast: false });
+  }
+  for (let index = 0; index < 3; index += 1) {
+    const x = -width / 2 + closed * ((index + 0.5) / 3);
+    addBox(building, [2, 2.4, 0.08], [x, 1.55, depth / 2 + 0.03], m.dark, { cast: false });
+    for (let stripe = 0; stripe < 6; stripe += 1) {
+      addBox(building, [2, 0.03, 0.1], [x, 0.55 + stripe * 0.38, depth / 2 + 0.05], m.mullion, { cast: false });
+    }
+    addBox(building, [2.4, 0.7, 1.2], [x, 0.35, depth / 2 + 0.7], m.structure);
+  }
+  const frameStart = -width / 2 + closed;
+  for (let index = 0; index <= 3; index += 1) {
+    const x = frameStart + (openWidth * index) / 3;
+    ([-1, 1] as const).forEach((sz) => addBox(building, [0.22, height, 0.22], [x, height / 2 + 0.35, sz * (depth / 2 - 0.1)], m.steel));
+    addBox(building, [0.18, 0.22, depth], [x, height + 0.5, 0], m.steel);
+  }
+  ([-1, 1] as const).forEach((sz) => (
+    addBox(building, [openWidth, 0.12, 0.12], [frameStart + openWidth / 2, height + 0.35, sz * (depth / 2 - 0.1)], m.steel)
+  ));
+  return building;
+}
+
+/** Comercial em degraus: embasamento, corpo e coroamento em pele de vidro, com terraço verde. */
+function buildOffice(random: () => number, m: WorldMaterials, name: string) {
+  const building = labelGroup(name);
+  const floorHeight = 0.9;
+  const tiers = [
+    { w: 10.5 + random(), d: 7.5, floors: 2 },
+    { w: 8 + random(), d: 6, floors: 4 + Math.floor(random() * 2) },
+    { w: 5.6 + random() * 0.8, d: 4.6, floors: 3 + Math.floor(random() * 2) },
+  ];
+  let base = 0.3;
+  addBox(building, [tiers[0].w + 1.4, 0.3, tiers[0].d + 1.2], [0, 0.15, 0], m.structure, { outline: true });
+  tiers.forEach((tier, index) => {
+    const height = tier.floors * floorHeight;
+    const offset = index === 2 ? -0.6 : 0;
+    addBox(building, [tier.w, height, tier.d], [offset, base + height / 2, 0], m.glass, index === 0 ? { name, outline: true } : { outline: true });
+    for (let floor = 1; floor <= tier.floors; floor += 1) {
+      addBox(building, [tier.w + 0.06, 0.08, tier.d + 0.06], [offset, base + floor * floorHeight - 0.04, 0], m.mullion, { cast: false });
+    }
+    const bays = Math.round(tier.w / 1.1);
+    for (let bay = 0; bay <= bays; bay += 1) {
+      const x = offset - tier.w / 2 + (tier.w * bay) / bays;
+      addBox(building, [0.05, height, 0.06], [x, base + height / 2, tier.d / 2 + 0.03], m.mullion, { cast: false });
+    }
+    if (index < tiers.length - 1) {
+      for (let planter = 0; planter < 4; planter += 1) {
+        addBox(building, [0.7, 0.35, 0.5], [-tier.w / 2 + 0.7 + planter * ((tier.w - 1.4) / 3), base + height + 0.18, tier.d / 2 - 0.45], m.plant);
+      }
+      addBox(building, [tier.w, 0.12, tier.d], [offset, base + height + 0.06, 0], m.structure, { outline: true });
+      base += height;
+    } else {
+      addBox(building, [1.8, 0.6, 1.4], [offset - 1, base + height + 0.3, -0.6], m.core, { outline: true });
+    }
+  });
+  addBox(building, [3.2, 0.12, 1.4], [1.4, 1.6, tiers[0].d / 2 + 0.7], m.accent, { outline: true });
+  return building;
+}
+
+/** Fileira de sobrados com telhado de duas águas; os do fim ainda estão na estrutura. */
+function buildHouses(random: () => number, m: WorldMaterials, name: string) {
+  const building = labelGroup(name);
+  const count = 5;
+  const houseWidth = 2.5;
+  const depth = 4.2;
+  const wallHeight = 2.6;
+  const finished = 3 + Math.floor(random() * 1.5);
+  const wallColors = [0xe4ddd0, 0xd5dccf, 0xe2d6c9, 0xd9d9d3, 0xdcd2c2];
+  for (let index = 0; index < count; index += 1) {
+    const x = (index - (count - 1) / 2) * (houseWidth + 0.35);
+    addBox(building, [houseWidth + 0.3, 0.2, depth + 1.6], [x, 0.1, 0.4], m.structure);
+    if (index < finished) {
+      const wall = new MeshStandardMaterial({ color: wallColors[index % wallColors.length], roughness: 0.85 });
+      addBox(building, [houseWidth, wallHeight, depth], [x, wallHeight / 2 + 0.2, 0], wall, index === 0 ? { name, outline: true } : { outline: true });
+      ([-1, 1] as const).forEach((side) => {
+        const pitch = addBox(building, [houseWidth + 0.3, 0.12, depth / 2 + 0.45], [x, wallHeight + 0.75, side * depth * 0.24], m.roof, { outline: true });
+        pitch.rotation.x = side * 0.55;
+      });
+      addBox(building, [0.8, 1.5, 0.06], [x - 0.5, 0.95, depth / 2 + 0.02], m.timber, { cast: false });
+      addBox(building, [0.7, 0.6, 0.06], [x + 0.55, 1.9, depth / 2 + 0.02], m.glass, { cast: false });
+      addBox(building, [houseWidth + 0.3, 0.6, 0.06], [x, 0.5, depth / 2 + 0.8], m.plant, { cast: false });
+    } else {
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => (
+        addBox(building, [0.12, wallHeight, 0.12], [x + sx * (houseWidth / 2 - 0.06), wallHeight / 2 + 0.2, sz * (depth / 2 - 0.06)], m.timber)
+      ));
+      addBox(building, [houseWidth, 0.1, depth], [x, wallHeight + 0.2, 0], m.timber, { outline: true });
+      ([-1, 1] as const).forEach((side) => {
+        for (let rafter = 0; rafter < 4; rafter += 1) {
+          const beam = addBox(building, [0.08, 0.08, depth / 2 + 0.3], [x - houseWidth / 2 + 0.2 + rafter * ((houseWidth - 0.4) / 3), wallHeight + 0.75, side * depth * 0.24], m.timber);
+          beam.rotation.x = side * 0.55;
+        }
+      });
+      addBox(building, [houseWidth, 0.5, depth], [x, 0.45, 0], m.concrete, { outline: true });
+    }
+  }
+  return building;
+}
+
+/** Prédio antigo em reforma: janelas recortadas, andaime na fachada, tubo de entulho e caçamba. */
+function buildRetrofit(random: () => number, m: WorldMaterials, name: string) {
+  const building = labelGroup(name);
+  const width = 8 + random() * 1.4;
+  const depth = 5.6;
+  const floors = 5 + Math.floor(random() * 2);
+  const floorHeight = 0.95;
+  const height = floors * floorHeight;
+  const oldWall = new MeshStandardMaterial({ color: 0xcab9a2, roughness: 0.95 });
+  addBox(building, [width, height, depth], [0, height / 2 + 0.25, 0], oldWall, { name, outline: true });
+  addBox(building, [width + 0.4, 0.3, depth + 0.4], [0, height + 0.4, 0], m.structure, { outline: true });
+  const columns = Math.floor(width / 1.25);
+  for (let floor = 0; floor < floors; floor += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const x = -width / 2 + (width / columns) * (column + 0.5);
+      const repaired = floor < 2 || (column + floor) % 3 === 0;
+      addBox(building, [0.62, 0.55, 0.06], [x, 0.25 + floor * floorHeight + 0.5, depth / 2 + 0.01], repaired ? m.glass : m.dark, { cast: false });
+    }
+  }
+  const scaffoldZ = depth / 2 + 0.75;
+  const posts = Math.ceil(width / 1.6);
+  for (let post = 0; post <= posts; post += 1) {
+    const x = -width / 2 - 0.2 + ((width + 0.4) * post) / posts;
+    addBox(building, [0.07, height + 0.8, 0.07], [x, (height + 0.8) / 2, scaffoldZ], m.steel, { cast: false });
+    addBox(building, [0.07, height + 0.8, 0.07], [x, (height + 0.8) / 2, scaffoldZ - 0.6], m.steel, { cast: false });
+  }
+  for (let floor = 1; floor <= floors; floor += 1) {
+    const y = 0.25 + floor * floorHeight;
+    addBox(building, [width + 0.5, 0.06, 0.62], [0, y, scaffoldZ - 0.3], m.timber, { cast: false });
+    addBox(building, [width + 0.5, 0.04, 0.04], [0, y + 0.5, scaffoldZ], m.steel, { cast: false });
+  }
+  addBox(building, [width * 0.55, height * 0.55, 0.03], [width * 0.2, height * 0.62, scaffoldZ + 0.06], m.safetyMesh, { cast: false, receive: false });
+  const chute = new Mesh(new CylinderGeometry(0.28, 0.32, height, 14), m.accent);
+  chute.position.set(-width / 2 - 0.6, height / 2 + 0.6, scaffoldZ);
+  chute.castShadow = true;
+  building.add(chute);
+  addBox(building, [2.2, 0.9, 1.3], [-width / 2 - 0.6, 0.45, scaffoldZ + 1.4], new MeshStandardMaterial({ color: 0xc9a227, roughness: 0.6, metalness: 0.3 }), { outline: true });
+  return building;
+}
+
+/** Escavadeira para obras horizontais. */
+function buildExcavator(m: WorldMaterials) {
+  const machine = labelGroup('Escavadeira');
+  const yellow = new MeshStandardMaterial({ color: 0xd4a72c, roughness: 0.55, metalness: 0.2 });
+  addBox(machine, [2.4, 0.5, 1.5], [0, 0.35, 0], m.dark);
+  addBox(machine, [1.9, 0.8, 1.3], [0.1, 1, 0], yellow, { outline: true });
+  addBox(machine, [0.8, 0.8, 0.9], [-0.45, 1.75, 0.15], m.glass);
+  const boom = addBox(machine, [2.2, 0.22, 0.25], [1.5, 1.85, 0], yellow);
+  boom.rotation.z = 0.5;
+  const arm = addBox(machine, [1.5, 0.18, 0.22], [2.75, 1.7, 0], yellow);
+  arm.rotation.z = -0.9;
+  addBox(machine, [0.5, 0.45, 0.6], [3.1, 0.85, 0], m.dark);
+  return machine;
 }
 
 function buildWorld(worksite: Worksite): WorldBuild {
   const seed = hashSeed(`${worksite.id}:${worksite.code}:${worksite.name}`);
   const random = createRandom(seed);
   const palette = palettes[seed % palettes.length];
-  const variant = seed % 3;
   const root = new Group();
   root.name = `Mundo 3D de ${worksite.name}`;
   const interactables: Object3D[] = [];
@@ -244,11 +414,29 @@ function buildWorld(worksite: Worksite): WorldBuild {
     );
   }
 
-  const building = createBuilding(random, palette, worksite.name, variant);
+  const archetype = pickArchetype(worksite, seed);
+  const materials = materialsFor(palette);
+  const builders: Record<Archetype, typeof buildTower> = {
+    tower: buildTower,
+    warehouse: buildWarehouse,
+    office: buildOffice,
+    houses: buildHouses,
+    retrofit: buildRetrofit,
+  };
+  const building = builders[archetype](random, materials, worksite.name);
   building.position.set(-0.6 + random() * 1.2, 0.02, -1.4 + random() * 0.8);
   building.rotation.y = (random() - 0.5) * 0.08;
   root.add(building);
   interactables.push(building);
+  const buildingHeight = new Box3().setFromObject(building).max.y;
+
+  if (archetype === 'houses' || archetype === 'warehouse') {
+    const excavator = buildExcavator(materials);
+    excavator.position.set(6 + random() * 2, 0, 8.2);
+    excavator.rotation.y = -0.6 - random() * 0.4;
+    root.add(excavator);
+    interactables.push(excavator);
+  }
 
   const office = new Group();
   office.userData.assetLabel = 'Escritório da obra';
@@ -264,7 +452,8 @@ function buildWorld(worksite: Worksite): WorldBuild {
 
   const materialsArea = new Group();
   materialsArea.userData.assetLabel = 'Área de materiais';
-  materialsArea.position.set(9.3, 0, 5.8);
+  materialsArea.position.set(12.4, 0, 0.6);
+  materialsArea.rotation.y = -Math.PI / 2;
   const steel = new MeshStandardMaterial({ color: 0x626967, roughness: 0.48, metalness: 0.62 });
   addBox(materialsArea, [4.8, 0.14, 3.15], [0, 2.2, 0], steel, { name: 'Área de materiais', outline: true });
   ([-2.1, 2.1] as const).forEach((x) => {
@@ -284,12 +473,14 @@ function buildWorld(worksite: Worksite): WorldBuild {
   addBox(root, [28.2, 0.03, 0.03], [0, 0.25, -11.4], fenceMaterial, { cast: false });
 
   const crane = new Group();
+  crane.visible = archetype === 'tower' || archetype === 'office' || archetype === 'retrofit';
   crane.position.set(10.2, 0, -6.7);
   const craneMaterial = new MeshStandardMaterial({ color: 0x8c7959, roughness: 0.5, metalness: 0.42 });
   const darkMetal = new MeshStandardMaterial({ color: 0x4f5755, roughness: 0.42, metalness: 0.68 });
-  addBox(crane, [0.34, 8.6, 0.34], [0, 4.3, 0], craneMaterial);
+  const mastHeight = Math.max(8.6, buildingHeight + 2.2);
+  addBox(crane, [0.34, mastHeight, 0.34], [0, mastHeight / 2, 0], craneMaterial);
   const craneHead = new Group();
-  craneHead.position.y = 8.55;
+  craneHead.position.y = mastHeight - 0.05;
   addBox(craneHead, [10.6, 0.2, 0.2], [-2.65, 0, 0], craneMaterial);
   addBox(craneHead, [2.2, 0.28, 0.28], [1.35, 0, 0], darkMetal);
   addBox(craneHead, [0.055, 3.9, 0.055], [-7.55, -1.95, 0], darkMetal, { cast: false });
@@ -341,7 +532,7 @@ function buildWorld(worksite: Worksite): WorldBuild {
   pulseRing.visible = false;
   root.add(pulseRing);
 
-  return { root, interactables, gateBeacon, pulseRing };
+  return { root, interactables, gateBeacon, pulseRing, archetype, buildingHeight };
 }
 
 export function WorksiteWorld3D({ worksite, activityPulse = 0 }: WorksiteWorld3DProps) {
@@ -353,6 +544,7 @@ export function WorksiteWorld3D({ worksite, activityPulse = 0 }: WorksiteWorld3D
   const [failed, setFailed] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const archetype = pickArchetype(worksite, hashSeed(`${worksite.id}:${worksite.code}:${worksite.name}`));
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -400,6 +592,12 @@ export function WorksiteWorld3D({ worksite, activityPulse = 0 }: WorksiteWorld3D
     scene.add(sun);
 
     const world = buildWorld(worksite);
+    // Torres pedem uma câmera mais alta e distante; casas e galpões, mais próxima.
+    const framing = MathUtils.clamp(world.buildingHeight / 9, 0.85, 1.45);
+    homePosition.multiplyScalar(framing);
+    introPosition.multiplyScalar(framing);
+    homeTarget.y = MathUtils.clamp(world.buildingHeight * 0.36, 2, 5.5);
+    camera.position.copy(reduceMotion ? homePosition : introPosition);
     world.root.position.y = reduceMotion ? 0 : -1.4;
     world.root.scale.set(reduceMotion ? 1 : 0.9, reduceMotion ? 1 : 0.06, reduceMotion ? 1 : 0.9);
     world.root.rotation.y = reduceMotion ? 0 : -0.12;
@@ -654,7 +852,6 @@ export function WorksiteWorld3D({ worksite, activityPulse = 0 }: WorksiteWorld3D
         }
       });
       renderer.dispose();
-      renderer.forceContextLoss();
       resetRef.current = () => undefined;
     };
   }, [worksite]);
@@ -707,7 +904,7 @@ export function WorksiteWorld3D({ worksite, activityPulse = 0 }: WorksiteWorld3D
       <div className="worksite-world-caption">
         <span className="worksite-world-icon"><Box size={18} /></span>
         <div>
-          <small>{selectedAsset ? 'Elemento selecionado' : 'Gêmeo digital da obra'}</small>
+          <small>{selectedAsset ? 'Parte selecionada' : ARCHETYPE_LABELS[archetype]}</small>
           <strong>{selectedAsset ?? worksite.name}</strong>
         </div>
         <span className={`status-pill ${worksite.active ? 'status-pill-online' : 'status-pill-neutral'}`}>
@@ -715,7 +912,7 @@ export function WorksiteWorld3D({ worksite, activityPulse = 0 }: WorksiteWorld3D
         </span>
       </div>
 
-      {!ready && !failed && <div className="worksite-world-loading"><span /> Preparando ambiente 3D</div>}
+      {!ready && !failed && <div className="worksite-world-loading"><span /> Montando a obra em 3D…</div>}
       {failed && (
         <div className="worksite-world-fallback" role="status">
           <div className="fallback-building-scene" aria-hidden="true">
@@ -727,8 +924,8 @@ export function WorksiteWorld3D({ worksite, activityPulse = 0 }: WorksiteWorld3D
             <span className="fallback-ground" />
           </div>
           <div className="fallback-building-copy">
-            <strong>Prévia arquitetônica simplificada</strong>
-            <span>O modelo interativo requer WebGL disponível neste dispositivo.</span>
+            <strong>{ARCHETYPE_LABELS[archetype]}</strong>
+            <span>Este navegador não está mostrando 3D. Ative a aceleração de hardware para ver a obra completa.</span>
           </div>
         </div>
       )}

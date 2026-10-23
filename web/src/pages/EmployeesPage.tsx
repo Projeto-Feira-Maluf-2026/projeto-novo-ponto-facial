@@ -610,7 +610,6 @@ export function EmployeesPage() {
         emptyTitle={query || status !== 'ALL' ? 'Nenhum funcionário neste filtro' : 'Nenhum funcionário cadastrado'}
         emptyDescription={query || status !== 'ALL' ? 'Altere a busca ou o status para ampliar os resultados.' : 'Adicione o primeiro funcionário para iniciar a operação.'}
         columns={[
-          { key: 'registration', header: 'Matrícula', mobileHidden: true },
           {
             key: 'name',
             header: 'Funcionário',
@@ -630,7 +629,7 @@ export function EmployeesPage() {
               </button>
             ),
           },
-          { key: 'email', header: 'Email', mobileHidden: true },
+          { key: 'email', header: 'E-mail', mobileHidden: true },
           {
             key: 'status',
             header: 'Status',
@@ -643,7 +642,7 @@ export function EmployeesPage() {
           },
           {
             key: 'face',
-            header: 'Face',
+            header: 'Rosto',
             mobileHidden: true,
             render: (row) => (
               <span className="inline-flex items-center gap-2 text-sm font-semibold">
@@ -656,7 +655,7 @@ export function EmployeesPage() {
             key: 'actions',
             header: '',
             render: (row) => (
-              <div className="flex justify-end gap-2">
+              <div className="row-actions">
                 <button type="button" onClick={() => setDetailEmployee(row)} className="icon-button" title="Ver detalhes" aria-label={`Ver detalhes de ${row.name}`}>
                   <Eye size={16} />
                 </button>

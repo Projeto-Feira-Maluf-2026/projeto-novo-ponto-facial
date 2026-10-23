@@ -215,7 +215,7 @@ export function DevicesPage() {
       <section className="page-actions">
         <button onClick={() => selected && loadPreview(selected)} className="btn btn-primary">
           <RefreshCcw size={18} />
-          Atualizar prévia
+          Atualizar imagens
         </button>
       </section>
 
@@ -237,7 +237,7 @@ export function DevicesPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold">Configurar câmera</h3>
-              <p className="text-sm text-steel dark:text-slate-400">Selecione, teste e salve uma fonte.</p>
+              <p className="text-sm text-steel dark:text-slate-400">Escolha o tipo, teste a imagem e salve.</p>
             </div>
             {testResult?.ok && <CheckCircle2 className="text-limeSafe" size={24} />}
           </div>
@@ -332,8 +332,8 @@ export function DevicesPage() {
 
         <div className="camera-portfolio" aria-label="Câmeras cadastradas">
           <header className="camera-portfolio-heading">
-            <div><span>Fontes disponíveis</span><strong>{devices.length} {devices.length === 1 ? 'câmera' : 'câmeras'}</strong></div>
-            <small>Selecione uma fonte para abrir a prévia.</small>
+            <div><span>Câmeras cadastradas</span><strong>{devices.length} {devices.length === 1 ? 'câmera' : 'câmeras'}</strong></div>
+            <small>Escolha uma câmera para ver a imagem.</small>
           </header>
           <div className="camera-card-list">
             {loadingDevices && Array.from({ length: 3 }).map((_, index) => (
@@ -362,7 +362,7 @@ export function DevicesPage() {
                     <span className={`status-pill ${statusPill(device.status)}`}><span className="status-dot" /> {device.metadata_json?.camera?.camera_type ?? 'WEBCAM'}</span>
                   </div>
                   <div className="camera-card-actions">
-                    <span>{device.last_seen_at ? `Visto ${formatInAppTimeZone(parseApiDate(device.last_seen_at), { dateStyle: 'short', timeStyle: 'short' })}` : 'Sem atividade recente'}</span>
+                    <span>{device.last_seen_at ? `Visto ${formatInAppTimeZone(parseApiDate(device.last_seen_at), { dateStyle: 'short', timeStyle: 'short' })}` : 'Sem sinal há algum tempo'}</span>
                     <button type="button" onClick={() => testSavedCamera(device)} className="icon-button" title="Testar câmera" aria-label={`Testar ${device.name}`}><RefreshCcw size={16} /></button>
                   </div>
                 </article>
@@ -391,7 +391,7 @@ export function DevicesPage() {
           ) : (
             <div className="text-center">
               <Camera size={46} className="mx-auto text-white/50" />
-              <p className="mt-3 text-sm font-semibold text-white/80">{previewLoading ? 'Carregando prévia' : 'Selecione uma câmera para visualizar'}</p>
+              <p className="mt-3 text-sm font-semibold text-white/80">{previewLoading ? 'Carregando prévia' : 'Escolha uma câmera para ver a imagem'}</p>
             </div>
           )}
           <div className="camera-chip absolute left-4 top-4">
