@@ -4,8 +4,47 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 @config "../tailwind.config.ts";
 @source "./";
-
-/* Preserve the v3 reset and outline behavior while removing vulnerable build dependencies. */
+@plugin "daisyui" {
+  themes: false;
+  include: button;
+  prefix: film-;
+  root: "[data-theme=curitiba-film]";
+  logs: false;
+}
+@plugin "daisyui/theme" {
+  name: "curitiba-film";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #f5f5f7;
+  --color-base-300: #e4e4e8;
+  --color-base-content: #1d1d1f;
+  --color-primary: #a3b18a;
+  --color-primary-content: #13271f;
+  --color-secondary: #d8d2bf;
+  --color-secondary-content: #13271f;
+  --color-accent: #d7b86d;
+  --color-accent-content: #13271f;
+  --color-neutral: #13271f;
+  --color-neutral-content: #f2f1e8;
+  --color-info: #b8d0d0;
+  --color-info-content: #13271f;
+  --color-success: #a3b18a;
+  --color-success-content: #13271f;
+  --color-warning: #d7b86d;
+  --color-warning-content: #13271f;
+  --color-error: #f0b2a2;
+  --color-error-content: #13271f;
+  --radius-selector: 0.5rem;
+  --radius-field: 1.5rem;
+  --radius-box: 1.5rem;
+  --size-selector: 0.3rem;
+  --size-field: 0.3rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
 @utility outline-none {
   outline: 2px solid transparent;
   outline-offset: 2px;
@@ -775,8 +814,6 @@ input::placeholder, textarea::placeholder { color: var(--color-subtle); }
   .auth-loading-mark { display: grid; width: 48px; height: 48px; place-items: center; background: #f4f1e9; color: #141a1e; font-family: "Lexend Variable"; font-weight: 800; }
   .auth-loading-card h1 { font-size: 1.25rem; }
   .auth-loading-card p { color: #94a1a7; }
-  .auth-loading-card[role="alert"] p { max-width: 42ch; padding-inline: 16px; }
-  .auth-unavailable-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; padding-inline: 16px; }
 
   /* Shared workspace structures */
   .page-actions { display: flex; justify-content: flex-end; gap: 10px; }

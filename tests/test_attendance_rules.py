@@ -1,19 +1,11 @@
-import asyncio
 from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import BackgroundTasks
 
 from app.models.entities import AttendanceRecord
-from app.models.enums import (
-    AttendanceStatus,
-    DeviceStatus,
-    EmployeeStatus,
-    FraudType,
-    PunchType,
-)
+from app.models.enums import AttendanceStatus, EmployeeStatus, PunchType
 from app.schemas.attendance import (
     AttendanceCorrection,
     AttendanceDecision,
@@ -102,8 +94,6 @@ async def test_punch_ignores_location_and_does_not_require_geofence() -> None:
     )
     session = SimpleNamespace(
         get=AsyncMock(return_value=worksite),
-        execute=AsyncMock(),
-        scalar=AsyncMock(return_value=None),
         add=MagicMock(),
         commit=AsyncMock(),
         refresh=AsyncMock(),
@@ -129,7 +119,6 @@ async def test_punch_ignores_location_and_does_not_require_geofence() -> None:
         punch_type=PunchType.ENTRY,
         face={
             "image_base64": "data:image/jpeg;base64,validado",
-            "quality_score": 1.0,
             "liveness_score": 0.0,
             "motion_score": 0.0,
             "spoof_hints": ["phone_screen"],
@@ -150,7 +139,6 @@ async def test_punch_ignores_location_and_does_not_require_geofence() -> None:
     assert match_arguments[2] == worksite.id
     assert decision.liveness_evaluated is False
     assert decision.liveness_score is None
-    assert decision.quality_score == 0.72
     assert decision.reasons == []
     assert session.add.call_count == 1
     assert isinstance(session.add.call_args.args[0], AttendanceRecord)
@@ -177,8 +165,6 @@ async def test_punch_preserves_and_validates_three_temporal_frames() -> None:
     )
     session = SimpleNamespace(
         get=AsyncMock(return_value=worksite),
-        execute=AsyncMock(),
-        scalar=AsyncMock(return_value=None),
         add=MagicMock(),
         commit=AsyncMock(),
         refresh=AsyncMock(),
@@ -239,7 +225,6 @@ async def test_borderline_match_uses_one_mirrored_retry_and_can_recover() -> Non
     )
     session = SimpleNamespace(
         get=AsyncMock(return_value=worksite),
-        execute=AsyncMock(),
         scalar=AsyncMock(return_value=None),
         add=MagicMock(),
         commit=AsyncMock(),
@@ -289,8 +274,6 @@ async def test_mirrored_retry_never_combines_inconsistent_identity() -> None:
     )
     session = SimpleNamespace(
         get=AsyncMock(return_value=worksite),
-        execute=AsyncMock(),
-        scalar=AsyncMock(return_value=None),
         add=MagicMock(),
         commit=AsyncMock(),
     )
@@ -315,8 +298,7 @@ async def test_mirrored_retry_never_combines_inconsistent_identity() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("batch_id", ["terminal-scan-2", "offline-retry-1", "arbitrary-id", None])
-async def test_terminal_duplicate_face_reuses_record_without_advancing_punch(batch_id) -> None:
+async def test_terminal_duplicate_face_reuses_record_without_advancing_punch() -> None:
     now = datetime.now(UTC).replace(tzinfo=None)
     worksite = SimpleNamespace(id="worksite-1", active=True)
     employee = SimpleNamespace(
@@ -352,7 +334,6 @@ async def test_terminal_duplicate_face_reuses_record_without_advancing_punch(bat
     )
     session = SimpleNamespace(
         get=AsyncMock(return_value=worksite),
-        execute=AsyncMock(),
         scalar=AsyncMock(return_value=existing),
         add=MagicMock(),
         commit=AsyncMock(),
@@ -371,7 +352,7 @@ async def test_terminal_duplicate_face_reuses_record_without_advancing_punch(bat
         worksite_id=worksite.id,
         punch_type=None,
         face={"image_base64": "data:image/jpeg;base64,duplicada"},
-        offline_batch_id=batch_id,
+        offline_batch_id="terminal-scan-2",
         occurred_at=now.replace(tzinfo=UTC),
     ))
 
@@ -380,150 +361,8 @@ async def test_terminal_duplicate_face_reuses_record_without_advancing_punch(bat
     assert decision.record.id == existing.id
     assert decision.punch_type == PunchType.ENTRY
     assert decision.reasons == ["duplicate_capture"]
-    session.execute.assert_awaited_once()
     session.add.assert_not_called()
     session.commit.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_client_embedding_cannot_register_attendance_without_image() -> None:
-    session = SimpleNamespace(
-        get=AsyncMock(return_value=SimpleNamespace(id="worksite-1", active=True)),
-        add=MagicMock(),
-        commit=AsyncMock(),
-    )
-    service = AttendanceService(session, SimpleNamespace())
-    service._match_employee = AsyncMock()
-    decision = await service.register_punch(PunchCreate(
-        worksite_id="worksite-1",
-        face={"embedding": [1.0, 0.0], "quality_score": 1.0},
-    ))
-    assert decision.accepted is False
-    assert decision.reasons == ["missing_embedding"]
-    assert decision.quality_score == 0.0
-    service._match_employee.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("device", [
-    None,
-    SimpleNamespace(worksite_id="worksite-1", status=DeviceStatus.INACTIVE),
-    SimpleNamespace(worksite_id="worksite-1", status=DeviceStatus.MAINTENANCE),
-    SimpleNamespace(worksite_id="other-worksite", status=DeviceStatus.ACTIVE),
-])
-async def test_invalid_device_is_rejected_before_face_processing(device) -> None:
-    session = SimpleNamespace(
-        get=AsyncMock(side_effect=[SimpleNamespace(id="worksite-1", active=True), device]),
-        add=MagicMock(), commit=AsyncMock(),
-    )
-    face_service = SimpleNamespace(from_image_base64=MagicMock())
-    service = AttendanceService(session, face_service)
-    with pytest.raises(LookupError, match="Dispositivo"):
-        await service.register_punch(PunchCreate(
-            worksite_id="worksite-1", device_id="device-1", face={"image_base64": "frame"},
-        ))
-    face_service.from_image_base64.assert_not_called()
-    session.add.assert_not_called()
-    session.commit.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_active_device_for_same_worksite_reaches_face_processing() -> None:
-    session = SimpleNamespace(
-        get=AsyncMock(side_effect=[
-            SimpleNamespace(id="worksite-1", active=True),
-            SimpleNamespace(worksite_id="worksite-1", status=DeviceStatus.ACTIVE),
-        ]),
-    )
-    face_service = SimpleNamespace(from_image_base64=MagicMock(side_effect=ValueError("bad image")))
-    service = AttendanceService(session, face_service)
-    with pytest.raises(ValueError, match="bad image"):
-        await service.register_punch(PunchCreate(
-            worksite_id="worksite-1", device_id="device-1", face={"image_base64": "frame"},
-        ))
-    face_service.from_image_base64.assert_called_once_with("frame")
-
-
-@pytest.mark.asyncio
-async def test_explicit_employee_cannot_bypass_active_worksite_assignment() -> None:
-    provider_info = SimpleNamespace(
-        model_name="model", model_version="1", embedding_dimension=2,
-        detector_name="detector", normalization_version="v1",
-    )
-    session = SimpleNamespace(scalars=AsyncMock(return_value=[]))
-    face_service = SimpleNamespace(provider=SimpleNamespace(info=lambda: provider_info))
-    service = AttendanceService(session, face_service)
-    result = await service._match_employee(
-        [([1.0, 0.0], 0.8)], "employee-1", "worksite-1",
-    )
-    assert result[-1] == "no_compatible_templates"
-    # The database must evaluate both the identity and current assignment, even
-    # when the request pins a known employee instead of searching the whole worksite.
-    statement = str(session.scalars.await_args.args[0])
-    assert "JOIN employee_worksites" in statement
-    assert "employee_worksites.active IS true" in statement
-    assert "face_templates.employee_id =" in statement
-
-
-@pytest.mark.asyncio
-async def test_concurrent_terminal_requests_commit_only_one_punch() -> None:
-    employee_lock = asyncio.Lock()
-    committed: list[AttendanceRecord] = []
-    worksite = SimpleNamespace(id="worksite-1", active=True)
-    employee = SimpleNamespace(
-        id="employee-1", name="Funcionario", registration="CE-001",
-        photo_url=None, status=EmployeeStatus.ACTIVE,
-    )
-    processed = SimpleNamespace(
-        quality=SimpleNamespace(accepted=True, quality_score=0.8, reasons=[]),
-        inference=SimpleNamespace(embedding=[1.0, 0.0]),
-    )
-
-    async def request(batch_id):
-        pending = []
-        lock_held = False
-
-        async def execute(statement):
-            nonlocal lock_held
-            assert statement._for_update_arg is not None
-            await employee_lock.acquire()
-            lock_held = True
-
-        async def duplicate(_statement):
-            return committed[-1] if committed else None
-
-        async def commit():
-            nonlocal lock_held
-            await asyncio.sleep(0)  # Allow the second request to contend before commit.
-            for record in pending:
-                record.created_at = datetime.now(UTC).replace(tzinfo=None)
-                committed.append(record)
-            employee_lock.release()
-            lock_held = False
-
-        session = SimpleNamespace(
-            get=AsyncMock(return_value=worksite), execute=execute,
-            scalar=duplicate, add=pending.append, commit=commit, refresh=AsyncMock(),
-        )
-        service = AttendanceService(
-            session, SimpleNamespace(from_image_base64=lambda _image: processed),
-        )
-        service._match_employee = AsyncMock(return_value=(employee, 0.84, None, 0.9, None))
-        try:
-            return await service.register_punch(PunchCreate(
-                worksite_id=worksite.id, punch_type=PunchType.ENTRY,
-                face={"image_base64": "same-face"}, offline_batch_id=batch_id,
-            ))
-        finally:
-            if lock_held:  # AsyncSession cleanup also rolls back read-only transactions.
-                employee_lock.release()
-
-    first, second = await asyncio.gather(
-        request("terminal-first"), request("terminal-second"),
-    )
-    assert len(committed) == 1
-    assert first.record.id == second.record.id
-    assert sorted([first.reasons, second.reasons]) == [[], ["duplicate_capture"]]
 
 
 @pytest.mark.asyncio
@@ -545,7 +384,6 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
     service = SimpleNamespace(
         register_punch=AsyncMock(side_effect=decisions),
         send_pending_email_notifications=AsyncMock(return_value={}),
-        pending_email_notifications={},
     )
     monkeypatch.setattr(
         "app.api.v1.routes.attendance.AttendanceService",
@@ -566,14 +404,8 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
         ]
     )
 
-    session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
-    background_tasks = BackgroundTasks()
+    result = await punch_batch(payload, SimpleNamespace(id="user-1"), SimpleNamespace())
 
-    result = await punch_batch(payload, background_tasks, SimpleNamespace(id="user-1"), session)
-
-    # O grupo inteiro e gravado em uma unica transacao.
-    session.commit.assert_awaited_once()
-    assert not background_tasks.tasks
     assert result.processed == 2
     assert result.accepted == 2
     assert result.manual_review == 0
@@ -586,84 +418,6 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
         call.args[0].employee_id is None
         for call in service.register_punch.await_args_list
     )
-
-
-@pytest.mark.asyncio
-async def test_batch_punch_sends_email_after_responding(monkeypatch: pytest.MonkeyPatch) -> None:
-    decision = AttendanceDecision(
-        accepted=True,
-        status=AttendanceStatus.ACCEPTED,
-        employee_id="employee-1",
-        punch_type=PunchType.ENTRY,
-        confidence_score=0.9,
-        similarity_score=0.88,
-        liveness_score=None,
-        quality_score=0.8,
-        reasons=[],
-        record={
-            "id": "record-1",
-            "employee_id": "employee-1",
-            "worksite_id": "worksite-1",
-            "device_id": None,
-            "punch_type": PunchType.ENTRY,
-            "status": AttendanceStatus.ACCEPTED,
-            "occurred_at": datetime(2026, 10, 22, 12, 0),
-            "latitude": None,
-            "longitude": None,
-            "similarity_score": 0.88,
-            "liveness_score": None,
-            "quality_score": 0.8,
-            "confidence_score": 0.9,
-            "offline_batch_id": None,
-            "notes": None,
-        },
-    )
-    service = SimpleNamespace(
-        register_punch=AsyncMock(return_value=decision),
-        send_pending_email_notifications=AsyncMock(return_value={"record-1": True}),
-        pending_email_notifications={"record-1": {"recipient": "a@example.com"}},
-    )
-    monkeypatch.setattr(
-        "app.api.v1.routes.attendance.AttendanceService",
-        lambda _session, **_kwargs: service,
-    )
-    monkeypatch.setattr(
-        "app.api.v1.routes.attendance.is_lightweight_serverless",
-        lambda: False,
-    )
-    background_tasks = BackgroundTasks()
-    result = await punch_batch(
-        PunchBatchCreate(punches=[PunchCreate(
-            employee_id=None,
-            worksite_id="worksite-1",
-            face={"image_base64": "face-1"},
-        )]),
-        background_tasks,
-        SimpleNamespace(id="user-1"),
-        SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock()),
-    )
-
-    # A resposta nao espera o SMTP: o envio fica agendado para depois dela.
-    service.send_pending_email_notifications.assert_not_awaited()
-    assert len(background_tasks.tasks) == 1
-    assert result.decisions[0].email_notification_sent is False
-
-
-@pytest.mark.asyncio
-async def test_repeated_unknown_face_is_logged_once_per_window() -> None:
-    session = SimpleNamespace(add=MagicMock())
-    service = AttendanceService(session, SimpleNamespace())
-    payload = PunchCreate(
-        employee_id=None,
-        worksite_id="worksite-dedup",
-        face={"image_base64": "frame"},
-    )
-
-    await service._flag_attempt(payload, FraudType.LOW_SIMILARITY, 0.4, ["low_similarity"])
-    await service._flag_attempt(payload, FraudType.LOW_SIMILARITY, 0.4, ["low_similarity"])
-    await service._flag_attempt(payload, FraudType.LOW_SIMILARITY, 0.4, ["ambiguous_face"])
-
-    assert session.add.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -731,50 +485,3 @@ async def test_manual_correction_preserves_before_and_after_in_audit() -> None:
     assert audit_log.metadata_json["before"]["punch_type"] == "ENTRY"
     assert audit_log.metadata_json["after"]["punch_type"] == "EXIT"
     session.commit.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_server_clock_and_inferred_type_ignore_client_supplied_event():
-    worksite = SimpleNamespace(id="w", active=True)
-    employee = SimpleNamespace(id="e", name="Employee", registration="r", photo_url=None,
-                               status=EmployeeStatus.ACTIVE)
-    processed = SimpleNamespace(quality=SimpleNamespace(accepted=True, quality_score=.9, reasons=[]),
-                                inference=SimpleNamespace(embedding=[1., 0.]))
-    session = SimpleNamespace(get=AsyncMock(return_value=worksite), execute=AsyncMock(),
-                              scalar=AsyncMock(return_value=None), add=MagicMock(),
-                              commit=AsyncMock(), refresh=AsyncMock())
-    async def refresh(record):
-        record.created_at = datetime.now(UTC).replace(tzinfo=None)
-    session.refresh.side_effect = refresh
-    service = AttendanceService(session, SimpleNamespace(from_image_base64=MagicMock(return_value=processed)))
-    service._match_employee = AsyncMock(return_value=(employee, .9, None, .95, None))
-    service._infer_next_punch = AsyncMock(return_value=PunchType.ENTRY)
-    before = datetime.now(UTC).replace(tzinfo=None)
-    decision = await service.register_punch(PunchCreate(
-        worksite_id="w", punch_type=PunchType.EXIT, occurred_at=datetime(2099, 1, 1),
-        face={"image_base64": "frame"},
-    ))
-    after = datetime.now(UTC).replace(tzinfo=None)
-    assert before <= decision.record.occurred_at <= after
-    assert decision.punch_type == PunchType.ENTRY
-    assert session.add.call_args.args[0].metadata_json["time_source"] == "server"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("environment", ["staging", "production"])
-async def test_production_punch_fails_closed_without_server_pad(monkeypatch, environment):
-    import numpy as np
-    from app.core.config import settings
-    from app.core.errors import AppError
-    monkeypatch.setattr(settings, "ENVIRONMENT", environment)
-    session = SimpleNamespace(get=AsyncMock(return_value=SimpleNamespace(id="w", active=True)),
-                              add=MagicMock(), commit=AsyncMock())
-    processed = SimpleNamespace(image=SimpleNamespace(image_bgr=np.zeros((3, 3, 3), dtype=np.uint8)),
-                                quality=SimpleNamespace(accepted=True, quality_score=.9, reasons=[]),
-                                inference=SimpleNamespace(embedding=[1., 0.]))
-    service = AttendanceService(session, SimpleNamespace(from_image_base64=MagicMock(return_value=processed)))
-    with pytest.raises(AppError) as error:
-        await service.register_punch(PunchCreate(worksite_id="w", face={"image_base64": "frame", "liveness_score": 1.0}))
-    assert error.value.code == "PAD_UNAVAILABLE"
-    session.add.assert_not_called()
-    session.commit.assert_not_awaited()

@@ -1,5 +1,3 @@
-> **Substituído em 22/10/2026.** A apresentação agora é automática, abre por cima do terminal e não usa rolagem, GSAP, Lenis ou WebGL. Veja a seção "Modo apresentação" em `.interface-design/system.md`. Este arquivo fica como histórico.
-
 # Apresentação cinematográfica — Curitiba Empreiteira
 
 ## Diagnóstico e direção

@@ -34,17 +34,12 @@ export function LoginPage() {
       navigate('/');
     } catch (cause) {
       const message = cause instanceof Error ? cause.message.toLowerCase() : '';
-      const status = Number((cause as { status?: unknown } | null)?.status) || 0;
-      const unreachable = message.includes('timeout') || message.includes('fetch')
-        || message.includes('network') || status >= 500;
       setError(
         message.includes('profile_missing')
           ? 'Sua conta não possui um perfil de acesso. Solicite a liberação ao administrador.'
-          : status === 429
-            ? 'Muitas tentativas de login seguidas. Aguarde alguns minutos e tente novamente.'
-            : unreachable
-              ? 'Não foi possível conectar ao serviço de login. Tente novamente em instantes.'
-              : 'E-mail ou senha incorretos. Verifique os dados e tente novamente.',
+          : message.includes('timeout') || message.includes('fetch') || message.includes('network')
+            ? 'Não foi possível conectar ao serviço de login. Tente novamente em instantes.'
+            : 'E-mail ou senha incorretos. Verifique os dados e tente novamente.',
       );
     } finally {
       setLoading(false);

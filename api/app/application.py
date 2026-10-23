@@ -4,24 +4,18 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from uuid import uuid4
-import re
-from time import perf_counter
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from app.api.health import router as health_router
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.logging import configure_logging, request_id_context
-from app.core.request_limits import RequestLimitsMiddleware
-from app.core.telemetry import observe_request, prometheus_metrics
-from app.api.deps import require_scopes
-from app.core.permissions import Scope
+from app.core.logging import configure_logging
 from app.core.runtime import is_lightweight_serverless
 from app.db.session import engine
 
@@ -47,24 +41,9 @@ async def request_context(request: Request, call_next):
     if request.method == "OPTIONS":
         return await call_next(request)
         
-    supplied_id = request.headers.get("X-Request-ID", "")
-    request_id = supplied_id if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", supplied_id) else str(uuid4())
+    request_id = request.headers.get("X-Request-ID") or str(uuid4())
     request.state.request_id = request_id
-    token = request_id_context.set(request_id)
-    started = perf_counter()
-    status = 500
-    try:
-        response = await call_next(request)
-        status = response.status_code
-    finally:
-        duration = perf_counter() - started
-        route = getattr(request.scope.get("route"), "path", "__unmatched__")
-        method = request.method if request.method in {"GET", "POST", "PATCH", "PUT", "DELETE", "HEAD", "OPTIONS"} else "OTHER"
-        observe_request(method, route, status, duration)
-        logger.info("http_request", extra={"event": "http_request", "method": method,
-                                          "route": route, "status": status,
-                                          "duration_ms": round(duration * 1000, 3)})
-        request_id_context.reset(token)
+    response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     if "Cache-Control" not in response.headers:
         response.headers["Cache-Control"] = "no-store, max-age=0"
@@ -72,9 +51,6 @@ async def request_context(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
-    if request.url.scheme == "https":
-        response.headers["Strict-Transport-Security"] = "max-age=31536000"
     return response
 
 
@@ -154,13 +130,12 @@ def create_application() -> FastAPI:
     )
     
     allowed_origins = list(settings.cors_origins) if settings.cors_origins else []
-    production_origins = [settings.FRONTEND_URL.rstrip("/")]
-    if settings.ENVIRONMENT in {"development", "test"}:
-        production_origins.extend([
+    production_origins = [
+        settings.FRONTEND_URL.rstrip("/"),
         "http://localhost:5174",
         "http://127.0.0.1:5174",
         "http://localhost:3000"
-        ])
+    ]
     for origin in production_origins:
         if origin not in allowed_origins:
             allowed_origins.append(origin)
@@ -174,7 +149,6 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    service.add_middleware(RequestLimitsMiddleware)
     service.middleware("http")(request_context)
     service.add_exception_handler(AppError, app_error_handler)
     service.add_exception_handler(RequestValidationError, validation_error_handler)
@@ -184,9 +158,4 @@ def create_application() -> FastAPI:
     service.include_router(health_router)
     service.include_router(health_router, prefix="/api")
     service.include_router(api_router, prefix=settings.API_V1_PREFIX)
-
-    @service.get(f"{settings.API_V1_PREFIX}/observability/metrics", include_in_schema=False)
-    async def metrics(_=Depends(require_scopes(Scope.AUDIT_READ))):
-        return PlainTextResponse(prometheus_metrics(), media_type="text/plain; version=0.0.4")
-
     return service

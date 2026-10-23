@@ -1,6 +1,6 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 
-from pydantic import AwareDatetime, BaseModel, Field, field_serializer, field_validator
+from pydantic import BaseModel, Field, field_serializer
 
 from app.core.time import utc_isoformat
 from app.models.enums import AttendanceStatus, PunchType
@@ -40,7 +40,7 @@ class PunchCreate(BaseModel):
     device_id: str | None = None
     punch_type: PunchType | None = None
     face: FaceEvidence
-    offline_batch_id: str | None = Field(default=None, min_length=1, max_length=80)
+    offline_batch_id: str | None = None
     occurred_at: datetime | None = None
 
 
@@ -48,23 +48,11 @@ class PunchBatchCreate(BaseModel):
     punches: list[PunchCreate] = Field(min_length=1, max_length=5)
 
 
-CORRECTION_FUTURE_TOLERANCE = timedelta(minutes=5)
-
-
 class AttendanceCorrection(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
-    # An explicit offset is required: a naive value would be stored as UTC and
-    # silently shift a Sao Paulo correction by three hours.
-    occurred_at: AwareDatetime | None = None
+    occurred_at: datetime | None = None
     punch_type: PunchType | None = None
     status: AttendanceStatus | None = None
-
-    @field_validator("occurred_at")
-    @classmethod
-    def reject_future_instant(cls, value: datetime | None) -> datetime | None:
-        if value is not None and value > datetime.now(UTC) + CORRECTION_FUTURE_TOLERANCE:
-            raise ValueError("Correcao de ponto nao pode estar no futuro")
-        return value
 
 
 class AttendanceRead(ORMModel):
@@ -109,8 +97,6 @@ class AttendanceDecision(BaseModel):
     temporal_evidence_count: int = 0
     temporal_similarity_median: float | None = None
     email_notification_sent: bool = False
-    # Em lote, o e-mail sai em segundo plano depois da resposta ao terminal.
-    email_notification_queued: bool = False
     record: AttendanceRead | None = None
 
 

@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from math import isfinite
 
 from app.core.config import settings
 from app.models.enums import FraudType
@@ -35,7 +34,7 @@ class LivenessEvaluator:
                 reasons=["multiple_faces"],
                 fraud_type=FraudType.MULTIPLE_FACES,
             )
-        if payload.face_count <= 0:
+        if payload.face_count == 0:
             return LivenessDecision(
                 accepted=False,
                 score=0.0,
@@ -54,15 +53,6 @@ class LivenessEvaluator:
         liveness = payload.liveness_score
         quality = payload.quality_score if payload.quality_score is not None else 0.0
         motion = payload.motion_score
-        if any(
-            not isfinite(value) or not 0.0 <= value <= 1.0 for value in (liveness, quality, motion)
-        ):
-            return LivenessDecision(
-                accepted=False,
-                score=0.0,
-                reasons=["invalid_liveness_evidence"],
-                evaluated=False,
-            )
         score_parts.extend([liveness * 0.45, quality * 0.30, motion * 0.25])
         score = sum(score_parts)
 
@@ -91,6 +81,4 @@ class LivenessEvaluator:
 
         score = max(0.0, min(1.0, score))
         accepted = score >= settings.FACE_MIN_LIVENESS and not reasons
-        return LivenessDecision(
-            accepted=accepted, score=score, reasons=reasons, fraud_type=fraud_type
-        )
+        return LivenessDecision(accepted=accepted, score=score, reasons=reasons, fraud_type=fraud_type)

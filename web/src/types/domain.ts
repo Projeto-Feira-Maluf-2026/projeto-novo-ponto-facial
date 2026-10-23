@@ -216,8 +216,6 @@ export interface AttendanceDecision {
   temporal_evidence_count: number;
   temporal_similarity_median?: number | null;
   email_notification_sent: boolean;
-  /** Em lote, o e-mail sai depois da resposta para não atrasar o terminal. */
-  email_notification_queued?: boolean;
   record?: AttendanceRecord | null;
 }
 

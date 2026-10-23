@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from sqlalchemy import delete, func, or_, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.crypto import field_cipher
-from app.core.errors import ConflictError, InvalidReferenceError
 from app.models.entities import (
     AttendanceRecord,
     AuditLog,
@@ -14,12 +12,9 @@ from app.models.entities import (
     FaceEnrollmentSession,
     FaceTemplate,
     SuspiciousAttempt,
-    Worksite,
 )
 from app.schemas.employees import EmployeeCreate, EmployeeUpdate
 from app.services.audit import audit
-
-REGISTRATION_CONFLICT_MESSAGE = "Ja existe um funcionario com esta matricula"
 
 
 class EmployeeService:
@@ -33,14 +28,10 @@ class EmployeeService:
             statement = statement.where(or_(Employee.name.ilike(like), Employee.registration.ilike(like)))
         count_statement = select(func.count()).select_from(statement.subquery())
         total = await self.session.scalar(count_statement)
-        # A unique tiebreaker keeps OFFSET pages stable when names repeat.
-        result = await self.session.scalars(
-            statement.order_by(Employee.name, Employee.id).offset((page - 1) * size).limit(size)
-        )
+        result = await self.session.scalars(statement.order_by(Employee.name).offset((page - 1) * size).limit(size))
         return list(result), int(total or 0)
 
     async def create(self, payload: EmployeeCreate) -> Employee:
-        worksite_ids = await self._existing_worksite_ids(payload.worksite_ids)
         employee = Employee(
             registration=payload.registration,
             name=payload.name,
@@ -52,13 +43,9 @@ class EmployeeService:
             status=payload.status,
         )
         self.session.add(employee)
-        try:
-            await self.session.flush()
-            await self._replace_worksites(employee.id, worksite_ids)
-            await self.session.commit()
-        except IntegrityError as exc:
-            await self.session.rollback()
-            raise ConflictError("EMPLOYEE_REGISTRATION_CONFLICT", REGISTRATION_CONFLICT_MESSAGE) from exc
+        await self.session.flush()
+        await self._replace_worksites(employee.id, payload.worksite_ids)
+        await self.session.commit()
         await self.session.refresh(employee)
         return employee
 
@@ -68,21 +55,15 @@ class EmployeeService:
             raise LookupError("Funcionario nao encontrado")
         values = payload.model_dump(exclude_unset=True)
         worksite_ids = values.pop("worksite_ids", None)
-        if worksite_ids is not None:
-            worksite_ids = await self._existing_worksite_ids(worksite_ids)
         if "document" in values:
             employee.document_encrypted = field_cipher.encrypt(values.pop("document"))
         if "phone" in values:
             employee.phone_encrypted = field_cipher.encrypt(values.pop("phone"))
         for field, value in values.items():
             setattr(employee, field, value)
-        try:
-            if worksite_ids is not None:
-                await self._replace_worksites(employee.id, worksite_ids)
-            await self.session.commit()
-        except IntegrityError as exc:
-            await self.session.rollback()
-            raise ConflictError("EMPLOYEE_REGISTRATION_CONFLICT", REGISTRATION_CONFLICT_MESSAGE) from exc
+        if worksite_ids is not None:
+            await self._replace_worksites(employee.id, worksite_ids)
+        await self.session.commit()
         await self.session.refresh(employee)
         return employee
 
@@ -141,16 +122,6 @@ class EmployeeService:
         except Exception:
             await self.session.rollback()
             raise
-
-    async def _existing_worksite_ids(self, worksite_ids: list[str]) -> list[str]:
-        """Deduplicate and reject unknown (or out-of-scope) worksites before any write."""
-        unique_ids = list(dict.fromkeys(worksite_ids))
-        if not unique_ids:
-            return []
-        found = set(await self.session.scalars(select(Worksite.id).where(Worksite.id.in_(unique_ids))))
-        if len(found) != len(unique_ids):
-            raise InvalidReferenceError("WORKSITE_NOT_FOUND", "Obra informada nao encontrada")
-        return unique_ids
 
     async def _replace_worksites(self, employee_id: str, worksite_ids: list[str]) -> None:
         await self.session.execute(delete(EmployeeWorksite).where(EmployeeWorksite.employee_id == employee_id))

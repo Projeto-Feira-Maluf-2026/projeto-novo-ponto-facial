@@ -1,8 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from functools import lru_cache
-from itertools import islice
-from math import isfinite
 from statistics import median
 from time import perf_counter
 
@@ -76,7 +74,10 @@ def _enhanced_detection_frames(image_bgr: np.ndarray) -> list[np.ndarray]:
     ).apply(luminance)
     if float(np.mean(aggressive_luminance)) < 105.0:
         lookup = np.array(
-            [min(255, round(((value / 255.0) ** 0.72) * 255.0)) for value in range(256)],
+            [
+                min(255, round(((value / 255.0) ** 0.72) * 255.0))
+                for value in range(256)
+            ],
             dtype=np.uint8,
         )
         aggressive_luminance = cv2.LUT(aggressive_luminance, lookup)
@@ -153,41 +154,26 @@ def serialize_embedding(vector: list[float]) -> bytes:
 
 def deserialize_embedding(blob: bytes) -> np.ndarray:
     vector = np.frombuffer(blob, dtype=np.float32)
-    return _normalize_embedding(vector)
-
-
-def _normalize_embedding(vector: list[float] | np.ndarray) -> np.ndarray:
-    arr = np.asarray(vector, dtype=np.float32)
-    if arr.ndim != 1 or not arr.size or not np.isfinite(arr).all():
-        raise ValueError("Embedding deve ser um vetor finito nao vazio")
-    # Accumulate in float64 so finite float32 values cannot overflow the norm.
-    norm = float(np.linalg.norm(arr.astype(np.float64)))
-    if not isfinite(norm) or norm <= 1e-9:
-        raise ValueError("Embedding deve ter norma finita e positiva")
-    return np.asarray(arr.astype(np.float64) / norm, dtype=np.float32)
+    return vector / max(float(np.linalg.norm(vector)), 1e-9)
 
 
 def cosine_similarity(
     left: list[float] | np.ndarray,
     right: bytes | list[float] | np.ndarray,
 ) -> float:
-    try:
-        left_arr = _normalize_embedding(left)
-        right_arr = (
-            deserialize_embedding(right)
-            if isinstance(right, bytes)
-            else _normalize_embedding(right)
-        )
-    except (TypeError, ValueError):
+    left_arr = np.asarray(left, dtype=np.float32)
+    if isinstance(right, bytes):
+        right_arr = deserialize_embedding(right)
+    else:
+        right_arr = np.asarray(right, dtype=np.float32)
+    if left_arr.size == 0 or right_arr.size == 0 or left_arr.shape != right_arr.shape:
         return 0.0
-    if left_arr.shape != right_arr.shape:
-        return 0.0
+    left_arr = left_arr / max(float(np.linalg.norm(left_arr)), 1e-9)
+    right_arr = right_arr / max(float(np.linalg.norm(right_arr)), 1e-9)
     return float(np.dot(left_arr, right_arr))
 
 
 def _clamp_score(value: float) -> float:
-    if not isfinite(float(value)):
-        return 0.0
     return max(0.0, min(1.0, float(value)))
 
 
@@ -200,95 +186,63 @@ def rank_identity_candidates(
     Templates are quality-gated and capped before scoring. This keeps an identity from
     gaining weight merely because it has more stored captures.
     """
-    try:
-        query = _normalize_embedding(query_embedding)
-    except (TypeError, ValueError):
+    query = np.asarray(query_embedding, dtype=np.float32)
+    query_norm = float(np.linalg.norm(query))
+    if query.size == 0 or query_norm <= 1e-9:
         return []
+    query = query / query_norm
 
     ranked: list[RankedFaceMatch] = []
     maximum_templates = max(1, int(settings.FACE_IDENTITY_MAX_TEMPLATES))
     top_k = max(1, int(settings.FACE_IDENTITY_TOP_K))
     minimum_quality = float(settings.FACE_MATCH_MIN_TEMPLATE_QUALITY)
 
-    # Bound temporary matrices: never materialize the complete tenant gallery.
-    identities = iter(candidates_by_employee.items())
-    while batch := list(islice(identities, 256)):
-        prepared = []
-        raw_vectors = []
-        raw_qualities = []
-        for employee_id, candidates in batch:
-            eligible = sorted(
-                (
-                    candidate
-                    for candidate in candidates
-                    if isfinite(float(candidate.quality_score))
-                    and minimum_quality <= float(candidate.quality_score) <= 1.0
-                ),
-                key=lambda candidate: (-float(candidate.quality_score), candidate.template_id),
-            )[:maximum_templates]
-            rejected_count = len(candidates) - len(eligible)
-            qualities = []
-            start = len(raw_vectors)
-            for candidate in eligible:
-                try:
-                    vector = np.frombuffer(candidate.embedding, dtype=np.float32)
-                except (TypeError, ValueError):
-                    rejected_count += 1
-                    continue
-                if vector.shape != query.shape:
-                    rejected_count += 1
-                    continue
-                raw_vectors.append(vector)
-                qualities.append(_clamp_score(candidate.quality_score))
-            if len(raw_vectors) > start:
-                raw_qualities.extend(qualities)
-                prepared.append((employee_id, start, len(raw_vectors), qualities, rejected_count))
-        if not raw_vectors:
+    for employee_id, candidates in candidates_by_employee.items():
+        eligible = sorted(
+            (
+                candidate
+                for candidate in candidates
+                if float(candidate.quality_score) >= minimum_quality
+            ),
+            key=lambda candidate: (-float(candidate.quality_score), candidate.template_id),
+        )[:maximum_templates]
+        rejected_count = len(candidates) - len(eligible)
+        if not eligible:
             continue
-        matrix = np.stack(raw_vectors)
-        # float64 accumulation preserves overflow protection from scalar normalization.
-        norms = np.linalg.norm(matrix.astype(np.float64), axis=1)
-        valid = np.isfinite(matrix).all(axis=1) & np.isfinite(norms) & (norms > 1e-9)
-        normalized = np.zeros_like(matrix)
-        np.divide(matrix.astype(np.float64), norms[:, None], out=normalized, where=valid[:, None])
-        similarities = np.einsum("ij,j->i", normalized, query)
-        weights = np.maximum(np.asarray(raw_qualities), 1e-6) * valid
-        starts = [entry[1] for entry in prepared]
-        weight_totals = np.add.reduceat(weights, starts)
-        centroids = np.add.reduceat(
-            normalized.astype(np.float64) * weights[:, None], starts, axis=0
-        )
-        np.divide(
-            centroids, weight_totals[:, None], out=centroids, where=weight_totals[:, None] > 0
-        )
-        centroid_norms = np.maximum(np.linalg.norm(centroids, axis=1), 1e-9)
-        centroids /= centroid_norms[:, None]
-        centroid_scores = np.clip(np.einsum("ij,j->i", centroids, query), 0.0, 1.0)
-        for index, (employee_id, start, end, quality_values, rejected_count) in enumerate(prepared):
-            mask = valid[start:end]
-            vectors = normalized[start:end][mask]
-            rejected_count += int(np.count_nonzero(~mask))
-            if not len(vectors):
+
+        vectors: list[np.ndarray] = []
+        qualities: list[float] = []
+        individual_scores: list[float] = []
+        for candidate in eligible:
+            vector = deserialize_embedding(candidate.embedding)
+            if vector.shape != query.shape:
+                rejected_count += 1
                 continue
-            qualities = np.asarray(quality_values)[mask]
-            individual_scores = (
-                np.clip(similarities[start:end][mask], 0.0, 1.0) * (0.85 + 0.15 * qualities)
-            ).tolist()
-            centroid_score = float(centroid_scores[index])
-            strongest = sorted(individual_scores, reverse=True)[:top_k]
-            robust_score = _clamp_score(float(median(strongest)))
-            aggregate_score = _clamp_score((centroid_score * 0.55) + (robust_score * 0.45))
-            ranked.append(
-                RankedFaceMatch(
-                    employee_id=employee_id,
-                    score=aggregate_score,
-                    best_score=_clamp_score(max(individual_scores)),
-                    template_count=len(vectors),
-                    centroid_score=centroid_score,
-                    robust_score=robust_score,
-                    rejected_template_count=rejected_count,
-                )
+            quality = _clamp_score(candidate.quality_score)
+            vectors.append(vector)
+            qualities.append(max(quality, 1e-6))
+            similarity = float(np.dot(query, vector))
+            individual_scores.append(_clamp_score(similarity) * (0.85 + (0.15 * quality)))
+
+        if not vectors:
+            continue
+        centroid = np.average(np.stack(vectors), axis=0, weights=np.asarray(qualities))
+        centroid /= max(float(np.linalg.norm(centroid)), 1e-9)
+        centroid_score = _clamp_score(float(np.dot(query, centroid)))
+        strongest = sorted(individual_scores, reverse=True)[:top_k]
+        robust_score = _clamp_score(float(median(strongest)))
+        aggregate_score = _clamp_score((centroid_score * 0.55) + (robust_score * 0.45))
+        ranked.append(
+            RankedFaceMatch(
+                employee_id=employee_id,
+                score=aggregate_score,
+                best_score=_clamp_score(max(individual_scores)),
+                template_count=len(vectors),
+                centroid_score=centroid_score,
+                robust_score=robust_score,
+                rejected_template_count=rejected_count,
             )
+        )
     return sorted(ranked, key=lambda item: item.score, reverse=True)
 
 
@@ -391,40 +345,33 @@ class FaceEmbeddingService:
 
         inference = self.provider.analyze(image.image_bgr)
         quality = self.validator.quality_report(image, inference)
-        # Blur, exposicao e contraste sao medidos sobre os pixels originais. Um
-        # quadro realcado so muda a localizacao do rosto, entao repetir a
-        # inferencia por esses motivos custava ate quatro passadas extras sem
-        # alterar o resultado. O realce continua para rosto nao encontrado,
-        # deteccao fraca e qualidade geral baixa, onde a caixa influencia a nota.
         retryable_quality_reasons = {
             FaceQualityReason.NO_FACE,
             FaceQualityReason.LOW_DETECTION_CONFIDENCE,
+            FaceQualityReason.IMAGE_TOO_BLURRY,
+            FaceQualityReason.UNDEREXPOSED,
+            FaceQualityReason.OVEREXPOSED,
+            FaceQualityReason.LOW_CONTRAST,
             FaceQualityReason.LOW_OVERALL_QUALITY,
         }
-        unavailable_states = {
-            FaceProviderState.MODEL_NOT_FOUND,
-            FaceProviderState.MODEL_LOAD_FAILED,
-            FaceProviderState.EXECUTION_PROVIDER_UNAVAILABLE,
-            FaceProviderState.INTERNAL_ERROR,
-        }
-        should_retry = inference.state in {
-            FaceProviderState.NO_FACE,
-            FaceProviderState.LOW_DETECTION_CONFIDENCE,
-        } or (
-            inference.state == FaceProviderState.READY
-            and bool(set(quality.reasons) & retryable_quality_reasons)
+        should_retry = (
+            inference.state
+            in {
+                FaceProviderState.NO_FACE,
+                FaceProviderState.LOW_DETECTION_CONFIDENCE,
+            }
+            or bool(set(quality.reasons) & retryable_quality_reasons)
         )
-        locate = getattr(self.provider, "locate", self.provider.analyze)
 
         if should_retry:
             best_ready = (
-                (inference, quality) if inference.state == FaceProviderState.READY else None
+                (inference, quality)
+                if inference.state == FaceProviderState.READY
+                else None
             )
             for enhanced_bgr in _enhanced_detection_frames(image.image_bgr):
-                locator_inference = locate(enhanced_bgr)
-                if locator_inference.state in unavailable_states | {
-                    FaceProviderState.MULTIPLE_FACES
-                }:
+                locator_inference = self.provider.analyze(enhanced_bgr)
+                if locator_inference.state == FaceProviderState.MULTIPLE_FACES:
                     inference = locator_inference
                     quality = self.validator.quality_report(image, locator_inference)
                     break
@@ -435,12 +382,6 @@ class FaceEmbeddingService:
                     image.image_bgr,
                     locator_inference,
                 )
-                if canonical_inference.state in unavailable_states | {
-                    FaceProviderState.MULTIPLE_FACES
-                }:
-                    inference = canonical_inference
-                    quality = self.validator.quality_report(image, canonical_inference)
-                    break
                 if canonical_inference.state != FaceProviderState.READY:
                     continue
                 canonical_quality = self.validator.quality_report(image, canonical_inference)
@@ -456,12 +397,17 @@ class FaceEmbeddingService:
                     inference, quality = best_ready
 
             if (
-                inference.state not in unavailable_states | {FaceProviderState.MULTIPLE_FACES}
+                inference.state != FaceProviderState.MULTIPLE_FACES
                 and best_ready is not None
             ):
                 inference, quality = best_ready
 
-        if inference.state in unavailable_states:
+        if inference.state in {
+            FaceProviderState.MODEL_NOT_FOUND,
+            FaceProviderState.MODEL_LOAD_FAILED,
+            FaceProviderState.EXECUTION_PROVIDER_UNAVAILABLE,
+            FaceProviderState.INTERNAL_ERROR,
+        }:
             failure = inference.failure
             raise FaceServiceUnavailableError(
                 code=inference.state.value,

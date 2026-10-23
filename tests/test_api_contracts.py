@@ -6,8 +6,6 @@ from types import SimpleNamespace
 
 from app.api.v1.routes import ai as ai_routes
 from app.api.health import health_snapshot
-from app.api.deps import get_current_user
-from app.models.enums import UserRole
 from app.application import create_application
 from app.core.config import settings
 from app.schemas.ai import (
@@ -159,17 +157,6 @@ def test_report_contract_rejects_invalid_period_and_missing_scope() -> None:
 
 @pytest.mark.asyncio
 async def test_structured_face_error_and_request_id(monkeypatch) -> None:
-    from app.db.session import get_session
-
-    async def authenticated_user():
-        return SimpleNamespace(id="test-admin", role=UserRole.SUPER_ADMIN)
-
-    async def isolated_session():
-        yield SimpleNamespace()
-
-    monkeypatch.setitem(application_under_test.dependency_overrides, get_current_user, authenticated_user)
-    monkeypatch.setitem(application_under_test.dependency_overrides, get_session, isolated_session)
-    monkeypatch.setattr("app.api.deps.check_rate_limit", AsyncMock())
     monkeypatch.setattr(settings, "ENVIRONMENT", "test")
     monkeypatch.setattr(settings, "FACE_PROVIDER", "fake")
     get_face_provider.cache_clear()
@@ -198,15 +185,6 @@ async def test_structured_face_error_and_request_id(monkeypatch) -> None:
         }
     finally:
         get_face_provider.cache_clear()
-
-
-@pytest.mark.asyncio
-async def test_face_analysis_requires_authentication():
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application_under_test),
-                                base_url="http://testserver") as client:
-        response = await client.post("/api/v1/ai/analyze-face",
-                                     json={"image_base64": "this-is-not-base64-data"})
-    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

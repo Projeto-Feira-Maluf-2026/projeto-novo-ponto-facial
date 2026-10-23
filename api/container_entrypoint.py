@@ -7,9 +7,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 def _port() -> int:
     try:
-        return int(os.getenv("PORT", "8000"))
+        return int(os.getenv("PORT", "80"))
     except ValueError:
-        return 8000
+        return 80
 
 
 def _serve_startup_error(code: str, details: dict[str, object]) -> None:
@@ -77,7 +77,7 @@ def main() -> None:
         host="0.0.0.0",
         port=_port(),
         proxy_headers=True,
-        forwarded_allow_ips=os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1"),
+        forwarded_allow_ips="*",
     )
 
 

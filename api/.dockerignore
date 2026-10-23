@@ -4,12 +4,3 @@
 __pycache__/
 *.egg-info/
 *.log
-.env
-.env.*
-**/.env
-**/.env.*
-!.env.example
-.git/
-uploads/
-.venv-audit/
-models/

@@ -1,31 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.time import SAO_PAULO, as_local, local_day_utc_bounds
-from app.models.entities import AttendanceRecord, CaptureDevice, Employee, SuspiciousAttempt, Worksite
-from app.models.enums import AttendanceStatus, EmployeeStatus, PunchType
+from app.core.time import SAO_PAULO, local_day_utc_bounds
+from app.models.enums import AttendanceStatus, EmployeeStatus
 from app.schemas.dashboard import DashboardMetrics
-
-
-def completed_interval_seconds(prior, record) -> float:
-    if prior is not None and (
-        (prior.punch_type == PunchType.ENTRY and record.punch_type in {PunchType.LUNCH_OUT, PunchType.EXIT})
-        or (prior.punch_type == PunchType.LUNCH_IN and record.punch_type == PunchType.EXIT)
-    ):
-        return max(0.0, (record.occurred_at - prior.occurred_at).total_seconds())
-    return 0.0
-
-
-def completed_work_hours(records) -> float:
-    """Count only adjacent recorded work intervals; incomplete sessions are not estimated."""
-    previous = {}
-    seconds = 0.0
-    for record in records:
-        seconds += completed_interval_seconds(previous.get(record.employee_id), record)
-        previous[record.employee_id] = record
-    return round(seconds / 3600, 2)
 
 
 class DashboardService:
@@ -34,44 +14,89 @@ class DashboardService:
 
     async def metrics(self) -> DashboardMetrics:
         start, end = local_day_utc_bounds(datetime.now(SAO_PAULO).date())
-        day = (AttendanceRecord.occurred_at >= start, AttendanceRecord.occurred_at < end)
-        accepted = AttendanceRecord.status == AttendanceStatus.ACCEPTED
-        # ORM queries inherit the request's persisted worksite/employee authorization criteria.
-        total = int(await self.session.scalar(select(func.count(Employee.id)).where(
-            Employee.status == EmployeeStatus.ACTIVE
-        )) or 0)
-        present = int(await self.session.scalar(select(func.count(
-            func.distinct(AttendanceRecord.employee_id)
-        )).where(*day, accepted)) or 0)
-        records_today = int(await self.session.scalar(select(func.count(AttendanceRecord.id)).where(*day)) or 0)
-        worksites = int(await self.session.scalar(select(func.count(Worksite.id)).where(Worksite.active.is_(True))) or 0)
-        connected = int(await self.session.scalar(select(func.count(CaptureDevice.id)).where(CaptureDevice.last_seen_at >= start)) or 0)
-        alerts = int(await self.session.scalar(select(func.count(SuspiciousAttempt.id)).where(
-            SuspiciousAttempt.created_at >= start, SuspiciousAttempt.created_at < end
-        )) or 0)
-        by_worksite = [dict(name=name, records=count) for name, count in await self.session.execute(
-            select(Worksite.name, func.count(AttendanceRecord.id))
-            .outerjoin(AttendanceRecord, (AttendanceRecord.worksite_id == Worksite.id) & day[0] & day[1])
-            .where(Worksite.active.is_(True)).group_by(Worksite.id, Worksite.name).order_by(Worksite.name)
-        )]
-        timeline_counts = {}
-        records = await self.session.stream_scalars(select(AttendanceRecord).where(*day).order_by(
-            AttendanceRecord.occurred_at, AttendanceRecord.id
-        ))
-        previous = {}
-        seconds = 0.0
-        async for record in records:
-            hour = as_local(record.occurred_at).strftime("%H:00")
-            timeline_counts[hour] = timeline_counts.get(hour, 0) + 1
-            if record.status != AttendanceStatus.ACCEPTED:
-                continue
-            prior = previous.get(record.employee_id)
-            seconds += completed_interval_seconds(prior, record)
-            previous[record.employee_id] = record
+        # Uma unica ida ao Supabase produz totais e series. No serverless, a
+        # latencia de rede costuma custar mais que estas agregacoes pequenas.
+        row = (
+            await self.session.execute(
+                text(
+                    """
+                    with worksite_counts as (
+                      select w.name, count(ar.id)::int as records
+                      from worksites w
+                      left join attendance_records ar
+                        on ar.worksite_id = w.id
+                       and ar.occurred_at >= :start
+                       and ar.occurred_at < :end
+                      where w.active is true
+                      group by w.name
+                    ),
+                    hour_counts as (
+                      select
+                        to_char(
+                          date_trunc('hour', occurred_at) at time zone 'UTC'
+                            at time zone 'America/Sao_Paulo',
+                          'HH24:MI'
+                        ) as hour,
+                        count(id)::int as records
+                      from attendance_records
+                      where occurred_at >= :start and occurred_at < :end
+                      group by date_trunc('hour', occurred_at)
+                      order by date_trunc('hour', occurred_at)
+                    )
+                    select
+                      (select count(*) from employees
+                        where status::text = :employee_status)::int as total_employees,
+                      (select count(distinct employee_id) from attendance_records
+                        where occurred_at >= :start and occurred_at < :end
+                          and status::text = :attendance_status)::int as present,
+                      (select count(*) from attendance_records
+                        where occurred_at >= :start and occurred_at < :end)::int as records_today,
+                      (select count(*) from worksites where active is true)::int as worksites,
+                      (select count(*) from capture_devices
+                        where last_seen_at >= :start)::int as connected_devices,
+                      (select count(*) from suspicious_attempts
+                        where created_at >= :start and created_at < :end)::int as fraud_alerts,
+                      coalesce((
+                        select jsonb_agg(
+                          jsonb_build_object('name', name, 'records', records)
+                          order by name
+                        ) from worksite_counts
+                      ), '[]'::jsonb) as by_worksite,
+                      coalesce((
+                        select jsonb_agg(
+                          jsonb_build_object('hour', hour, 'records', records)
+                        ) from hour_counts
+                      ), '[]'::jsonb) as timeline
+                    """
+                ),
+                {
+                    "start": start,
+                    "end": end,
+                    "employee_status": EmployeeStatus.ACTIVE.value,
+                    "attendance_status": AttendanceStatus.ACCEPTED.value,
+                },
+            )
+        ).one()
+        total_employees = row.total_employees
+        present = row.present
+        records_today = row.records_today
+        worksites = row.worksites
+        connected_devices = row.connected_devices
+        fraud_alerts = row.fraud_alerts
+        by_worksite = list(row.by_worksite or [])
+        timeline = list(row.timeline or [])
+
+        total = int(total_employees or 0)
+        present_count = int(present or 0)
         return DashboardMetrics(
-            total_employees=total, present_employees=present,
-            absent_employees=max(total-present, 0), records_today=records_today,
-            worked_hours_today=round(seconds/3600, 2), worksites=worksites,
-            connected_devices=connected, fraud_alerts=alerts, by_worksite=by_worksite,
-            timeline=[dict(hour=hour, records=count) for hour, count in sorted(timeline_counts.items())],
+            total_employees=total,
+            present_employees=present_count,
+            absent_employees=max(total - present_count, 0),
+            records_today=int(records_today or 0),
+            worked_hours_today=round(float(records_today or 0) * 2.0, 2),
+            worksites=int(worksites or 0),
+            connected_devices=int(connected_devices or 0),
+            fraud_alerts=int(fraud_alerts or 0),
+            by_worksite=by_worksite,
+            timeline=timeline,
         )

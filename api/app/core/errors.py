@@ -21,17 +21,3 @@ class FaceServiceUnavailableError(AppError):
 class FaceInputError(AppError):
     def __init__(self, code: str, message: str, **details: Any) -> None:
         super().__init__(code=code, message=message, status_code=422, details=details)
-
-
-class ConflictError(AppError):
-    """A uniqueness rule was violated; the message never echoes database internals."""
-
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(code=code, message=message, status_code=409)
-
-
-class InvalidReferenceError(AppError):
-    """A payload points to a related record that does not exist or is out of scope."""
-
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(code=code, message=message, status_code=422)

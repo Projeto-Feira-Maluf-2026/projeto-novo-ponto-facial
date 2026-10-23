@@ -25,7 +25,6 @@ import { apiClient } from '../services/api';
 import { usePresentationMode } from '../presentation/PresentationContext';
 import {
   shouldOfferPresentationResult,
-  type PresentationEmailStatus,
   type PresentationResult,
 } from '../presentation/presentationResult';
 import type {
@@ -35,7 +34,7 @@ import type {
   PunchType,
   Worksite,
 } from '../types/domain';
-import { formatInAppTimeZone, parseApiDate } from '../utils/dateTime';
+import { parseApiDate } from '../utils/dateTime';
 import { publishAttendancePulse } from '../utils/attendancePulse';
 import { readTerminalWorksiteId, saveTerminalWorksiteId } from '../utils/terminalPreferences';
 
@@ -64,7 +63,7 @@ type RecentRecord = {
   punchType?: PunchType | null;
   status: 'ACCEPTED' | 'MANUAL_REVIEW';
   occurredAt: Date;
-  email: PresentationEmailStatus;
+  emailSent: boolean;
 };
 
 type PunchCandidate = {
@@ -94,16 +93,9 @@ function faceBoxIou(left: CameraFaceBox, right: CameraFaceBox) {
   return union > 0 ? intersection / union : 0;
 }
 
-const loadPresentationShow = () => import('../presentation/PresentationShow');
-const PresentationShow = lazy(() => loadPresentationShow().then((module) => ({
-  default: module.PresentationShow,
+const PresentationResultExperience = lazy(() => import('../presentation/PresentationResultExperience').then((module) => ({
+  default: module.PresentationResultExperience,
 })));
-
-function emailStatus(result: AttendanceDecision): PresentationEmailStatus {
-  if (result.email_notification_sent) return 'sent';
-  if (result.email_notification_queued) return 'queued';
-  return 'none';
-}
 
 const punchLabels: Record<PunchType, string> = {
   ENTRY: 'Entrada',
@@ -117,11 +109,11 @@ const initialRecognition: LiveRecognition = {
 };
 
 function formatDate(value: Date) {
-  return formatInAppTimeZone(value, { weekday: 'long', day: '2-digit', month: 'long' });
-}
-
-function formatClock(value: Date) {
-  return formatInAppTimeZone(value, { hour: '2-digit', minute: '2-digit' });
+  return new Intl.DateTimeFormat('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+  }).format(value);
 }
 
 function attendanceReasonMessage(reasons: string[]) {
@@ -195,29 +187,12 @@ export function FacialTerminalPage() {
   const [guidance, setGuidance] = useState('Iniciando a câmera…');
   const [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]);
   const [clock, setClock] = useState(new Date());
-  const [online, setOnline] = useState(() => navigator.onLine);
-
-  useEffect(() => {
-    // navigator.onLine read during render never updated the "Sem conexão" badge.
-    const updateConnection = () => setOnline(navigator.onLine);
-    window.addEventListener('online', updateConnection);
-    window.addEventListener('offline', updateConnection);
-    return () => {
-      window.removeEventListener('online', updateConnection);
-      window.removeEventListener('offline', updateConnection);
-    };
-  }, []);
   const [fullscreen, setFullscreen] = useState(false);
   const [presentationResult, setPresentationResult] = useState<PresentationResult | null>(null);
   const presentationExperienceOpen = presentation.active && presentationResult !== null;
 
   useEffect(() => {
-    if (!presentation.active) {
-      setPresentationResult(null);
-      return;
-    }
-    // Baixa a apresentação antes do primeiro reconhecimento: ela abre na hora.
-    void loadPresentationShow().catch(() => undefined);
+    if (!presentation.active) setPresentationResult(null);
   }, [presentation.active]);
 
   useEffect(() => {
@@ -284,14 +259,7 @@ export function FacialTerminalPage() {
     }
     if ((!wasPresent && count > 0) || count > previousCount) triggerScanRef.current?.();
   }, []);
-  const closePresentationResult = useCallback(() => {
-    // A apresentação dura mais que a janela de duplicidade do servidor. Quem
-    // continua diante da câmera ao fim dela não pode virar uma nova batida
-    // (por exemplo, "saída para o intervalo"): a leitura só rearma quando o
-    // quadro esvaziar ou alguém novo entrar.
-    if (localFacePresentRef.current) awaitingFaceExitRef.current = true;
-    setPresentationResult(null);
-  }, []);
+  const closePresentationResult = useCallback(() => setPresentationResult(null), []);
 
   const submitAutomaticPunches = useCallback(async (candidates: PunchCandidate[], signal?: AbortSignal) => {
     if (!worksiteId || punchInFlightRef.current || !candidates.length) return 0;
@@ -322,9 +290,6 @@ export function FacialTerminalPage() {
         offline_batch_id: `terminal-${scanId}-${index + 1}`,
         occurred_at: occurredAt,
       })), signal);
-      // A cancelled scan may have committed on the server. Do not present its
-      // response in a different worksite or after the operator pauses the scan.
-      if (signal?.aborted) return 0;
       const completedRecords: RecentRecord[] = [];
       const newlyCompletedRecords: RecentRecord[] = [];
       let successfulRecognition: LiveRecognition | null = null;
@@ -339,18 +304,17 @@ export function FacialTerminalPage() {
           || 'Funcionário';
         const resolvedEmployeeId = result.employee_id || candidate.employeeId || '';
         if (result.status !== 'ACCEPTED' && result.status !== 'MANUAL_REVIEW') return;
-        // Only a persisted record can confirm attendance. Never fabricate a
-        // record identifier or timestamp from a recognition-only response.
-        if (!result.record?.id || !result.record.occurred_at) return;
 
         const completedRecord = {
-          id: result.record.id,
+          id: result.record?.id || crypto.randomUUID(),
           employee: employeeName,
           registration: result.employee_registration || employee?.registration,
           punchType: result.punch_type,
           status: result.status,
-          occurredAt: parseApiDate(result.record.occurred_at),
-          email: emailStatus(result),
+          occurredAt: result.record?.occurred_at
+            ? parseApiDate(result.record.occurred_at)
+            : new Date(),
+          emailSent: result.email_notification_sent,
         } satisfies RecentRecord;
         completedRecords.push(completedRecord);
         if (!result.reasons.includes('duplicate_capture')) {
@@ -394,7 +358,7 @@ export function FacialTerminalPage() {
           publishAttendancePulse(
             worksiteId,
             newlyCompletedRecords.length,
-            newlyCompletedRecords.filter((record) => record.email !== 'none').length,
+            batch.decisions.filter((result) => result.email_notification_sent).length,
           );
         }
         const allCompleted = completed === validCandidates.length;
@@ -414,7 +378,7 @@ export function FacialTerminalPage() {
           registration: record.registration,
           punchType: record.punchType,
           occurredAt: record.occurredAt,
-          email: record.email,
+          emailSent: record.emailSent,
         }));
         if (shouldOfferPresentationResult(presentation.active, presentationParticipants)) {
           setPresentationResult({
@@ -443,7 +407,6 @@ export function FacialTerminalPage() {
       setGuidance(attendanceReasonMessage(batch.decisions[0]?.reasons || []));
       return 0;
     } catch {
-      if (signal?.aborted) return 0;
       resultHoldUntilRef.current = Date.now() + SERVICE_RETRY_HOLD_MS;
       setMode('attention');
       setGuidance('O serviço de ponto não respondeu. A câmera continuará tentando.');
@@ -677,7 +640,6 @@ export function FacialTerminalPage() {
               onClick={() => setAutoEnabled((current) => !current)}
               className="icon-button"
               aria-label={autoEnabled ? 'Pausar leitura automática' : 'Iniciar leitura automática'}
-              aria-pressed={autoEnabled}
               title={autoEnabled ? 'Pausar leitura' : 'Iniciar leitura'}
             >
               {autoEnabled ? <Pause size={17} /> : <Play size={17} />}
@@ -687,7 +649,6 @@ export function FacialTerminalPage() {
               onClick={() => setFullscreen((current) => !current)}
               className="icon-button"
               aria-label={fullscreen ? 'Sair da tela cheia' : 'Usar tela cheia'}
-              aria-pressed={fullscreen}
               title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
             >
               {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
@@ -707,7 +668,6 @@ export function FacialTerminalPage() {
             onErrorChange={setCameraError}
             onFacePresenceChange={handleLocalFacePresence}
             onFaceCountChange={handleLocalFaceCount}
-            trackingPaused={presentationExperienceOpen}
           />
         </div>
 
@@ -724,14 +684,14 @@ export function FacialTerminalPage() {
             >
               <ResultIcon size={20} />
             </div>
-            <div className="min-w-0" role="status" aria-live="polite" aria-atomic="true">
+            <div className="min-w-0" aria-live="polite">
               <strong>{resultPresentation.title}</strong>
               <span>{guidance}</span>
             </div>
           </div>
           <div className="terminal-compact-meta">
             <time className="terminal-compact-clock" dateTime={clock.toISOString()}>
-              <strong>{formatClock(clock)}</strong>
+              <strong>{clock.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
               <span>{formatDate(clock)}</span>
             </time>
             {latestRecord && (
@@ -740,12 +700,12 @@ export function FacialTerminalPage() {
                 <strong>{latestRecord.employee}</strong>
                 <small>
                   {latestRecord.punchType ? punchLabels[latestRecord.punchType] : 'Ponto'} ·{' '}
-                  {formatClock(latestRecord.occurredAt)}
-                  {latestRecord.email === 'sent' ? ' · E-mail enviado' : latestRecord.email === 'queued' ? ' · E-mail a caminho' : ''}
+                  {latestRecord.occurredAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {latestRecord.emailSent ? ' · E-mail enviado' : ''}
                 </small>
               </div>
             )}
-            {!online && (
+            {!navigator.onLine && (
               <span className="terminal-offline-note">
                 <WifiOff size={16} /> Sem conexão
               </span>
@@ -761,7 +721,7 @@ export function FacialTerminalPage() {
       {fullscreen ? <div className="facial-terminal-fullscreen">{content}</div> : content}
       {presentationExperienceOpen && presentationResult && (
         <Suspense fallback={null}>
-          <PresentationShow
+          <PresentationResultExperience
             result={presentationResult}
             onClose={closePresentationResult}
           />

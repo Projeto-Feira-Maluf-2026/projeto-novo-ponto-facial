@@ -325,24 +325,18 @@ class InsightFaceArcFaceProvider(FaceProvider):
             input_size=input_sizes,
             max_num=0,
         )
-        # Somente deteccao. O embedding ArcFace e a etapa mais cara do pipeline
-        # e e calculado depois, apenas para o rosto efetivamente escolhido, em
-        # vez de rodar para cada candidato e em cada passada de resolucao.
-        return [
-            Face(
+        faces: list[Any] = []
+        for index in range(bboxes.shape[0]):
+            face = Face(
                 bbox=bboxes[index, :4],
                 kps=keypoints[index] if keypoints is not None else None,
                 det_score=bboxes[index, 4],
             )
-            for index in range(bboxes.shape[0])
-        ]
-
-    def _embed_face(self, image_bgr: np.ndarray, face: Any) -> None:
-        if self._app is None:
-            return
-        for task_name, model in self._app.models.items():
-            if task_name != "detection":
-                model.get(image_bgr, face)
+            for task_name, model in self._app.models.items():
+                if task_name != "detection":
+                    model.get(image_bgr, face)
+            faces.append(face)
+        return faces
 
     @staticmethod
     def _needs_high_resolution_pass(faces: list[Any], image_bgr: np.ndarray) -> bool:
@@ -404,11 +398,7 @@ class InsightFaceArcFaceProvider(FaceProvider):
             failure=FaceFailure(code=state, message=message, details=details),
         )
 
-    def locate(self, image_bgr: np.ndarray) -> FaceInferenceResult:
-        """Detect without computing an embedding; used for enhanced locator frames."""
-        return self.analyze(image_bgr, embed=False)
-
-    def analyze(self, image_bgr: np.ndarray, *, embed: bool = True) -> FaceInferenceResult:
+    def analyze(self, image_bgr: np.ndarray) -> FaceInferenceResult:
         info = self.initialize()
         if info.state != FaceProviderState.READY or self._app is None:
             return self._result_failure(
@@ -429,20 +419,6 @@ class InsightFaceArcFaceProvider(FaceProvider):
         try:
             with self._inference_lock:
                 faces = self._adaptive_faces(image_bgr)
-                reliable_faces, reliable_threshold = _reliable_face_candidates(
-                    faces,
-                    self.minimum_detection_confidence,
-                    settings.FACE_SECONDARY_FACE_SCORE_GAP,
-                    settings.FACE_SECONDARY_FACE_CONFIDENCE,
-                )
-                if len(reliable_faces) == 1:
-                    selected_face = reliable_faces[0]
-                    if (
-                        float(getattr(selected_face, "det_score", 0.0))
-                        >= self.minimum_detection_confidence
-                    ):
-                        if embed:
-                            self._embed_face(image_bgr, selected_face)
             elapsed_ms = (perf_counter() - started_at) * 1000
             if not faces:
                 return self._result_failure(
@@ -450,6 +426,12 @@ class InsightFaceArcFaceProvider(FaceProvider):
                     "Nenhum rosto detectado",
                     inference_ms=elapsed_ms,
                 )
+            reliable_faces, reliable_threshold = _reliable_face_candidates(
+                faces,
+                self.minimum_detection_confidence,
+                settings.FACE_SECONDARY_FACE_SCORE_GAP,
+                settings.FACE_SECONDARY_FACE_CONFIDENCE,
+            )
             if len(reliable_faces) != 1:
                 return self._result_failure(
                     FaceProviderState.MULTIPLE_FACES,
@@ -488,22 +470,16 @@ class InsightFaceArcFaceProvider(FaceProvider):
                 if raw_landmarks.ndim == 2 and raw_landmarks.shape[1] >= 2
                 else []
             )
-            embedding: list[float] | None = None
-            if embed:
-                raw_embedding = getattr(face, "normed_embedding", None)
-                if raw_embedding is None:
-                    raw_embedding = getattr(face, "embedding", None)
-                vector = np.asarray(raw_embedding, dtype=np.float32).reshape(-1)
-                if (
-                    vector.size != self.expected_embedding_dimension
-                    or not np.isfinite(vector).all()
-                ):
-                    raise ValueError("Modelo retornou embedding invalido")
-                norm = float(np.linalg.norm(vector))
-                if norm <= 1e-9:
-                    raise ValueError("Modelo retornou embedding sem norma")
-                vector /= norm
-                embedding = vector.tolist()
+            raw_embedding = getattr(face, "normed_embedding", None)
+            if raw_embedding is None:
+                raw_embedding = getattr(face, "embedding", None)
+            vector = np.asarray(raw_embedding, dtype=np.float32).reshape(-1)
+            if vector.size != self.expected_embedding_dimension or not np.isfinite(vector).all():
+                raise ValueError("Modelo retornou embedding invalido")
+            norm = float(np.linalg.norm(vector))
+            if norm <= 1e-9:
+                raise ValueError("Modelo retornou embedding sem norma")
+            vector /= norm
 
             return FaceInferenceResult(
                 state=FaceProviderState.READY,
@@ -513,9 +489,9 @@ class InsightFaceArcFaceProvider(FaceProvider):
                 detector_name=self._detector_name,
                 normalization_version=self.normalization_version,
                 execution_provider=self._execution_provider,
-                embedding_dimension=self._embedding_dimension,
+                embedding_dimension=int(vector.size),
                 inference_ms=round(elapsed_ms, 3),
-                embedding=embedding,
+                embedding=vector.tolist(),
                 bounding_box=bounding_box,
                 landmarks=landmarks,
                 detection_score=detection_score,
