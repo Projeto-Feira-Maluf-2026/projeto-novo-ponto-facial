@@ -16,6 +16,7 @@ import { useAuth } from '../auth/AuthContext';
 import { userHasRole } from '../auth/permissions';
 import { apiClient, type ReportExportPayload } from '../services/api';
 import type { Employee, Worksite } from '../types/domain';
+import { appDateInput, appDayBoundaryIso, shiftDateInput } from '../utils/dateTime';
 import { AuditLogPanel } from './AuditPage';
 
 type ReportKind = ReportExportPayload['kind'];
@@ -36,24 +37,15 @@ const formatOptions = [
   { key: 'csv' as const, label: 'CSV', description: 'Dados simples para integração', icon: Table2 },
 ];
 
-function toDateInput(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function presetRange(kind: ReportKind) {
-  const end = new Date();
-  const start = new Date(end);
-  if (kind === 'weekly') start.setDate(end.getDate() - 6);
-  if (kind !== 'daily' && kind !== 'weekly') start.setDate(1);
-  return { start: toDateInput(start), end: toDateInput(end) };
+  // Report days are São Paulo calendar days, even on a device set to another zone.
+  const end = appDateInput(new Date());
+  if (kind === 'daily') return { start: end, end };
+  if (kind === 'weekly') return { start: shiftDateInput(end, -6), end };
+  return { start: `${end.slice(0, 8)}01`, end };
 }
 
-function apiDate(date: string, endOfDay = false) {
-  return new Date(`${date}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}`).toISOString();
-}
+const apiDate = appDayBoundaryIso;
 
 function ReportExportPanel() {
   const initialRange = presetRange('monthly');

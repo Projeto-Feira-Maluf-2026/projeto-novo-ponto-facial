@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'rea
 import { useNavigate } from 'react-router-dom';
 
 import type { PunchType } from '../types/domain';
+import { formatInAppTimeZone } from '../utils/dateTime';
 import type { PresentationResult } from './presentationResult';
 import { queuePresentationResultForNavigation } from './presentationResultTransfer';
 import { projectTeam } from './presentationTeam';
@@ -28,11 +29,11 @@ const punchLabels: Record<PunchType, string> = {
 };
 
 function formatTime(value: Date) {
-  return value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return formatInAppTimeZone(value, { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatDate(value: Date) {
-  return value.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  return formatInAppTimeZone(value, { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 function MotionWords({ text }: { text: string }) {

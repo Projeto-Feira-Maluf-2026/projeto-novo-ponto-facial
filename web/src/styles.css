@@ -816,6 +816,8 @@ input::placeholder, textarea::placeholder { color: var(--color-subtle); }
   .auth-loading-mark { display: grid; width: 48px; height: 48px; place-items: center; background: #f4f1e9; color: #141a1e; font-family: "Lexend Variable"; font-weight: 800; }
   .auth-loading-card h1 { font-size: 1.25rem; }
   .auth-loading-card p { color: #94a1a7; }
+  .auth-loading-card[role="alert"] p { max-width: 42ch; padding-inline: 16px; }
+  .auth-unavailable-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; padding-inline: 16px; }
 
   /* Shared workspace structures */
   .page-actions { display: flex; justify-content: flex-end; gap: 10px; }

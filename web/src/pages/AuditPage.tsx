@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DataTable } from '../components/DataTable';
 import { apiClient } from '../services/api';
 import type { AuditLog } from '../types/domain';
-import { parseApiDate } from '../utils/dateTime';
+import { formatInAppTimeZone, parseApiDate } from '../utils/dateTime';
 
 const actionLabels: Record<string, string> = {
   'attendance.punch': 'Ponto registrado',
@@ -12,10 +12,7 @@ const actionLabels: Record<string, string> = {
 };
 
 function formatAuditDate(value: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'medium',
-  }).format(parseApiDate(value));
+  return formatInAppTimeZone(parseApiDate(value), { dateStyle: 'short', timeStyle: 'medium' });
 }
 
 export function AuditLogPanel() {

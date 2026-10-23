@@ -10,9 +10,20 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
+def _dotenv_files() -> tuple[Path, ...]:
+    """Local .env files, unless the process explicitly asks for hermetic configuration.
+
+    The test suite sets PONTO_SKIP_DOTENV=1 so a developer's real .env (database,
+    SMTP, Blob tokens) can never leak into tests that only expect synthetic values.
+    """
+    if os.getenv("PONTO_SKIP_DOTENV", "").strip() == "1":
+        return ()
+    return (PROJECT_ROOT / ".env", PROJECT_ROOT / ".env.email.local")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(PROJECT_ROOT / ".env", PROJECT_ROOT / ".env.email.local"),
+        env_file=_dotenv_files(),
         env_file_encoding="utf-8",
         extra="ignore",
         hide_input_in_errors=True,
