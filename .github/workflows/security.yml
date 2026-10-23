@@ -23,7 +23,14 @@ jobs:
           echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' | sha256sum --check
           tar -xzf gitleaks.tar.gz gitleaks
       - name: Scan full history without exposing values
-        run: '"${{ runner.temp }}/gitleaks" git --redact --no-banner --log-level warn .'
+        run: |
+          status=0
+          "${{ runner.temp }}/gitleaks" git --redact --no-banner --log-level warn \
+            --report-format json --report-path "$RUNNER_TEMP/gitleaks.json" . || status=$?
+          # Location and rule only; secret values never reach the log (--redact).
+          jq -r '.[] | "::error file=\(.File),line=\(.StartLine),title=gitleaks \(.RuleID)::commit \(.Commit[0:7]) \(.Date[0:10])"' \
+            "$RUNNER_TEMP/gitleaks.json" 2>/dev/null || true
+          exit "$status"
   dependencies:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -38,7 +45,21 @@ jobs:
       - name: Audit complete npm lock
         run: |
           npm ci --ignore-scripts
-          npm audit --audit-level=moderate
+          npm audit --json > "$RUNNER_TEMP/npm-audit.json" || true
+          # Each advisory becomes an annotation, readable on the PR without the raw log.
+          node -e '
+            const report = require(process.argv[1]);
+            const blocking = new Set(["moderate", "high", "critical"]);
+            let failed = false;
+            for (const [name, item] of Object.entries(report.vulnerabilities || {})) {
+              const advisories = item.via.filter((via) => typeof via === "object")
+                .map((via) => `${via.title} (${via.url})`).join("; ") || `via ${item.via.join(", ")}`;
+              const fix = item.fixAvailable === true ? "fix available" : item.fixAvailable ? `fix: ${item.fixAvailable.name}@${item.fixAvailable.version}` : "no fix";
+              console.log(`::${blocking.has(item.severity) ? "error" : "warning"} title=npm audit ${item.severity}::${name} ${item.range} - ${advisories} - ${fix}`);
+              if (blocking.has(item.severity)) failed = true;
+            }
+            process.exit(failed ? 1 : 0);
+          ' "$RUNNER_TEMP/npm-audit.json"
       - name: Audit locked API including AI runtime
         run: |
           uv export --project api --locked --extra dev --extra ai --no-emit-project --format requirements-txt --output-file "$RUNNER_TEMP/api-audit.txt"
