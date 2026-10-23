@@ -19,6 +19,7 @@ import {
   useState,
 } from 'react';
 
+import { useMovingTabIndicator } from '../animations/useMovingTabIndicator';
 import { useAuth } from '../auth/AuthContext';
 import { userCan } from '../auth/permissions';
 import { DataTable } from '../components/DataTable';
@@ -70,6 +71,7 @@ function VisibleDigitalTwin({ worksite, activityPulse }: { worksite: Worksite; a
 }
 
 export function WorksitesPage() {
+  const tabsRef = useRef<HTMLDivElement>(null);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   // RH reads worksites but not devices; show "—" instead of a misleading zero.
@@ -86,6 +88,7 @@ export function WorksitesPage() {
   const [attendancePulse, setAttendancePulse] = useState(0);
 
   const selectedWorksite = worksites.find((item) => item.id === selectedWorksiteId) ?? worksites[0] ?? null;
+  useMovingTabIndicator(tabsRef, selectedWorksite?.id ?? null);
   const selectedDevices = selectedWorksite
     ? devices.filter((device) => device.worksite_id === selectedWorksite.id)
     : [];
@@ -219,7 +222,8 @@ export function WorksitesPage() {
           <div className="worksite-command-grid">
             <aside className="worksite-portfolio" aria-label="Escolher obra">
               <div className="worksite-selector-heading"><span>Portfólio de obras</span><strong>{String(worksites.length).padStart(2, '0')}</strong></div>
-              <div className="worksite-selector-list" role="tablist" aria-orientation="vertical">
+              <div ref={tabsRef} className="worksite-selector-list" role="tablist" aria-orientation="vertical">
+                <span className="worksite-tab-indicator" data-tab-indicator aria-hidden="true" />
                 {worksites.map((worksite, index) => {
                   const selected = worksite.id === selectedWorksite.id;
                   const deviceCount = devices.filter((device) => device.worksite_id === worksite.id).length;

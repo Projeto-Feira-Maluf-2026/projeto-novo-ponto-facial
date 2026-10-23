@@ -9,6 +9,11 @@ interface PresentationCinematicLayerProps {
   rootRef: RefObject<HTMLDivElement>;
 }
 
+function productMotionReduced() {
+  try { return localStorage.getItem('motion-preference') === 'reduced'; }
+  catch { return false; }
+}
+
 function shouldUseWebGL() {
   try {
     const canvas = document.createElement('canvas');
@@ -83,14 +88,14 @@ function createConstructionSite() {
     materials.push(value);
     return value;
   };
-  const concrete = material('#b7c2b4', 0.52, { roughness: 0.72 });
-  const concreteDark = material('#718076', 0.58, { roughness: 0.78 });
-  const steel = material('#66806d', 0.38, { metalness: 0.42, roughness: 0.48 });
+  const concrete = material('#9aa59d', 0.94, { roughness: 0.72 });
+  const concreteDark = material('#66756c', 0.94, { roughness: 0.78 });
+  const steel = material('#485d50', 0.9, { metalness: 0.42, roughness: 0.48 });
   const safety = material('#588157', 0.09, { roughness: 0.8 });
   const timber = material('#81907d', 0.48, { roughness: 0.84 });
-  const groundMaterial = material('#26372c', 0.32, { roughness: 1 });
-  const outline = new THREE.LineBasicMaterial({ color: '#91aa93', transparent: true, opacity: 0 });
-  outline.userData.baseOpacity = 0.5;
+  const groundMaterial = material('#d7dcd8', 0.82, { roughness: 1 });
+  const outline = new THREE.LineBasicMaterial({ color: '#576e5e', transparent: true, opacity: 0 });
+  outline.userData.baseOpacity = 0.75;
   materials.push(outline);
   const addBox = (
     parent: THREE.Object3D,
@@ -303,184 +308,149 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [webglEnabled] = useState(shouldUseWebGL);
 
+  const motionPreview = import.meta.env.DEV && new URLSearchParams(window.location.search).get('motion') === 'full';
+  const [reducedMotion, setReducedMotion] = useState(() => (window.matchMedia('(prefers-reduced-motion: reduce)').matches || productMotionReduced()) && !motionPreview);
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion((query.matches || productMotionReduced()) && !motionPreview);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, [motionPreview]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !motionPreview) return;
+    let frame = 0;
+    let pending: {element: HTMLElement; x: number; y: number} | null = null;
+    const move = (event: PointerEvent) => {
+      const element = (event.target as Element)?.closest<HTMLElement>('[data-tilt]');
+      if (!element) return;
+      pending = {element,x:event.clientX,y:event.clientY};
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (!pending) return;
+        const {element,x,y}=pending, bounds=element.getBoundingClientRect();
+        const px=(x-bounds.left)/bounds.width, py=(y-bounds.top)/bounds.height;
+        element.style.setProperty('--tilt-x', `${(0.5-py)*8}deg`);
+        element.style.setProperty('--tilt-y', `${(px-0.5)*8}deg`);
+        element.style.setProperty('--halo-x', `${px*100}%`);
+        element.style.setProperty('--halo-y', `${py*100}%`);
+        element.style.setProperty('--pointer-x', String((px-.5)*2));
+        element.style.setProperty('--pointer-y', String((py-.5)*2));
+      });
+    };
+    const leave = (event: PointerEvent) => {
+      const element=(event.target as Element)?.closest<HTMLElement>('[data-tilt]');
+      if (!element || element.contains(event.relatedTarget as Node)) return;
+      element.style.setProperty('--tilt-x','0deg'); element.style.setProperty('--tilt-y','0deg');
+      element.style.setProperty('--pointer-x','0'); element.style.setProperty('--pointer-y','0');
+    };
+    root.addEventListener('pointermove',move,{passive:true}); root.addEventListener('pointerout',leave,{passive:true});
+    return ()=>{ cancelAnimationFrame(frame); root.removeEventListener('pointermove',move); root.removeEventListener('pointerout',leave); };
+  }, [rootRef,motionPreview]);
+
   useEffect(() => {
     const root = rootRef.current;
     const content = root?.querySelector<HTMLElement>('main');
-    if (!root || !content) return undefined;
+    if (!root || !content) return;
     gsap.registerPlugin(ScrollTrigger);
-    const lenis = new Lenis({ wrapper: root, content, duration: 1.05, smoothWheel: true });
-    root.dataset.motionEngine = 'gsap';
+    let disposed = false;
+    root.dataset.motionEngine = 'reduced';
+    const phaseObserver = new IntersectionObserver(entries => {
+      if (root.dataset.motionEngine === 'gsap') return;
+      const active = entries.filter(entry => entry.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];
+      const visual = root.querySelector<HTMLElement>('.film-journey-visual');
+      if (active && visual) visual.dataset.sequenceStage = (active.target as HTMLElement).dataset.filmStage || '0';
+    }, { root, threshold: [.2,.5,.8] });
+    root.querySelectorAll('[data-film-stage]').forEach(stage => phaseObserver.observe(stage));
     const updateProgress = () => {
-      const maximum = Math.max(1, content.scrollHeight - root.clientHeight);
+      const maximum = Math.max(1, root.scrollHeight - root.clientHeight);
       root.style.setProperty('--story-progress', String(root.scrollTop / maximum));
     };
-    lenis.on('scroll', () => {
-      ScrollTrigger.update();
-      updateProgress();
-    });
-    const tick = (time: number) => lenis.raf(time * 1000);
-    gsap.ticker.add(tick);
-    gsap.ticker.lagSmoothing(0);
-
-    const context = gsap.context(() => {
-      const common = { scroller: root } as const;
-      gsap.to('[data-story-hero-copy]', {
-        yPercent: -34,
-        scale: 0.9,
-        opacity: 0.08,
-        ease: 'none',
-        scrollTrigger: { trigger: '.presentation-story-hero', start: 'top top', end: 'bottom 22%', scrub: 0.65, scroller: root },
+    root.addEventListener('scroll', updateProgress, { passive: true });
+    const media = gsap.matchMedia();
+    media.add({ desktop: '(min-width: 901px)', motion: motionPreview ? '(min-width: 0px)' : productMotionReduced() ? 'not all' : '(prefers-reduced-motion: no-preference)' }, (match) => {
+      const { desktop, motion } = match.conditions as { desktop: boolean; motion: boolean };
+      root.dataset.motionEngine = motion ? 'gsap' : 'reduced';
+      if (!motion) return;
+      const lenis = new Lenis({ wrapper: root, content, duration: .85, smoothWheel: true, anchors: { offset: -(root.querySelector<HTMLElement>('.film-nav')?.offsetHeight || 88) } });
+      const tick = (time: number) => lenis.raf(time * 1000);
+      gsap.ticker.add(tick);
+      lenis.on('scroll', ScrollTrigger.update);
+      const navigateDeck = (event: Event) => lenis.scrollTo((event as CustomEvent<number>).detail, { immediate: true, force: true });
+      root.addEventListener('film:navigate', navigateDeck);
+      const common = { scroller: root, invalidateOnRefresh: true };
+      gsap.fromTo('.film-curtain', { yPercent: 0 }, { yPercent: -100, duration: .85, ease: 'power3.inOut' });
+      gsap.fromTo('[data-film-line]', { yPercent: 110, rotation: 3, opacity: 0 }, { yPercent: 0, rotation: 0, opacity: 1, duration: .9, delay: .15, stagger: .09, ease: 'power3.out' });
+      gsap.utils.toArray<HTMLElement>('[data-film-word]').forEach((word, index) => {
+        gsap.fromTo(word, { yPercent: 115, opacity: .12 }, { yPercent: 0, opacity: 1, duration: .6, delay: (index % 8)*.04, ease: 'power3.out', scrollTrigger: { trigger: word.closest('h2'), start: 'top 90%', toggleActions: 'play none none none', ...common } });
       });
-      gsap.utils.toArray<HTMLElement>('[data-story-heading]').forEach((heading) => {
-        gsap.fromTo(heading.children,
-          { y: 110, opacity: 0, rotateX: -18, transformOrigin: '50% 100%' },
-          {
-            y: 0,
-            opacity: 1,
-            rotateX: 0,
-            stagger: 0.08,
-            ease: 'power3.out',
-            scrollTrigger: { trigger: heading, start: 'top 94%', end: 'top 56%', scrub: 0.55, ...common },
-          });
+      gsap.utils.toArray<HTMLElement>('[data-film-reveal]').forEach((element) => {
+        gsap.fromTo(element, { y: desktop ? 64 : 24, rotationX: desktop ? 10 : 0, z: desktop ? -120 : 0, scale: desktop ? .95 : 1, opacity: 0 }, { y: 0, rotationX: 0, z: 0, scale: 1, opacity: 1, duration: .9, ease: 'power3.out',
+          scrollTrigger: { trigger: element, start: 'top 92%', toggleActions: 'play none none none', ...common } });
       });
-      gsap.utils.toArray<HTMLElement>('[data-story-step]').forEach((step, index) => {
-        gsap.fromTo(step,
-          { x: index % 2 ? 180 : -180, y: 80, scale: 0.78, rotateZ: index % 2 ? 3 : -3, opacity: 0 },
-          {
-            x: 0,
-            y: 0,
-            scale: 1,
-            rotateZ: 0,
-            opacity: 1,
-            ease: 'power3.out',
-            scrollTrigger: { trigger: step, start: 'top 96%', end: 'center 62%', scrub: 0.72, ...common },
-          });
-      });
-      gsap.fromTo('.presentation-journey-beam span',
-        { scaleY: 0 },
-        {
-          scaleY: 1,
-          ease: 'none',
-          scrollTrigger: { trigger: '.presentation-story-journey', start: 'top 72%', end: 'bottom 70%', scrub: true, ...common },
-        });
-      gsap.fromTo('.presentation-blueprint-stack > div', {
-        y: (index) => 480 - index * 90,
-        x: (index) => index % 2 ? 240 : -240,
-        z: -420,
-        rotateX: 84,
-        rotateZ: (index) => index % 2 ? 14 : -14,
-        opacity: 0,
-      }, {
-        y: 0,
-        x: 0,
-        z: 0,
-        rotateX: 0,
-        rotateZ: 0,
-        opacity: 1,
-        stagger: 0.08,
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.presentation-story-blueprint', start: 'top 88%', end: 'center 48%', scrub: 0.8, ...common },
-      });
-      gsap.fromTo('.presentation-impact-line article', {
-        y: 220,
-        rotateX: -48,
-        scale: 0.68,
-        opacity: 0,
-      }, {
-        y: 0,
-        rotateX: 0,
-        scale: 1,
-        opacity: 1,
-        stagger: 0.12,
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.presentation-impact-line', start: 'top 94%', end: 'center 55%', scrub: 0.65, ...common },
-      });
-      gsap.fromTo('.presentation-trust-symbol',
-        { scale: 0.15, rotate: -160, opacity: 0 },
-        { scale: 1, rotate: 0, opacity: 1, ease: 'back.out(1.35)', scrollTrigger: { trigger: '.presentation-story-trust', start: 'top 88%', end: 'center 58%', scrub: 0.55, ...common } });
-      gsap.fromTo('.presentation-school-backdrop',
-        { scale: 1.34, yPercent: -8, filter: 'saturate(.55) contrast(1.08)' },
-        { scale: 1.04, yPercent: 8, filter: 'saturate(.88) contrast(1.02)', ease: 'none', scrollTrigger: { trigger: '.presentation-story-school', start: 'top bottom', end: 'bottom top', scrub: 0.8, ...common } });
-      gsap.fromTo('.presentation-story-school > :not(.presentation-school-backdrop):not(.presentation-school-veil)', {
-        x: (index) => index ? 180 : -180,
-        y: 90,
-        opacity: 0,
-      }, {
-        x: 0,
-        y: 0,
-        opacity: 1,
-        stagger: 0.12,
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.presentation-story-school', start: 'top 86%', end: 'center 52%', scrub: 0.7, ...common },
-      });
-      gsap.fromTo('.presentation-team-giant-number', {
-        xPercent: 68,
-        scale: 1.6,
-        rotate: 16,
-        opacity: 0,
-      }, {
-        xPercent: 0,
-        scale: 1,
-        rotate: 0,
-        opacity: 1,
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.presentation-story-team-teaser', start: 'top 96%', end: 'center 48%', scrub: 0.75, ...common },
-      });
-      gsap.fromTo('[data-story-team-copy] > *', {
-        x: -190,
-        y: 90,
-        rotateY: -18,
-        opacity: 0,
-      }, {
-        x: 0,
-        y: 0,
-        rotateY: 0,
-        opacity: 1,
-        stagger: 0.1,
-        ease: 'power4.out',
-        scrollTrigger: { trigger: '.presentation-story-team-teaser', start: 'top 90%', end: 'center 57%', scrub: 0.65, ...common },
-      });
-      gsap.fromTo('[data-story-team-member]', {
-        x: 210,
-        y: 70,
-        rotateY: 16,
-        opacity: 0,
-      }, {
-        x: 0,
-        y: 0,
-        rotateY: 0,
-        opacity: 1,
-        stagger: 0.09,
-        ease: 'power3.out',
-        scrollTrigger: { trigger: '.presentation-story-team-list', start: 'top 91%', end: 'center 52%', scrub: 0.72, ...common },
-      });
-      gsap.fromTo('.presentation-story-final > *', {
-        y: 160,
-        scale: 0.72,
-        opacity: 0,
-      }, {
-        y: 0,
-        scale: 1,
-        opacity: 1,
-        stagger: 0.1,
-        ease: 'power4.out',
-        scrollTrigger: { trigger: '.presentation-story-final', start: 'top 92%', end: 'center 55%', scrub: 0.68, ...common },
-      });
+      const sequence = root.querySelector<HTMLElement>('.film-journey-visual');
+      const panels = gsap.utils.toArray<HTMLElement>('[data-film-stage]');
+      gsap.set(panels.slice(1), { opacity: 0, y: 80, pointerEvents: 'none' });
+      const journey = gsap.timeline({ scrollTrigger: {
+        trigger: '.film-journey', start: 'top top', end: 'bottom bottom', scrub: .35, ...common,
+        onUpdate: (trigger) => { if (sequence) sequence.dataset.sequenceStage = String(Math.min(3, Math.floor(trigger.progress * 4))); },
+      } });
+      const drawings = ['.film-sequence-face', '.film-sequence-vectors', '.film-sequence-record', '.film-sequence-mail'];
+      for (let index = 1; index < 4; index += 1) {
+        const at = index;
+        journey.to(panels[index-1], { opacity: 0, y: -48, duration: .1, pointerEvents: 'none' }, at-.1)
+          .to(panels[index], { opacity: 1, y: 0, duration: .1, pointerEvents: 'auto' }, at)
+          .to(drawings[index-1], { opacity: 0, scale: .72, rotation: -8, x: -48, duration: .3, transformOrigin: '50% 50%' }, at-.25)
+          .fromTo(drawings[index], { opacity: 0, scale: 1.3, rotation: 8, x: 48 }, { opacity: 1, scale: 1, rotation: 0, x: 0, duration: .35, transformOrigin: '50% 50%', immediateRender: false }, at-.18);
+      }
+      journey.to({}, { duration: .8 }, 3.2);
+      if (desktop) {
+        gsap.fromTo('.film-journey-visual', { rotationY: -12, rotationX: 6, z: -80 }, { rotationY: 12, rotationX: -4, z: 40, ease: 'none', scrollTrigger: { trigger: '.film-journey', start: 'top top', end: 'bottom bottom', scrub: .5, ...common } });
+        gsap.fromTo('.film-school-copy', { rotationY: -8, x: -48 }, { rotationY: 0, x: 0, ease: 'power2.out', scrollTrigger: { trigger: '.film-school', start: 'top 85%', end: 'top 15%', scrub: .5, ...common } });
+        gsap.fromTo('.film-receipt', { rotationX: 12, z: -80, scale: .92 }, { rotationX: 0, z: 0, scale: 1, ease: 'power2.out', scrollTrigger: { trigger: '.film-final', start: 'top 80%', end: 'bottom bottom', scrub: .5, ...common } });
+        const ledger = root.querySelector<HTMLElement>('.film-impact-ledger');
+        const scene = root.querySelector<HTMLElement>('.film-impact-scene');
+        if (ledger && scene) gsap.to(ledger, { x: () => -(ledger.scrollWidth-scene.clientWidth), ease: 'none', scrollTrigger: { trigger: '.film-impact', start: 'top top', end: 'bottom bottom', scrub: .5, ...common } });
+        gsap.to('[data-film-hero]', { y: -120, scale: .96, opacity: 0, ease: 'none',
+          scrollTrigger: { trigger: '.film-hero', start: 'top top', end: 'bottom 20%', scrub: .45, ...common } });
+        const cards = gsap.utils.toArray<HTMLElement>('[data-film-slab]');
+        gsap.set(cards, { yPercent: -50, x: index => index*16, z: index => -index*60, rotationY: index => index*4, scale: index => 1-index*.04, opacity: index => index === 0 ? 1 : .5, zIndex: index => 4-index });
+        const updateDeck = (progress: number) => {
+          const active = Math.min(3,Math.floor(progress*4));
+          cards.forEach((card,index)=>card.querySelectorAll('button').forEach(button=>button.tabIndex=index===active ? 0 : -1));
+          root.querySelectorAll<HTMLButtonElement>('[data-deck-control]').forEach((button,index)=>button.setAttribute('aria-pressed',String(index===active)));
+        };
+        updateDeck(0);
+        const deck = gsap.timeline({ scrollTrigger: { trigger: '.film-architecture', start: 'top top', end: 'bottom bottom', scrub: .45, onUpdate: trigger=>updateDeck(trigger.progress), ...common } });
+        for (let index=1; index<cards.length; index+=1) {
+          const side = index % 2 ? -1 : 1;
+          deck.to(cards[index-1], { xPercent: side*85, x: 0, rotationY: side*28, rotationZ: side*5, z: -180, scale: .76, opacity: .15, duration: .5, ease: 'power2.inOut' }, index-.5)
+            .to(cards[index], { x: 0, xPercent: 0, rotationY: 0, rotationZ: 0, z: 0, scale: 1, opacity: 1, zIndex: 5+index, duration: .5, ease: 'power2.inOut' }, index-.5);
+        }
+        deck.to({}, {duration:.6}, 3);
+        gsap.fromTo('.film-school-photo', { yPercent: -8, scale: 1.18 }, { yPercent: 8, scale: 1.08, ease: 'none',
+          scrollTrigger: { trigger: '.film-school', start: 'top bottom', end: 'bottom top', scrub: .6, ...common } });
+      }
+      const timer = window.setTimeout(() => { if (!disposed) ScrollTrigger.refresh(); }, 100);
+      return () => { window.clearTimeout(timer); root.removeEventListener('film:navigate', navigateDeck); lenis.destroy(); gsap.ticker.remove(tick); root.querySelectorAll('[data-film-slab] button').forEach(button=>button.removeAttribute('tabindex')); };
     }, root);
-
-    updateProgress();
-    const refresh = () => ScrollTrigger.refresh();
+    const refresh = () => { if (!disposed) ScrollTrigger.refresh(); };
     document.fonts?.ready.then(refresh).catch(() => undefined);
-    root.querySelectorAll('img').forEach((image) => image.addEventListener('load', refresh, { once: true }));
-    window.setTimeout(refresh, 80);
+    const images = Array.from(root.querySelectorAll('img'));
+    images.forEach(image => image.addEventListener('load', refresh));
+    updateProgress();
     return () => {
-      context.revert();
-      lenis.destroy();
-      gsap.ticker.remove(tick);
+      disposed = true;
+      phaseObserver.disconnect();
+      media.revert();
+      images.forEach(image => image.removeEventListener('load', refresh));
+      root.removeEventListener('scroll', updateProgress);
       root.style.removeProperty('--story-progress');
       delete root.dataset.motionEngine;
     };
-  }, [rootRef]);
+  }, [rootRef, motionPreview]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -529,12 +499,12 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
     updateTarget();
 
     const render = (now: number) => {
-      frame = window.requestAnimationFrame(render);
+      if (!reducedMotion) frame = window.requestAnimationFrame(render);
       if (document.hidden) return;
       const delta = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
       progress = THREE.MathUtils.damp(progress, targetProgress, 4.5, delta);
-      const introduction = THREE.MathUtils.smoothstep(now - sceneStartedAt, 0, 1_250);
+      const introduction = reducedMotion ? 1 : THREE.MathUtils.smoothstep(now - sceneStartedAt, 0, 1_250);
       const sceneEmphasis = 0.72 + THREE.MathUtils.smoothstep(progress, 0.72, 1) * 0.28;
       const finalEmphasis = THREE.MathUtils.smoothstep(progress, 0.84, 0.98);
       grid.position.z = (progress * 4) % 1.5;
@@ -549,17 +519,22 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
       construction.group.position.x = 1.2 - finalEmphasis * 0.55 + Math.sin(progress * Math.PI * 2) * 0.24 + pointer.x * 0.1;
       construction.group.rotation.y = -0.46 + finalEmphasis * 0.08 + Math.sin(progress * Math.PI * 1.5) * 0.07 + pointer.x * 0.03;
       construction.group.scale.setScalar((0.88 + introduction * 0.12) * (0.78 + finalEmphasis * 0.13 + Math.sin(progress * Math.PI) * 0.035));
-      construction.hook.position.y = 0.3 + Math.sin(now * 0.0007) * 0.07;
-      construction.cable.rotation.z = Math.sin(now * 0.00045) * 0.006;
+      construction.hook.position.y = 0.3 + (reducedMotion ? 0 : Math.sin(now * 0.0007) * 0.07);
+      construction.cable.rotation.z = (reducedMotion ? 0 : Math.sin(now * 0.00045) * 0.006);
       camera.position.z = 14.2 - Math.sin(progress * Math.PI) * 0.65;
       camera.position.x = pointer.x * 0.16 + Math.sin(progress * Math.PI * 2) * 0.18;
       camera.position.y = 0.18 + pointer.y * 0.08 + Math.cos(progress * Math.PI * 1.4) * 0.12;
       camera.lookAt(0.55, -0.15, 0);
-      renderer.setClearColor(0x101812, finalEmphasis * 0.76);
+      renderer.setClearColor(0xf5f5f7, finalEmphasis * 0.65);
       renderer.render(scene, camera);
     };
     frame = window.requestAnimationFrame(render);
+    const redraw = () => { if (reducedMotion) { progress = targetProgress; render(performance.now()); } };
+    root.addEventListener('scroll', redraw, { passive: true });
+    window.addEventListener('resize', redraw);
     return () => {
+      root.removeEventListener('scroll', redraw);
+      window.removeEventListener('resize', redraw);
       window.cancelAnimationFrame(frame);
       root.removeEventListener('scroll', updateTarget);
       window.removeEventListener('pointermove', onPointerMove);
@@ -568,7 +543,7 @@ export function PresentationCinematicLayer({ rootRef }: PresentationCinematicLay
       disposeScene(scene);
       renderer.dispose();
     };
-  }, [rootRef, webglEnabled]);
+  }, [rootRef, webglEnabled, reducedMotion]);
 
   return (
     <div className="presentation-cinematic-layer" aria-hidden="true" data-webgl={webglEnabled || undefined}>
