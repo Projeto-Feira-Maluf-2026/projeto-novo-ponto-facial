@@ -106,7 +106,8 @@ async def camera_snapshot(
         image = await asyncio.to_thread(read_camera_jpeg, config)
     except Exception as exc:
         # The exception text may come from OpenCV/FFmpeg and can echo the stream URL.
-        logger.warning("Falha ao capturar snapshot device_id=%s error_type=%s", device_id, type(exc).__name__)
+        # Only the exception class is logged; the request ID already correlates the device.
+        logger.warning("Falha ao capturar snapshot error_type=%s", type(exc).__name__)
         await DeviceService(session).update_connection_status(device_id, DeviceStatus.MAINTENANCE)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
