@@ -37,6 +37,7 @@ export function useUtilityEffects() {
       element.style.setProperty('--pointer-y', `${(y - 0.5) * 2}`);
     };
     const onPointerMove = (event: PointerEvent) => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       const element = (event.target as Element | null)?.closest<HTMLElement>('[data-tilt], [data-lens-track]');
       if (!element) return;
       pending = { element, event };

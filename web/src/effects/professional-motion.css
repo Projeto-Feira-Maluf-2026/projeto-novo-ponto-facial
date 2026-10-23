@@ -1,0 +1,22 @@
+/* Global UI motion is restrained; expressive timelines belong to the presentation. */
+.topbar-brand-desktop .brand-mark { view-transition-name: app-brand; }
+html[data-route-transition="true"]::view-transition-old(root) { animation: app-route-out 160ms ease-out both; }
+html[data-route-transition="true"]::view-transition-new(root) { animation: app-route-in 260ms cubic-bezier(.2,.85,.3,1.08) both; }
+html[data-route-transition="true"]::view-transition-group(app-brand) { animation-duration: 260ms; animation-timing-function: cubic-bezier(.2,.85,.3,1.08); }
+@keyframes app-route-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes app-route-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.worksite-selector-list { position: relative; }
+.worksite-tab-indicator { position: absolute; left: 0; top: 0; width: 3px; height: 0; background: var(--color-accent); pointer-events: none; z-index: 1; transition: transform 240ms cubic-bezier(.2,.85,.3,1.1), height 200ms ease-out; }
+.worksite-selector-item { position: relative; transition: background-color 180ms ease-out; }
+.worksite-selector-item[data-active="true"] { border-left-color: transparent; }
+.worksite-selector-item > svg { transition: transform 220ms cubic-bezier(.2,.85,.3,1.1), opacity 180ms ease-out; opacity: .55; }
+.worksite-selector-item[aria-selected="true"] > svg { transform: translateX(4px); opacity: 1; }
+.worksite-selector-item:focus-visible { outline: 3px solid var(--color-accent); outline-offset: -4px; }
+.table-cell-skeleton::after, .route-loading-line::after { animation: skeleton-sweep 1.5s ease-in-out infinite; }
+.table-cell-skeleton, .route-loading-line { contain: paint; }
+@media (prefers-reduced-motion: reduce) {
+  *:not([data-motion-preview="full"], [data-motion-preview="full"] *), *:not([data-motion-preview="full"], [data-motion-preview="full"] *)::before, *:not([data-motion-preview="full"], [data-motion-preview="full"] *)::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+  .worksite-selector-item > svg { transform: none; }
+}
+html[data-motion-mode="reduced"] *, html[data-motion-mode="reduced"] *::before, html[data-motion-mode="reduced"] *::after { animation: none !important; transition: none !important; }

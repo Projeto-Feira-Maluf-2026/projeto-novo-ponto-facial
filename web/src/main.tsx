@@ -11,6 +11,7 @@ import './premium.css';
 import './motion.css';
 import './redesign.css';
 import './utility-effects.css';
+import './effects/professional-motion.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
