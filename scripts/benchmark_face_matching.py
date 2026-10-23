@@ -92,6 +92,9 @@ def main() -> None:
             ),
             default=0.0,
         )
+        if not same_order:
+            # Fail instead of printing identifiers: the report stays aggregate-only.
+            raise SystemExit("A ordem das identidades mudou entre HEAD e a arvore local")
         print(
             json.dumps(
                 {
@@ -101,7 +104,7 @@ def main() -> None:
                     "seed": args.seed,
                     "repeats": args.repeats,
                     "median_ms": measurements,
-                    "same_identity_order": same_order,
+                    "same_identity_order": True,
                     "max_score_drift": drift,
                 }
             )

@@ -9,7 +9,10 @@ const scope = self as unknown as {
 let landmarker: FaceLandmarker | null = null;
 let detector: FaceDetector | null = null;
 let lastDistantScan = 0;
-scope.onmessage = async ({ data }) => {
+scope.onmessage = async (event) => {
+  // Dedicated-worker messages carry an empty origin; anything else is not our page.
+  if (event.origin !== '' && event.origin !== self.location.origin) return;
+  const { data } = event;
   if (data.type === 'init') {
     try {
       // Module workers cannot use importScripts: request the ESM WASM loader.
