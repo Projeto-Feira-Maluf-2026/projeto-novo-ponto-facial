@@ -1,25 +1,41 @@
 version: 2
+# Um PR agrupado por ecossistema, uma vez por mês. Majors ficam juntos, separados
+# dos patches/minors, para revisar quebra de compatibilidade com calma.
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 3
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 3
+      interval: monthly
+    open-pull-requests-limit: 2
     groups:
-      compatible-patches:
-        update-types: [patch]
+      npm-compativeis:
+        update-types: [minor, patch]
+      npm-majors:
+        update-types: [major]
   - package-ecosystem: uv
     directory: /api
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 3
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      python-compativeis:
+        update-types: [minor, patch]
+      python-majors:
+        update-types: [major]
   - package-ecosystem: docker
     directories: [/api, /web]
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 3
+      interval: monthly
+    open-pull-requests-limit: 1
+    ignore:
+      # Só versões LTS do Node (engines fixa 24.x).
+      - dependency-name: node
+        versions: ["25", "27", "29"]
