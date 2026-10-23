@@ -1,9 +1,16 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     container_name: ponto-redis
-    ports:
-      - "6379:6379"
+    user: redis
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    networks: [cache]
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis-data:/data
@@ -17,6 +24,14 @@ services:
     build:
       context: ./api
     container_name: ponto-api
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    networks: [cache, application]
     depends_on:
       redis:
         condition: service_healthy
@@ -40,7 +55,7 @@ services:
       FACE_EXECUTION_PROVIDERS: CPUExecutionProvider
       FACE_THRESHOLDS_CALIBRATED: "false"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - api-uploads:/app/uploads
       - ${FACE_MODEL_HOST_PATH:-./models}:/models:ro
@@ -53,13 +68,37 @@ services:
 
   web:
     build:
-      context: ./web
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?Configure VITE_SUPABASE_URL no .env}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:?Configure a chave publica VITE_SUPABASE_PUBLISHABLE_KEY no .env}
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+        VITE_FACE_API_URL: ${VITE_FACE_API_URL:-/api/v1}
     container_name: ponto-web
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    networks: [application]
     depends_on:
       api:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+networks:
+  cache:
+    internal: true
+  application:
 
 volumes:
   redis-data:

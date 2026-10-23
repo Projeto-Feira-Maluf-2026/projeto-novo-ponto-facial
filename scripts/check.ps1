@@ -2,16 +2,29 @@ $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $previousPythonPath = $env:PYTHONPATH
+$checkPython = if ($env:CHECK_PYTHON) {
+    $env:CHECK_PYTHON
+} else {
+    Join-Path $projectRoot "api\.venv\Scripts\python.exe"
+}
+
+if (-not (Test-Path -LiteralPath $checkPython)) {
+    throw "Python do projeto ausente. Execute o setup ou defina CHECK_PYTHON para Python 3.12."
+}
+$pythonVersion = & $checkPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+if ($LASTEXITCODE -ne 0 -or $pythonVersion -ne "3.12") {
+    throw "O projeto requer Python 3.12; encontrado $pythonVersion. Defina CHECK_PYTHON ou recrie o ambiente."
+}
 
 try {
     $env:PYTHONPATH = Join-Path $projectRoot "api"
 
     Write-Host "[1/4] Lint do backend"
-    python -m ruff check (Join-Path $projectRoot "api\app") (Join-Path $projectRoot "tests")
+    & $checkPython -m ruff check (Join-Path $projectRoot "api\app") (Join-Path $projectRoot "tests")
     if ($LASTEXITCODE -ne 0) { throw "Lint do backend falhou ($LASTEXITCODE)." }
 
     Write-Host "[2/4] Testes do backend"
-    python -m pytest -q (Join-Path $projectRoot "tests")
+    & $checkPython -m pytest -q (Join-Path $projectRoot "tests")
     if ($LASTEXITCODE -ne 0) { throw "Testes do backend falharam ($LASTEXITCODE)." }
 
     Write-Host "[3/4] Testes do frontend"

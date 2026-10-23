@@ -1,8 +1,9 @@
 import { Camera, RefreshCcw, Video } from 'lucide-react';
 import { isRecoverableCameraError, openCameraStream } from '../utils/cameraStream';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { FaceDetector, FaceLandmarker, FilesetResolver, type Detection } from '@mediapipe/tasks-vision';
+import type { Detection } from '@mediapipe/tasks-vision';
 import type { FaceLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision';
+import type { FaceTrackingResponse } from './faceTrackingProtocol';
 
 export type FaceBox = {
   x: number;
@@ -520,6 +521,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
+        // play() can settle after navigation has released this stream.
         if (!mountedRef.current || requestId !== startRequestIdRef.current) return;
         const activeDeviceId = stream.getVideoTracks()[0]?.getSettings().deviceId || requestedDeviceId;
         if (activeDeviceId) {
@@ -696,11 +698,10 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let cancelled = false;
       let animationFrame = 0;
       let videoFrameCallback = 0;
-      let landmarker: FaceLandmarker | null = null;
-      let distantDetector: FaceDetector | null = null;
-      let distantCanvas: HTMLCanvasElement | null = null;
-      let distantContext: CanvasRenderingContext2D | null = null;
-      let lastDistantScanAt = 0;
+      let worker: Worker | null = null;
+      let workerReady = false;
+      let framePending = false;
+      let workerTimeout = 0;
       let distantCandidates: DistantFaceCandidate[] = [];
       let stabilizedBoxes: FaceBox[] = [];
       let lastFacePresent = false;
@@ -885,76 +886,43 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         });
       };
 
-      const scanDistantFrame = (now: number) => {
+      const processFrame = (now: DOMHighResTimeStamp) => {
+        if (cancelled || document.hidden || !workerReady || framePending
+          || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS) return;
         const video = videoRef.current;
-        if (
-          !distantDetector
-          || !distantCanvas
-          || !distantContext
-          || !video
-          || !video.videoWidth
-          || !video.videoHeight
-          || now - lastDistantScanAt < DISTANT_SCAN_INTERVAL_MS
-        ) return;
-
-        lastDistantScanAt = now;
-        const scale = Math.min(1, DISTANT_DETECTOR_MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
-        const detectorWidth = Math.max(1, Math.round(video.videoWidth * scale));
-        const detectorHeight = Math.max(1, Math.round(video.videoHeight * scale));
-        if (distantCanvas.width !== detectorWidth || distantCanvas.height !== detectorHeight) {
-          distantCanvas.width = detectorWidth;
-          distantCanvas.height = detectorHeight;
-          distantContext = distantCanvas.getContext('2d', { alpha: false });
-          if (!distantContext) return;
-        }
-
-        distantContext.drawImage(
-          video,
-          0,
-          0,
-          detectorWidth,
-          detectorHeight,
-        );
-        const detections = distantDetector.detect(distantCanvas).detections
-          .filter((detection) => isPlausibleDistantFace(detection, detectorWidth, detectorHeight));
-        const detectedBoxes = mergeFaceBoxes(detections.flatMap((detection) => {
-          const box = detection.boundingBox;
-          if (!box) return [];
-          const normalizedBox = {
-            x: clamp(box.originX / detectorWidth, 0, 1),
-            y: clamp(box.originY / detectorHeight, 0, 1),
-            width: clamp(box.width / detectorWidth, 0, 1),
-            height: clamp(box.height / detectorHeight, 0, 1),
-          };
-          return normalizedBox.width > 0.012 && normalizedBox.height > 0.02
-            ? [normalizedBox]
-            : [];
-        }));
-        distantCandidates = updateDistantFaceCandidates(distantCandidates, detectedBoxes, now);
+        if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+          || video.currentTime === lastVideoTime) return;
+        lastVideoTime = video.currentTime;
+        lastLandmarkAt = now;
+        framePending = true;
+        // A single transferred frame bounds RAM and drops stale work under load.
+        void createImageBitmap(video).then((frame) => {
+          if (cancelled || document.hidden || !workerReady || !worker) {
+            frame.close();
+            framePending = false;
+            return;
+          }
+          try {
+            worker.postMessage({ type: 'frame', frame, timestamp: now }, [frame]);
+            workerTimeout = window.setTimeout(failWorker, 10000);
+          } catch {
+            frame.close();
+            failWorker();
+          }
+        }).catch(failWorker);
       };
 
-      const processFrame = (now: DOMHighResTimeStamp) => {
-        if (
-          cancelled
-          || document.hidden
-          || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS
-        ) return;
-
-        const video = videoRef.current;
-        if (landmarker && video && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-          if (video.currentTime === lastVideoTime) return;
-          lastVideoTime = video.currentTime;
-          lastLandmarkAt = now;
-          try {
-            if (distantDetector && now - lastDistantScanAt >= DISTANT_SCAN_INTERVAL_MS) {
-              scanDistantFrame(now);
-            } else {
-              drawFaces(landmarker.detectForVideo(video, now));
-            }
-          } catch {
-            setLandmarkState('error');
-          }
-        }
+      const failWorker = () => {
+        if (cancelled) return;
+        workerReady = false;
+        framePending = false;
+        window.clearTimeout(workerTimeout);
+        worker?.terminate();
+        worker = null;
+        normalizedFaceBoxRef.current = null;
+        normalizedFaceBoxesRef.current = [];
+        setDetectedFaceCount(0);
+        setLandmarkState('unsupported');
       };
 
       const scheduleFrame = () => {
@@ -975,72 +943,52 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         });
       };
 
-      (async () => {
-        try {
-          setLandmarkState('loading');
-          const vision = await FilesetResolver.forVisionTasks(LANDMARK_WASM_PATH);
-          if (cancelled) return;
-
-          const landmarkerOptions = {
-            runningMode: 'VIDEO' as const,
-            numFaces: MAX_TRACKED_FACES,
-            minFaceDetectionConfidence: 0.48,
-            minFacePresenceConfidence: 0.48,
-            minTrackingConfidence: 0.42,
-            outputFaceBlendshapes: false,
-            // O terminal usa landmarks e caixas, não as matrizes faciais 3D.
-            outputFacialTransformationMatrixes: false,
-          };
-
-          try {
-            landmarker = await FaceLandmarker.createFromOptions(vision, {
-              ...landmarkerOptions,
-              baseOptions: {
-                modelAssetPath: FACE_LANDMARKER_MODEL_PATH,
-                delegate: 'GPU',
-              },
-            });
-          } catch {
-            landmarker = await FaceLandmarker.createFromOptions(vision, {
-              ...landmarkerOptions,
-              baseOptions: {
-                modelAssetPath: FACE_LANDMARKER_MODEL_PATH,
-                delegate: 'CPU',
-              },
-            });
-          }
-
-          if (cancelled) {
-            landmarker.close();
-            return;
-          }
-
-          setLandmarkState('ready');
-          try {
-            distantCanvas = document.createElement('canvas');
-            distantCanvas.width = DISTANT_DETECTOR_MAX_EDGE;
-            distantCanvas.height = Math.round(DISTANT_DETECTOR_MAX_EDGE * 9 / 16);
-            distantContext = distantCanvas.getContext('2d', { alpha: false });
-            distantDetector = await FaceDetector.createFromOptions(vision, {
-              baseOptions: {
-                modelAssetPath: DISTANT_FACE_DETECTOR_MODEL_PATH,
-                delegate: 'CPU',
-              },
-              runningMode: 'IMAGE',
-              minDetectionConfidence: 0.48,
-              minSuppressionThreshold: 0.35,
-            });
-          } catch {
-            distantDetector = null;
-          }
-          scheduleFrame();
-        } catch {
-          if (!cancelled) {
-            setLandmarkState('unsupported');
-            setLandmarkFacePresent(false);
-          }
+      setLandmarkState('loading');
+      try {
+        if (typeof Worker === 'undefined' || typeof createImageBitmap === 'undefined') {
+          throw new Error('worker_unavailable');
         }
-      })();
+        worker = new Worker(new URL('./faceTracking.worker.ts', import.meta.url), { type: 'module' });
+        workerTimeout = window.setTimeout(failWorker, 30000);
+        worker.onerror = failWorker;
+        worker.onmessage = ({ data }: MessageEvent<FaceTrackingResponse>) => {
+          if (cancelled) return;
+          window.clearTimeout(workerTimeout);
+          if (data.type === 'ready') {
+            workerReady = true;
+            setLandmarkState('ready');
+            scheduleFrame();
+          } else if (data.type === 'result') {
+            framePending = false;
+            if (document.hidden) return;
+            if (data.detections) {
+              const detectedBoxes = (data.detections as Detection[])
+                .filter((detection) => isPlausibleDistantFace(detection, data.width, data.height))
+                .flatMap((detection) => {
+                  const box = detection.boundingBox;
+                  if (!box) return [];
+                  const normalized = {
+                    x: clamp(box.originX / data.width, 0, 1),
+                    y: clamp(box.originY / data.height, 0, 1),
+                    width: clamp(box.width / data.width, 0, 1),
+                    height: clamp(box.height / data.height, 0, 1),
+                  };
+                  return normalized.width > 0.012 && normalized.height > 0.02 ? [normalized] : [];
+                });
+              distantCandidates = updateDistantFaceCandidates(distantCandidates, detectedBoxes, performance.now());
+            }
+            drawFaces(data.result);
+          } else {
+            failWorker();
+          }
+        };
+        worker.postMessage({
+          type: 'init', wasmUrl: LANDMARK_WASM_PATH,
+          landmarkerUrl: FACE_LANDMARKER_MODEL_PATH, detectorUrl: DISTANT_FACE_DETECTOR_MODEL_PATH,
+        });
+      } catch {
+        failWorker();
+      }
 
       return () => {
         cancelled = true;
@@ -1051,8 +999,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         if (canvas && context) {
           context.clearRect(0, 0, canvas.width, canvas.height);
         }
-        landmarker?.close();
-        distantDetector?.close();
+        window.clearTimeout(workerTimeout);
+        worker?.terminate();
         normalizedFaceBoxRef.current = null;
         normalizedFaceBoxesRef.current = [];
         setLandmarkFacePresent(false);
@@ -1130,6 +1078,14 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     useImperativeHandle(
       ref,
       () => {
+        const hasCurrentFrame = () => {
+          const video = videoRef.current;
+          const track = streamRef.current?.getVideoTracks()[0];
+          return Boolean(video
+            && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+            && track?.readyState === 'live'
+            && !track.muted);
+        };
         const captureNormalizedFace = (
           normalizedFace: FaceBox,
           compact = false,
@@ -1137,7 +1093,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         ) => {
           const video = videoRef.current;
           const canvas = canvasRef.current;
-          if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+          if (!hasCurrentFrame() || !video || !canvas || !video.videoWidth || !video.videoHeight) {
             return null;
           }
           const crop = calculateFaceCropRegion(
@@ -1179,7 +1135,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           capture: (options) => {
             const video = videoRef.current;
             const canvas = canvasRef.current;
-            if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+            if (!hasCurrentFrame() || !video || !canvas || !video.videoWidth || !video.videoHeight) {
               return null;
             }
             const sourceFaceBox = options?.sourceFaceBox;
@@ -1298,9 +1254,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
 
     return (
       <div className={`camera-view app-view-transition ${className}`} data-fit={fitMode}>
-        <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
+        <video ref={videoRef} aria-label="Prévia da câmera para registro facial" className="h-full w-full object-cover" autoPlay muted playsInline />
         <canvas ref={canvasRef} className="hidden" />
-        <canvas ref={landmarkCanvasRef} className="face-landmark-canvas" />
+        <canvas ref={landmarkCanvasRef} aria-hidden="true" className="face-landmark-canvas" />
 
         {faceOutlines.map((faceOutline, index) => (
           <div
@@ -1329,7 +1285,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           </div>
         ))}
 
-        <div className="camera-chip absolute left-3 top-3">
+        <div className="camera-chip absolute left-3 top-3" role="status" aria-live="polite" aria-atomic="true">
           <Camera size={15} />
           {cameraStatusLabel}
         </div>

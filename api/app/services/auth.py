@@ -43,6 +43,9 @@ class AuthService:
     _cache_limit = 512
 
     async def authenticate(self, access_token: str) -> UserRead:
+        # Even a successfully verified token must stop authorizing requests at exp.
+        # The decoded claim is used only to reject, never to grant access.
+        self._reject_expired_token(access_token)
         cache_key = sha256(access_token.encode("utf-8")).hexdigest()
         cached = self._cached_user(cache_key, max_age=self._cache_ttl_seconds)
         if cached is not None:
@@ -71,9 +74,6 @@ class AuthService:
                     headers=headers,
                 )
         except httpx.TransportError as exc:
-            stale = self._cached_user(cache_key, max_age=self._stale_grace_seconds)
-            if stale is not None:
-                return stale
             raise AppError(
                 "AUTH_PROVIDER_UNAVAILABLE",
                 "Nao foi possivel validar a sessao agora. Tente novamente em instantes.",
@@ -87,6 +87,23 @@ class AuthService:
         user = self._to_read_model(response.json())
         self._store_cached_user(cache_key, user)
         return user
+
+    @staticmethod
+    def _reject_expired_token(access_token: str) -> None:
+        parts = access_token.split(".")
+        if len(parts) != 3:
+            return  # Opaque tokens still require a successful provider response.
+        try:
+            payload = json.loads(_decode_segment(parts[1]))
+        except (PermissionError, json.JSONDecodeError, UnicodeDecodeError, TypeError):
+            raise PermissionError("Sessao invalida ou expirada") from None
+        expires_at = payload.get("exp") if isinstance(payload, dict) else None
+        if (
+            isinstance(expires_at, bool)
+            or not isinstance(expires_at, (int, float))
+            or not expires_at > time()
+        ):
+            raise PermissionError("Sessao invalida ou expirada")
 
     @classmethod
     def _authenticate_locally(cls, access_token: str) -> UserRead:
@@ -227,7 +244,8 @@ class AuthService:
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
 
-        raw_role = str(app_metadata.get("role") or metadata.get("role") or "FUNCIONARIO")
+        # user_metadata is editable by the authenticated user and is display-only.
+        raw_role = str(app_metadata.get("role") or "FUNCIONARIO")
         try:
             role = UserRole(raw_role.upper())
         except ValueError:

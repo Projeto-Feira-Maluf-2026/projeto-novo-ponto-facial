@@ -13,7 +13,7 @@ export const ALL_ROLES: AppRole[] = [
 const validRoles = new Set<AppRole>(ALL_ROLES);
 
 export function roleForUser(user: User | null): AppRole {
-  const metadataRole = user?.app_metadata?.role ?? user?.user_metadata?.role;
+  const metadataRole = user?.app_metadata?.role;
   const normalizedRole = String(metadataRole || 'FUNCIONARIO').toUpperCase() as AppRole;
   return validRoles.has(normalizedRole) ? normalizedRole : 'FUNCIONARIO';
 }

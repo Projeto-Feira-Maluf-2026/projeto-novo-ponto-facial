@@ -1793,3 +1793,14 @@ body::before {
     min-height: 440px;
   }
 }
+
+/* Reserve the actual action width; the central navigation must not overlap it. */
+@media (min-width: 1200px) {
+  .app-topbar { grid-template-columns: max-content minmax(0, 1fr) max-content; }
+  .desktop-primary-nav {
+    width: max-content;
+    max-width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}

@@ -45,6 +45,8 @@
   --depth: 0;
   --noise: 0;
 }
+
+/* Preserve the v3 reset and outline behavior while removing vulnerable build dependencies. */
 @utility outline-none {
   outline: 2px solid transparent;
   outline-offset: 2px;

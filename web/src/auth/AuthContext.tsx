@@ -1,7 +1,8 @@
 import type { Session, User } from '@supabase/supabase-js';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { supabase } from '../services/supabase';
+import { authenticatedReadCache } from '../services/authenticatedReadCache';
 
 interface AuthContextValue {
   loading: boolean;
@@ -45,35 +46,42 @@ function withTimeout<T>(operation: PromiseLike<T>, timeoutMs = AUTH_REQUEST_TIME
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(mocksEnabled ? mockSession : null);
   const [loading, setLoading] = useState(!mocksEnabled);
+  const publishSession = useCallback((nextSession: Session | null) => {
+    authenticatedReadCache.reset();
+    setSession(nextSession);
+  }, []);
 
   useEffect(() => {
     if (mocksEnabled) return undefined;
     let active = true;
+    let authRevision = 0;
 
     const initialize = async () => {
+      const initialRevision = authRevision;
+      const isCurrent = () => active && initialRevision === authRevision;
       try {
         const { data, error: sessionError } = await withTimeout(supabase.auth.getSession());
-        if (!active) return;
+        if (!isCurrent()) return;
         if (sessionError || !data.session) {
-          setSession(null);
+          publishSession(null);
           return;
         }
 
         const { data: verified, error } = await withTimeout(supabase.auth.getUser());
-        if (!active) return;
+        if (!isCurrent()) return;
         if (error || !verified.user) {
           await supabase.auth.signOut({ scope: 'local' });
-          if (!active) return;
-          setSession(null);
+          if (!isCurrent()) return;
+          publishSession(null);
         } else {
-          setSession(data.session);
+          publishSession(data.session);
         }
       } catch {
-        if (!active) return;
+        if (!isCurrent()) return;
         await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-        if (active) setSession(null);
+        if (isCurrent()) publishSession(null);
       } finally {
-        if (active) setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
     };
 
@@ -84,7 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // The initial locally cached session is verified by getUser above before
       // protected routes are rendered.
       if (event === 'INITIAL_SESSION') return;
-      setSession(nextSession);
+      authRevision += 1;
+      publishSession(nextSession);
       setLoading(false);
     });
 
@@ -92,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       active = false;
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [publishSession]);
 
   const value = useMemo<AuthContextValue>(() => ({
     loading,
@@ -100,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: session?.user ?? null,
     signIn: async (email: string, password: string) => {
       if (mocksEnabled) {
-        setSession(mockSession);
+        publishSession(mockSession);
         setLoading(false);
         return;
       }
@@ -109,19 +118,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       if (error) throw error;
       if (!data.session) throw new Error('AUTH_SESSION_NOT_CREATED');
-      setSession(data.session);
+      publishSession(data.session);
       setLoading(false);
     },
     signOut: async () => {
+      authenticatedReadCache.reset();
       try {
         const { error } = await withTimeout(supabase.auth.signOut({ scope: 'local' }));
         if (error) throw error;
       } finally {
-        setSession(null);
+        publishSession(null);
         setLoading(false);
       }
     },
-  }), [loading, session]);
+  }), [loading, session, publishSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
