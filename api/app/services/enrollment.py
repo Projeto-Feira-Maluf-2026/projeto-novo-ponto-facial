@@ -35,6 +35,7 @@ from app.services.ai.facial_service import (
     serialize_embedding,
 )
 from app.services.ai.image_validation import FaceImageValidator
+from app.services.attendance import invalidate_face_template_cache
 
 ENROLLMENT_POSES = [
     EnrollmentPose.FRONTAL,
@@ -564,6 +565,7 @@ class FaceEnrollmentService:
         except Exception:
             await self.session.rollback()
             raise
+        invalidate_face_template_cache()
 
         return EnrollmentFinalizeResponse(
             session_id=enrollment.id,
@@ -659,6 +661,7 @@ class FaceEnrollmentService:
         except Exception:
             await self.session.rollback()
             raise
+        invalidate_face_template_cache()
 
         return EnrollmentFinalizeResponse(
             session_id=enrollment.id,

@@ -179,7 +179,7 @@ export function PresentationPage() {
         <div className="presentation-intro-copy">
           <span className="presentation-live-mark"><Radio size={14} /> Sessão iniciada às {startedAtLabel}</span>
           <h2>Do rosto ao registro, ao vivo.</h2>
-          <p>Cadastre um participante, registre o ponto pela câmera e acompanhe a confirmação e o e-mail usando a operação real do sistema.</p>
+          <p>Cadastre um visitante, peça para ele olhar para a câmera e veja o ponto e o e-mail chegarem na hora. Nada é simulado: assim que alguém é reconhecido, a apresentação abre sozinha.</p>
           <div className="presentation-intro-actions">
             <Link to="/funcionarios?novo=apresentacao" className="btn btn-on-dark">
               <UserPlus size={17} /> Cadastrar participante
@@ -192,32 +192,32 @@ export function PresentationPage() {
         <div className="presentation-session-number" aria-label={`${sessionRecords} registros nesta apresentação`}>
           <span>Registros nesta sessão</span>
           <strong>{sessionRecords}</strong>
-          <small>Atualiza após cada confirmação real</small>
+          <small>Conta cada ponto confirmado pela câmera</small>
         </div>
       </section>
 
       <section className="presentation-flow" aria-labelledby="presentation-flow-title">
         <header>
-          <div><span>Roteiro recomendado</span><h3 id="presentation-flow-title">Demonstração em quatro movimentos</h3></div>
+          <div><span>Como apresentar</span><h3 id="presentation-flow-title">O passo a passo da demonstração</h3></div>
           <span className={`presentation-data-state is-${loadState}`}>
             {loadState === 'ready' ? <CheckCircle2 size={15} /> : <CircleAlert size={15} />}
-            {loadState === 'ready' ? 'Dados reais atualizados' : loadState === 'loading' ? 'Consultando sistema' : 'Dados parcialmente disponíveis'}
+            {loadState === 'ready' ? 'Tudo atualizado' : loadState === 'loading' ? 'Carregando…' : 'Alguns dados não carregaram'}
           </span>
         </header>
         <ol>
           <li><span>01</span><UserPlus size={20} /><div><strong>Cadastro</strong><small>Nome, e-mail e obra</small></div><Link to="/funcionarios?novo=apresentacao" aria-label="Abrir cadastro"><ArrowRight size={17} /></Link></li>
-          <li><span>02</span><ScanFace size={20} /><div><strong>Face</strong><small>Coleta biométrica real</small></div><Link to="/funcionarios" aria-label="Abrir funcionários"><ArrowRight size={17} /></Link></li>
-          <li><span>03</span><Fingerprint size={20} /><div><strong>Ponto</strong><small>Uma ou mais pessoas</small></div><Link to="/terminal-facial" aria-label="Abrir terminal"><ArrowRight size={17} /></Link></li>
-          <li><span>04</span><Mail size={20} /><div><strong>Confirmação</strong><small>Registro e e-mail</small></div><Link to="/relatorios?view=audit" aria-label="Abrir auditoria nos relatórios"><ArrowRight size={17} /></Link></li>
+          <li><span>02</span><ScanFace size={20} /><div><strong>Face</strong><small>Cadastrar o rosto</small></div><Link to="/funcionarios" aria-label="Abrir funcionários"><ArrowRight size={17} /></Link></li>
+          <li><span>03</span><Fingerprint size={20} /><div><strong>Ponto</strong><small>Olhar para a câmera, sozinho ou em grupo</small></div><Link to="/terminal-facial" aria-label="Abrir terminal"><ArrowRight size={17} /></Link></li>
+          <li><span>04</span><Mail size={20} /><div><strong>Confirmação</strong><small>Ver o registro e o e-mail</small></div><Link to="/relatorios?view=audit" aria-label="Abrir auditoria nos relatórios"><ArrowRight size={17} /></Link></li>
         </ol>
       </section>
 
       <section className="presentation-live-grid">
         <article className="presentation-live-metrics" aria-labelledby="live-title">
-          <header><div><span>Operação agora</span><h3 id="live-title">Painel da demonstração</h3></div><button type="button" onClick={() => void load()} aria-label="Atualizar dados"><RefreshCw size={16} /></button></header>
+          <header><div><span>Agora</span><h3 id="live-title">Números da demonstração</h3></div><button type="button" onClick={() => void load()} aria-label="Atualizar dados"><RefreshCw size={16} /></button></header>
           <dl>
             <div><UsersRound size={18} /><dt>Participantes ativos</dt><dd>{activeEmployees.length}</dd></div>
-            <div><ScanFace size={18} /><dt>Faces cadastradas</dt><dd>{enrolledEmployees.length}</dd></div>
+            <div><ScanFace size={18} /><dt>Rostos cadastrados</dt><dd>{enrolledEmployees.length}</dd></div>
             <div><Building2 size={18} /><dt>Obras ativas</dt><dd>{worksites.filter((item) => item.active).length}</dd></div>
             <div><HardDrive size={18} /><dt>Dispositivos ativos</dt><dd>{activeDevices.length}</dd></div>
             <div><Clock3 size={18} /><dt>Registros hoje</dt><dd>{metrics?.records_today ?? '—'}</dd></div>
@@ -226,11 +226,11 @@ export function PresentationPage() {
         </article>
 
         <article className="presentation-diagnostics" aria-labelledby="diagnostics-title">
-          <header><span>Antes de apresentar</span><h3 id="diagnostics-title">Diagnóstico rápido</h3></header>
+          <header><span>Antes de começar</span><h3 id="diagnostics-title">Está tudo pronto?</h3></header>
           <ul>
-            <li data-ok={online}>{online ? <Wifi size={17} /> : <WifiOff size={17} />}<div><strong>Internet</strong><small>{online ? 'Navegador conectado' : 'Sem conexão; não inicie um cadastro'}</small></div></li>
-            <li data-ok={capabilities?.provider_ready === true}><Cpu size={17} /><div><strong>IA facial</strong><small>{capabilities?.provider_ready ? `${capabilities.model_name || 'Modelo'} pronto` : 'Backend facial indisponível'}</small></div></li>
-            <li data-ok={browserCamera === 'ready' || browserCamera === 'prompt'}><Camera size={17} /><div><strong>Webcam deste computador</strong><small>{browserCamera === 'ready' ? `${browserCameraCount} câmera(s) pronta(s)` : browserCamera === 'prompt' ? `${browserCameraCount} detectada(s); a permissão será solicitada no terminal` : browserCamera === 'denied' ? 'Permissão bloqueada; libere a câmera no cadeado do navegador' : browserCamera === 'missing' ? 'Nenhuma webcam disponível neste navegador' : 'Verificando câmera…'}</small></div></li>
+            <li data-ok={online}>{online ? <Wifi size={17} /> : <WifiOff size={17} />}<div><strong>Internet</strong><small>{online ? 'Conectado' : 'Sem internet. Espere voltar antes de cadastrar alguém'}</small></div></li>
+            <li data-ok={capabilities?.provider_ready === true}><Cpu size={17} /><div><strong>IA facial</strong><small>{capabilities?.provider_ready ? 'Pronta para reconhecer' : 'O serviço de reconhecimento não respondeu'}</small></div></li>
+            <li data-ok={browserCamera === 'ready' || browserCamera === 'prompt'}><Camera size={17} /><div><strong>Webcam deste computador</strong><small>{browserCamera === 'ready' ? `${browserCameraCount} câmera(s) pronta(s)` : browserCamera === 'prompt' ? `${browserCameraCount} encontrada(s). O navegador vai pedir permissão no terminal` : browserCamera === 'denied' ? 'A câmera foi bloqueada. Libere no cadeado ao lado do endereço' : browserCamera === 'missing' ? 'Nenhuma câmera encontrada neste computador' : 'Verificando câmera…'}</small></div></li>
             <li data-ok={activeDevices.length > 0}><Camera size={17} /><div><strong>Dispositivos</strong><small>{activeDevices.length ? `${activeDevices.length} ativo(s) no sistema` : 'Nenhum dispositivo ativo'}</small></div></li>
             <li data-ok={Boolean(lastRefresh)}><Database size={17} /><div><strong>Dados</strong><small>{lastRefresh ? `Atualizados às ${formatInAppTimeZone(lastRefresh, { timeStyle: 'medium' })} em ${apiLatency ?? '—'} ms` : 'Aguardando resposta'}</small></div></li>
           </ul>
@@ -239,7 +239,7 @@ export function PresentationPage() {
 
       <section className="presentation-evidence-grid">
         <article className="presentation-recent" aria-labelledby="recent-title">
-          <header><div><span>Evidência operacional</span><h3 id="recent-title">Últimos registros</h3></div><Link to="/relatorios">Abrir relatórios <ArrowRight size={15} /></Link></header>
+          <header><div><span>Acabou de acontecer</span><h3 id="recent-title">Últimos pontos</h3></div><Link to="/relatorios">Abrir relatórios <ArrowRight size={15} /></Link></header>
           {recentHistory.length ? (
             <ul>{recentHistory.map((record) => {
               const employee = employeesById.get(record.employee_id);
@@ -252,15 +252,15 @@ export function PresentationPage() {
                 </li>
               );
             })}</ul>
-          ) : <p className="presentation-empty">O primeiro ponto confirmado aparecerá aqui.</p>}
+          ) : <p className="presentation-empty">Quando alguém bater o ponto, ele aparece aqui.</p>}
         </article>
 
         <article className="presentation-explainer" aria-labelledby="explainer-title">
-          <header><span>Como funciona</span><h3 id="explainer-title">Processamento sem mistério</h3></header>
+          <header><span>Como funciona</span><h3 id="explainer-title">Sem mistério</h3></header>
           <div className="presentation-pipeline" aria-label="Etapas técnicas do reconhecimento facial">
             <span><Camera size={18} /><b>Imagem</b></span><i /><span><ScanFace size={18} /><b>Detecção</b></span><i /><span><Cpu size={18} /><b>Comparação</b></span><i /><span><ShieldCheck size={18} /><b>Registro</b></span><i /><span><Mail size={18} /><b>E-mail</b></span>
           </div>
-          <p>A câmera captura o quadro, cada rosto é separado, comparado com cadastros compatíveis e somente uma decisão aceita gera ponto e notificação.</p>
+          <p>A câmera encontra cada rosto, transforma em números e compara com quem está cadastrado. Só quando o sistema tem certeza o ponto é salvo e o e-mail sai.</p>
           <dl>
             <div><dt>Modelo</dt><dd>{capabilities?.model_name || 'Indisponível'}</dd></div>
             <div><dt>Detector</dt><dd>{capabilities?.detector_name || 'Indisponível'}</dd></div>
@@ -271,7 +271,7 @@ export function PresentationPage() {
 
       <section className="presentation-safety-note">
         <ShieldCheck size={21} />
-        <div><strong>Dados e recuperação</strong><p>O e-mail só é enviado depois que o backend aceita e salva o ponto. O terminal só arma uma nova leitura depois que o rosto sai do quadro, e as operações sensíveis ficam disponíveis para conferência na auditoria. Se a câmera falhar, o operador pode reiniciá-la sem recarregar o sistema inteiro.</p></div>
+        <div><strong>Se algo der errado</strong><p>O e-mail só sai depois que o ponto foi salvo. Quem acabou de bater o ponto precisa sair da frente da câmera antes de uma nova leitura, para não registrar duas vezes. Tudo fica na auditoria para conferir depois e, se a câmera travar, dá para reiniciar só ela, sem recarregar o sistema.</p></div>
       </section>
     </div>
   );

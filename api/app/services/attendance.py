@@ -2,6 +2,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime, time, timedelta
 from statistics import median
+from time import monotonic
 from uuid import uuid4
 
 from sqlalchemy import and_, desc, or_, select
@@ -50,6 +51,24 @@ EVENING_EXIT_START = time(16, 0)
 # tracking, reconexao da camera e novas caixas geradas para a mesma pessoa.
 TERMINAL_DUPLICATE_CAPTURE_WINDOW = timedelta(minutes=1)
 ADAPTIVE_FLIP_RETRY_SIMILARITY_GAP = 0.12
+
+# O terminal tenta de novo a cada fracao de segundo enquanto um rosto
+# desconhecido continua no quadro. Uma tentativa identica por obra e motivo a
+# cada intervalo basta para auditoria e evita uma escrita + commit no banco a
+# cada leitura rejeitada.
+SUSPICIOUS_ATTEMPT_DEDUP_SECONDS = 8.0
+_recent_suspicious_attempts: dict[tuple, float] = {}
+
+# Templates ativos mudam apenas em cadastro/recadastro facial. Mantelos em
+# memoria por alguns segundos elimina a maior consulta (blobs de embedding) de
+# cada leitura do terminal. O cadastro invalida o cache deste processo; outras
+# instancias convergem pelo TTL.
+TEMPLATE_CACHE_TTL_SECONDS = 30.0
+_shared_template_cache: dict[tuple, tuple[float, list]] = {}
+
+
+def invalidate_face_template_cache() -> None:
+    _shared_template_cache.clear()
 
 
 def next_punch_type(
@@ -109,10 +128,10 @@ class AttendanceService:
         self.pending_email_notifications: dict[str, dict] = {}
         # A instância vive somente durante uma requisição. Em uma batida em
         # grupo, todos os rostos consultam o mesmo conjunto de matrículas.
-        self._template_cache: dict[
-            tuple[str | None, str | None],
-            list[FaceTemplate],
-        ] = {}
+        self._template_cache: dict[tuple[str | None, str | None], list] = {}
+        # Em lote, todas as batidas entram em uma unica transacao e um unico
+        # commit; os e-mails so saem depois que a rota confirma o commit.
+        self.defer_commit = defer_email_notifications
 
     def _face_embeddings(self):
         if self.face_embeddings is None:
@@ -218,7 +237,7 @@ class AttendanceService:
                     *rejected_frame_reasons,
                 ]))
                 await self._flag_attempt(payload, FraudType.UNKNOWN_FACE, 1.0, reasons)
-                await self.session.commit()
+                await self._commit()
                 return AttendanceDecision(
                     accepted=False,
                     status=AttendanceStatus.REJECTED,
@@ -236,7 +255,7 @@ class AttendanceService:
                 )
         if not vectors:
             await self._flag_attempt(payload, FraudType.UNKNOWN_FACE, 1.0, ["missing_embedding"])
-            await self.session.commit()
+            await self._commit()
             return AttendanceDecision(
                 accepted=False,
                 status=AttendanceStatus.REJECTED,
@@ -261,7 +280,7 @@ class AttendanceService:
             if temporal_similarity_median < settings.FACE_TEMPORAL_MIN_EMBEDDING_SIMILARITY:
                 reasons = ["TEMPORAL_IDENTITY_INCONSISTENT"]
                 await self._flag_attempt(payload, FraudType.UNKNOWN_FACE, 1.0, reasons)
-                await self.session.commit()
+                await self._commit()
                 return AttendanceDecision(
                     accepted=False,
                     status=AttendanceStatus.REJECTED,
@@ -335,7 +354,7 @@ class AttendanceService:
         if match_reason:
             fraud_type = FraudType.UNKNOWN_FACE if match_reason == "employee_mismatch" else FraudType.LOW_SIMILARITY
             await self._flag_attempt(payload, fraud_type, similarity or 0.0, [match_reason])
-            await self.session.commit()
+            await self._commit()
             return AttendanceDecision(
                 accepted=False,
                 status=AttendanceStatus.REJECTED,
@@ -466,6 +485,8 @@ class AttendanceService:
             quality_score=quality_score,
             confidence_score=confidence,
             offline_batch_id=payload.offline_batch_id,
+            created_at=datetime.now(UTC).replace(tzinfo=None),
+            updated_at=datetime.now(UTC).replace(tzinfo=None),
             metadata_json={
                 "second_best_similarity_score": second_similarity,
                 "match_margin": margin,
@@ -495,8 +516,9 @@ class AttendanceService:
                     "offline_batch_id": payload.offline_batch_id,
                 },
             )
-        await self.session.commit()
-        await self.session.refresh(record)
+        # Todos os campos do registro ja foram definidos aqui; um refresh apos o
+        # commit custava uma ida extra ao banco por batida sem trazer dado novo.
+        await self._commit()
         email_notification_sent = False
         if status == AttendanceStatus.ACCEPTED and getattr(employee, "email", None):
             notification = {
@@ -676,24 +698,43 @@ class AttendanceService:
                 ),
             )
         cache_key = (employee_id, worksite_id)
+        shared_key = (
+            provider_info.model_name,
+            provider_info.model_version,
+            provider_info.embedding_dimension,
+            provider_info.detector_name,
+            provider_info.normalization_version,
+            employee_id,
+            worksite_id,
+        )
+        use_shared_cache = settings.ENVIRONMENT != "test"
         templates = self._template_cache.get(cache_key)
+        if templates is None and use_shared_cache:
+            shared = _shared_template_cache.get(shared_key)
+            if shared is not None and monotonic() - shared[0] <= TEMPLATE_CACHE_TTL_SECONDS:
+                templates = shared[1]
         if templates is None:
-            templates = list(await self.session.scalars(statement))
-            self._template_cache[cache_key] = templates
+            expected_blob_size = int(provider_info.embedding_dimension or 0) * 4
+            templates = [
+                (
+                    template.employee_id,
+                    TemplateCandidate(
+                        template_id=template.id,
+                        embedding=bytes(template.embedding),
+                        quality_score=float(template.quality_score),
+                    ),
+                )
+                for template in await self.session.scalars(statement)
+                if len(template.embedding) == expected_blob_size
+            ]
+            if use_shared_cache:
+                _shared_template_cache[shared_key] = (monotonic(), templates)
+        self._template_cache[cache_key] = templates
         if not templates:
             return None, 0.0, None, 0.0, "no_compatible_templates"
-        expected_blob_size = int(provider_info.embedding_dimension or 0) * 4
         candidates_by_employee: dict[str, list[TemplateCandidate]] = {}
-        for template in templates:
-            if len(template.embedding) != expected_blob_size:
-                continue
-            candidates_by_employee.setdefault(template.employee_id, []).append(
-                TemplateCandidate(
-                    template_id=template.id,
-                    embedding=template.embedding,
-                    quality_score=template.quality_score,
-                )
-            )
+        for template_employee_id, candidate in templates:
+            candidates_by_employee.setdefault(template_employee_id, []).append(candidate)
 
         query_vectors = np.asarray([candidate[0] for candidate in vectors], dtype=np.float32)
         query_weights = np.asarray(
@@ -720,6 +761,17 @@ class AttendanceService:
             return employee, best_match.score, second_best_score, confidence_score, "ambiguous_face"
         return employee, best_match.score, second_best_score, confidence_score, None
 
+    async def _commit(self) -> None:
+        if self.defer_commit:
+            return
+        pending_new = getattr(self.session, "new", None)
+        pending_dirty = getattr(self.session, "dirty", None)
+        if pending_new is not None and not pending_new and not pending_dirty:
+            # Leitura rejeitada cuja tentativa ja foi registrada ha pouco: nada
+            # a gravar, entao nao ha motivo para outra ida ao banco.
+            return
+        await self.session.commit()
+
     async def _flag_attempt(
         self,
         payload: PunchCreate,
@@ -728,6 +780,22 @@ class AttendanceService:
         reasons: list[str],
         employee_id: str | None = None,
     ) -> None:
+        dedup_key = (
+            payload.worksite_id,
+            payload.device_id,
+            employee_id or payload.employee_id,
+            fraud_type,
+            tuple(sorted(reasons)),
+        )
+        now = monotonic()
+        last_logged = _recent_suspicious_attempts.get(dedup_key)
+        if last_logged is not None and now - last_logged < SUSPICIOUS_ATTEMPT_DEDUP_SECONDS:
+            return
+        _recent_suspicious_attempts[dedup_key] = now
+        if len(_recent_suspicious_attempts) > 512:
+            cutoff = now - SUSPICIOUS_ATTEMPT_DEDUP_SECONDS
+            for key in [k for k, v in _recent_suspicious_attempts.items() if v < cutoff]:
+                _recent_suspicious_attempts.pop(key, None)
         self.session.add(
             SuspiciousAttempt(
                 employee_id=employee_id or payload.employee_id,

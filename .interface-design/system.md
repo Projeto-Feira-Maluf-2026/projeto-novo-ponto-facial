@@ -70,41 +70,24 @@
 - Cadastro rápido gera uma matrícula de feira, exige e-mail e abre a matrícula facial automaticamente após salvar.
 - Contadores da sessão reagem somente a confirmações emitidas pelo terminal. E-mail aparece como enviado somente quando o backend recebe sucesso do SMTP.
 - O painel usa composição de console/roteiro, sem hero promocional genérico, depoimentos, números falsos, brilho decorativo ou excesso de cards.
-- Após um ponto realmente aceito, o modo apresentação segue diretamente para o resumo imersivo em uma rota própria; não há convite, confirmação ou escolha intermediária.
-- A transferência para a página de resumo acontece em memória durante a navegação da SPA e não coloca nome, matrícula, horário ou biometria na URL ou no armazenamento persistente.
-- O resumo usa a linguagem de “dossiê vivo da passagem”: estrutura espacial de obra, lente facial e fluxo captura → IA → regra → registro → e-mail. A intensidade 3D pertence somente a essa narrativa, nunca ao terminal normal.
-- A narrativa do resumo é uma exceção deliberada ao movimento reduzido do produto: permanece cinematográfica e contínua durante a apresentação, sem controle de pausa, conforme a direção definida para a feira.
-- A página isolada de resumo usa Lenis + GSAP/ScrollTrigger para uma única linha do tempo ligada ao scroll e uma cena Three.js com shader autoral. Tudo é carregado sob demanda, fora do terminal, com DPR limitado, pausa fora da viewport e fallback CSS quando WebGL não estiver disponível.
-- O 3D deve explicar captura, comparação, registro e estrutura em camadas. Não copiar cenas, modelos ou identidade de referências externas; a assinatura visual continua sendo obra + lente facial + levantamento técnico.
-- O fundo persistente do resumo é um canteiro vertical procedural: estrutura de concreto inacabada, volumes escalonados, andaimes leves, tela de proteção, materiais e guindaste. A cena é geometria Three.js gerada no navegador, nunca rosto abstrato, fotografia de mansão ou imagem estática, e a placa usa exclusivamente `CURITIBA EMPREITEIRA`. O capítulo da escola é a exceção editorial: preserva a fotografia real do Colégio Maluf, seu véu de contraste, parallax e crédito da fonte.
-- Os capítulos do resumo podem ocupar várias alturas de viewport e usar composição sticky, desde que o mobile volte ao fluxo linear. A escola é o único capítulo fotográfico: imagem real do Colégio Maluf em tela cheia, com véu de contraste, parallax e crédito visível da fonte.
-- O resumo cinematográfico inicia GSAP, scroll suave, WebGL e animações CSS automaticamente e os mantém ativos durante toda a experiência. Não exibe ações “Ativar experiência completa”, “Pausar movimento” ou “Continuar movimento”; somente ausência real de suporte WebGL aciona o fallback visual.
-- A primeira tela do resumo contém apenas o texto real do registro à esquerda e a obra WebGL persistente ao fundo. Não sobrepor cubo facial, anéis, coordenadas ou etiquetas de pipeline na área direita.
-- No encerramento, a mesma obra 3D reaparece com mais presença, escala e contraste atrás do texto final; a cena não pode terminar em um fundo liso ou lavado.
-- A autoria do projeto é o capítulo 06 do próprio resumo, com os cinco integrantes e suas funções reais; não abre rota ou página paralela.
-- A navegação do resumo é linear pelo scroll e não exibe a régua lateral de miniatalhos numerados.
-- Créditos usam composição editorial de ficha técnica, números e monogramas tipográficos. Não inventar retratos, depoimentos, cargos ou biografias; a força visual vem do movimento e da hierarquia dos nomes.
+- Após um ponto realmente aceito, o modo apresentação abre a apresentação automática por cima do terminal, sem troca de rota, convite ou confirmação. O módulo é pré-carregado assim que o modo apresentação é ligado, então abre sem espera.
+- O resultado passa em memória para a apresentação; nome, horário e biometria nunca vão para a URL ou para armazenamento persistente.
+- A apresentação é um filme de 9 cenas que avança sozinho (cerca de 70 s): boas-vindas pelo primeiro nome (ou "Oi, pessoal!" para grupos), encontrar o rosto, virar código, comparar, registrar, cuidado com os dados, escola, equipe e agradecimento. Ao final volta sozinha para a câmera.
+- Há controles discretos de voltar, pausar, avançar e "Voltar à câmera", segmentos de progresso clicáveis e atalhos de teclado (setas, espaço e Esc). Conteúdo que se move sozinho por mais de 5 s precisa poder ser pausado.
+- A versão clara (branco, grafite e verdes da marca) é a padrão. Um mini botão sol/lua alterna para a versão escura ("obra à noite"); a escolha fica salva no navegador.
+- Os textos falam como gente: frases curtas, segunda pessoa, sem jargão ("embedding", "backend", "pipeline"). O e-mail só é descrito como enviado quando o SMTP confirmou; quando está na fila, diz "a caminho".
+- Ilustrações (pontos do rosto, anel de 512 números, cartões de comparação) são desenhos em SVG/CSS e trazem a legenda de ilustração. Nunca mostram imagem da câmera, score biométrico ou código real.
+- O fundo é uma obra em traço técnico que ganha um andar por cena e fica pronta no final, com guindaste acompanhando o progresso. A escola continua sendo a única cena fotográfica (Colégio Maluf, com crédito).
+- Sem WebGL, GSAP ou rolagem: só transform/opacity e stroke de SVG pequeno. Enquanto a apresentação está aberta, o rastreamento facial do terminal fica suspenso e a câmera continua ligada.
+- Créditos usam composição de ficha técnica com os cinco integrantes e funções reais; não inventar retratos, depoimentos ou cargos.
 - A identificação envia um único recorte interno do rosto para reduzir a latência. O vídeo nunca congela e a captura não aparece na interface.
 - O rastreamento combina landmarks rápidos com uma varredura full-range do quadro inteiro. As caixas dos dois detectores são fundidas para manter pessoas próximas e distantes no mesmo grupo.
 - Durante uma presença contínua, os rostos já registrados ficam bloqueados por posição até saírem do quadro; uma nova pessoa que entra continua elegível sem duplicar quem permaneceu diante da câmera.
 - A montagem normal anima módulos de primeiro nível, não todos os seus descendentes. O efeito espacial permanece sem criar dezenas de camadas de composição em telas densas.
 - O indicador da navegação usa transição CSS nativa; engines de motion ficam restritas às rotas e experiências que realmente precisam delas, sem custo no carregamento inicial.
 
+## Apresentação — revisão de 22/10/2026
 
-## Apresentação — revisão de 11/10/2026
-
-- Tema local daisyUI `curitiba-film`, componentes prefixados `film-`, sem alterar o tema do ERP.
-- Canteiro WebGL preservado; capítulo 01 usa quatro imagens sintéticas de concreto/vidro/latão em sequência vinculada ao scroll.
-- Arquitetura: deck de cards com perspectiva, saída alternada pelos lados, tilt e spotlight; em movimento reduzido volta ao fluxo linear.
-- Impacto: narrativa horizontal em desktop; mobile mantém sequência vertical e alvos de 48 px.
-- Cortina de abertura/fechamento, máscaras tipográficas e transições de rota compartilham os tokens da marca.
-- Preferência do sistema e preferência reduzida do produto têm prioridade sobre efeitos. A exceção de comparação `motion=full` é somente DEV.
-- Imagens IA são ilustrações do processo, nunca registros/fotos de participantes; escola e autoria permanecem reais.
-
-
-### Direção final solicitada: inspiração iPhone
-
-- A apresentação usa branco `#fff`, cinza suave `#f5f5f7`, grafite `#1d1d1f`, texto secundário `#616168` e verde `#3a5a40` como acento.
-- Tipografia de sistema (`-apple-system`, BlinkMacSystemFont, Segoe UI), com hierarquia mais firme e formas limpas.
-- Cards com raio de 24 px, sombras suaves, imagem clara e perspectiva. A profundidade alcança as cenas completas, preservando a navegação fixa.
-- Nova série de imagens IA clara/prata em substituição à série inicial de verde/latão; nenhum retrato inventado da equipe.
+- Substitui a narrativa por rolagem de 11/10 (daisyUI `film-`, deck de cards, imagens IA e canteiro WebGL). Visitante em pé diante do terminal não rola a página: a história agora anda sozinha.
+- A versão clara herda a direção "inspiração iPhone" daquela revisão: fundo branco/`#f6f6f2`, grafite `#13271f`, verde `#3f7d4a` como acento, cartões brancos com sombra suave e raio de 20 a 26 px. Tipografia Lexend nos títulos e Source Sans 3 no texto.
+- A versão escura usa `#07110c`, marfim `#f2f1e8` e sálvia `#c9e69c`. As duas compartilham tokens (`--show-*`) definidos em `web/src/presentation/presentation-show.css`.

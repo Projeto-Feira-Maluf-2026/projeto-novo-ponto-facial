@@ -126,7 +126,7 @@ export default function App() {
   }
 
   const allowDevelopmentPresentationPreview = import.meta.env.DEV
-    && new URLSearchParams(window.location.search).get('preview') === '1';
+    && new URLSearchParams(window.location.search).has('preview');
 
   return (
     <Suspense fallback={<RouteLoading />}>

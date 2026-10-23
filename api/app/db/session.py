@@ -33,16 +33,40 @@ def is_transaction_pooler_url(value: str) -> bool:
     return hostname.endswith(".pooler.supabase.com") or hostname == "pooler.supabase.com"
 
 
-database_url = normalize_database_url(settings.DATABASE_URL)
-engine_options = {"pool_pre_ping": True, "pool_recycle": 300}
+def uses_persistent_pool() -> bool:
+    """Keep warm connections in long-lived processes, including the face container.
 
-if os.getenv("VERCEL") or is_transaction_pooler_url(database_url):
-    engine_options["poolclass"] = NullPool
+    Serverless functions still open one connection per request. The face container
+    (FACE_RUNTIME_MODE=full) is a long-running process that handles every terminal
+    scan; opening a new TLS + auth handshake to Postgres for each scan was one of the
+    largest fixed costs of a punch.
+    """
+    override = os.getenv("DATABASE_PERSISTENT_POOL", "").strip().lower()
+    if override in {"1", "true", "yes"}:
+        return True
+    if override in {"0", "false", "no"}:
+        return False
+    if not os.getenv("VERCEL"):
+        return True
+    return os.getenv("FACE_RUNTIME_MODE", "auto").strip().lower() == "full"
+
+
+database_url = normalize_database_url(settings.DATABASE_URL)
+engine_options = {"pool_pre_ping": True, "pool_recycle": 240}
+
+if is_transaction_pooler_url(database_url) or os.getenv("VERCEL"):
+    # O pooler de transacoes do Supabase nao preserva prepared statements entre
+    # transacoes; os nomes unicos tambem permitem reaproveitar conexoes.
     engine_options["connect_args"] = {
         "statement_cache_size": 0,
         "prepared_statement_cache_size": 0,
         "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
     }
+
+if not uses_persistent_pool():
+    engine_options["poolclass"] = NullPool
+elif os.getenv("VERCEL") or is_transaction_pooler_url(database_url):
+    engine_options.update({"pool_size": 4, "max_overflow": 6})
 else:
     engine_options.update({"pool_size": 10, "max_overflow": 20})
 

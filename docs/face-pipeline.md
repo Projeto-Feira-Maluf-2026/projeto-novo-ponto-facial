@@ -61,3 +61,12 @@ ou correção em vez de reduzir o limiar de identidade.
   hardware de produção.
 - câmeras muito distantes precisam de lente, resolução e instalação adequadas; software não
   recompõe informação facial ausente.
+
+## Desempenho do caminho da batida (22/10/2026)
+
+- O detector roda sozinho em cada passada de resolução; o ArcFace (etapa mais cara) roda uma única vez, só para o rosto escolhido. Leituras com mais de um rosto confiável são recusadas sem calcular embedding.
+- Quadros realçados (CLAHE) servem apenas para localizar o rosto e usam detecção sem embedding. Eles não são mais gerados quando o único problema é blur, exposição ou contraste, porque essas medidas vêm dos pixels originais e não mudariam.
+- Templates ativos ficam em memória por 30 s por obra, e o recadastro facial invalida o cache.
+- Em grupo, todas as batidas entram em uma transação e um commit. O e-mail sai em segundo plano, depois da resposta ao terminal.
+- O container facial mantém um pool pequeno de conexões com o Postgres em vez de abrir uma conexão por leitura.
+- Tentativas rejeitadas idênticas (mesma obra e motivo) são gravadas no máximo uma vez a cada 8 s.

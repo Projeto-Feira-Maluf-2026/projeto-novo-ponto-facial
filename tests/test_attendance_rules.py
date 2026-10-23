@@ -4,9 +4,16 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import BackgroundTasks
 
 from app.models.entities import AttendanceRecord
-from app.models.enums import AttendanceStatus, DeviceStatus, EmployeeStatus, PunchType
+from app.models.enums import (
+    AttendanceStatus,
+    DeviceStatus,
+    EmployeeStatus,
+    FraudType,
+    PunchType,
+)
 from app.schemas.attendance import (
     AttendanceCorrection,
     AttendanceDecision,
@@ -538,6 +545,7 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
     service = SimpleNamespace(
         register_punch=AsyncMock(side_effect=decisions),
         send_pending_email_notifications=AsyncMock(return_value={}),
+        pending_email_notifications={},
     )
     monkeypatch.setattr(
         "app.api.v1.routes.attendance.AttendanceService",
@@ -558,8 +566,14 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
         ]
     )
 
-    result = await punch_batch(payload, SimpleNamespace(id="user-1"), SimpleNamespace())
+    session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
+    background_tasks = BackgroundTasks()
 
+    result = await punch_batch(payload, background_tasks, SimpleNamespace(id="user-1"), session)
+
+    # O grupo inteiro e gravado em uma unica transacao.
+    session.commit.assert_awaited_once()
+    assert not background_tasks.tasks
     assert result.processed == 2
     assert result.accepted == 2
     assert result.manual_review == 0
@@ -572,6 +586,84 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
         call.args[0].employee_id is None
         for call in service.register_punch.await_args_list
     )
+
+
+@pytest.mark.asyncio
+async def test_batch_punch_sends_email_after_responding(monkeypatch: pytest.MonkeyPatch) -> None:
+    decision = AttendanceDecision(
+        accepted=True,
+        status=AttendanceStatus.ACCEPTED,
+        employee_id="employee-1",
+        punch_type=PunchType.ENTRY,
+        confidence_score=0.9,
+        similarity_score=0.88,
+        liveness_score=None,
+        quality_score=0.8,
+        reasons=[],
+        record={
+            "id": "record-1",
+            "employee_id": "employee-1",
+            "worksite_id": "worksite-1",
+            "device_id": None,
+            "punch_type": PunchType.ENTRY,
+            "status": AttendanceStatus.ACCEPTED,
+            "occurred_at": datetime(2026, 10, 22, 12, 0),
+            "latitude": None,
+            "longitude": None,
+            "similarity_score": 0.88,
+            "liveness_score": None,
+            "quality_score": 0.8,
+            "confidence_score": 0.9,
+            "offline_batch_id": None,
+            "notes": None,
+        },
+    )
+    service = SimpleNamespace(
+        register_punch=AsyncMock(return_value=decision),
+        send_pending_email_notifications=AsyncMock(return_value={"record-1": True}),
+        pending_email_notifications={"record-1": {"recipient": "a@example.com"}},
+    )
+    monkeypatch.setattr(
+        "app.api.v1.routes.attendance.AttendanceService",
+        lambda _session, **_kwargs: service,
+    )
+    monkeypatch.setattr(
+        "app.api.v1.routes.attendance.is_lightweight_serverless",
+        lambda: False,
+    )
+    background_tasks = BackgroundTasks()
+    result = await punch_batch(
+        PunchBatchCreate(punches=[PunchCreate(
+            employee_id=None,
+            worksite_id="worksite-1",
+            face={"image_base64": "face-1"},
+        )]),
+        background_tasks,
+        SimpleNamespace(id="user-1"),
+        SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock()),
+    )
+
+    # A resposta nao espera o SMTP: o envio fica agendado para depois dela.
+    service.send_pending_email_notifications.assert_not_awaited()
+    assert len(background_tasks.tasks) == 1
+    assert result.decisions[0].email_notification_sent is False
+
+
+@pytest.mark.asyncio
+async def test_repeated_unknown_face_is_logged_once_per_window() -> None:
+    session = SimpleNamespace(add=MagicMock())
+    service = AttendanceService(session, SimpleNamespace())
+    payload = PunchCreate(
+        employee_id=None,
+        worksite_id="worksite-dedup",
+        face={"image_base64": "frame"},
+    )
+
+    await service._flag_attempt(payload, FraudType.LOW_SIMILARITY, 0.4, ["low_similarity"])
+    await service._flag_attempt(payload, FraudType.LOW_SIMILARITY, 0.4, ["low_similarity"])
+    await service._flag_attempt(payload, FraudType.LOW_SIMILARITY, 0.4, ["ambiguous_face"])
+
+    assert session.add.call_count == 2
 
 
 @pytest.mark.asyncio
