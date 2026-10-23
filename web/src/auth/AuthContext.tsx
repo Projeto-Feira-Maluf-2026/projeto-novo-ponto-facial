@@ -1,26 +1,14 @@
 import type { Session, User } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { supabase } from '../services/supabase';
-import { authenticatedReadCache } from '../services/authenticatedReadCache';
-
-/**
- * - checking: the stored session is being verified with Supabase.
- * - ready: verification finished (signed in or signed out).
- * - unavailable: Supabase could not be reached or timed out. The stored session is
- *   kept so a site tablet does not lose its login during a network outage.
- */
-export type AuthStatus = 'checking' | 'ready' | 'unavailable';
 
 interface AuthContextValue {
   loading: boolean;
-  status: AuthStatus;
   session: Session | null;
   user: User | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  /** Verifies the stored session again after an outage. */
-  retrySessionCheck: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -40,15 +28,6 @@ const mockSession = {
   user: mockUser,
 } as Session;
 
-// Answers that mean the stored session itself is invalid. Anything else (no status,
-// 0, 408, 429, 5xx, timeout) is treated as the service being unreachable.
-const SESSION_REJECTED_STATUSES = new Set([400, 401, 403, 404, 422]);
-
-export function isSessionRejected(error: unknown): boolean {
-  const status = (error as { status?: unknown } | null | undefined)?.status;
-  return typeof status === 'number' && SESSION_REJECTED_STATUSES.has(status);
-}
-
 function withTimeout<T>(operation: PromiseLike<T>, timeoutMs = AUTH_REQUEST_TIMEOUT_MS): Promise<T> {
   let timeoutId: number | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -65,104 +44,64 @@ function withTimeout<T>(operation: PromiseLike<T>, timeoutMs = AUTH_REQUEST_TIME
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(mocksEnabled ? mockSession : null);
-  const [status, setStatus] = useState<AuthStatus>(mocksEnabled ? 'ready' : 'checking');
-  const [verificationAttempt, setVerificationAttempt] = useState(0);
-  // Bumped by every auth event so a slow verification cannot overwrite a newer login.
-  const authRevisionRef = useRef(0);
-  const publishSession = useCallback((nextSession: Session | null) => {
-    authenticatedReadCache.reset();
-    setSession(nextSession);
-  }, []);
+  const [loading, setLoading] = useState(!mocksEnabled);
 
   useEffect(() => {
     if (mocksEnabled) return undefined;
     let active = true;
+
+    const initialize = async () => {
+      try {
+        const { data, error: sessionError } = await withTimeout(supabase.auth.getSession());
+        if (!active) return;
+        if (sessionError || !data.session) {
+          setSession(null);
+          return;
+        }
+
+        const { data: verified, error } = await withTimeout(supabase.auth.getUser());
+        if (!active) return;
+        if (error || !verified.user) {
+          await supabase.auth.signOut({ scope: 'local' });
+          if (!active) return;
+          setSession(null);
+        } else {
+          setSession(data.session);
+        }
+      } catch {
+        if (!active) return;
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        if (active) setSession(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void initialize();
+
     const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
-      // The initial locally cached session is verified by getUser below before
+      // The initial locally cached session is verified by getUser above before
       // protected routes are rendered.
       if (event === 'INITIAL_SESSION') return;
-      authRevisionRef.current += 1;
-      publishSession(nextSession);
-      setStatus('ready');
+      setSession(nextSession);
+      setLoading(false);
     });
 
     return () => {
       active = false;
       data.subscription.unsubscribe();
     };
-  }, [publishSession]);
-
-  useEffect(() => {
-    if (mocksEnabled) return undefined;
-    let active = true;
-    const initialRevision = authRevisionRef.current;
-    const isCurrent = () => active && initialRevision === authRevisionRef.current;
-    setStatus('checking');
-
-    const rejectStoredSession = async () => {
-      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-      if (!isCurrent()) return;
-      publishSession(null);
-      setStatus('ready');
-    };
-    const reportUnavailable = () => {
-      // Keep the stored tokens: they are still valid once the network returns.
-      if (!isCurrent()) return;
-      publishSession(null);
-      setStatus('unavailable');
-    };
-
-    const verify = async () => {
-      try {
-        const { data, error: sessionError } = await withTimeout(supabase.auth.getSession());
-        if (!isCurrent()) return;
-        if (sessionError) {
-          if (isSessionRejected(sessionError)) await rejectStoredSession();
-          else reportUnavailable();
-          return;
-        }
-        if (!data.session) {
-          publishSession(null);
-          setStatus('ready');
-          return;
-        }
-
-        const { data: verified, error } = await withTimeout(supabase.auth.getUser());
-        if (!isCurrent()) return;
-        if (error && !isSessionRejected(error)) {
-          reportUnavailable();
-        } else if (error || !verified.user) {
-          await rejectStoredSession();
-        } else {
-          publishSession(data.session);
-          setStatus('ready');
-        }
-      } catch {
-        // Timeout or a thrown network failure: the session was not proven invalid.
-        reportUnavailable();
-      }
-    };
-
-    void verify();
-    return () => {
-      active = false;
-    };
-  }, [publishSession, verificationAttempt]);
-
-  const retrySessionCheck = useCallback(() => {
-    setVerificationAttempt((current) => current + 1);
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
-    loading: status === 'checking',
-    status,
+    loading,
     session,
     user: session?.user ?? null,
     signIn: async (email: string, password: string) => {
       if (mocksEnabled) {
-        publishSession(mockSession);
-        setStatus('ready');
+        setSession(mockSession);
+        setLoading(false);
         return;
       }
       const { data, error } = await withTimeout(
@@ -170,23 +109,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       if (error) throw error;
       if (!data.session) throw new Error('AUTH_SESSION_NOT_CREATED');
-      authRevisionRef.current += 1;
-      publishSession(data.session);
-      setStatus('ready');
+      setSession(data.session);
+      setLoading(false);
     },
     signOut: async () => {
-      authenticatedReadCache.reset();
       try {
         const { error } = await withTimeout(supabase.auth.signOut({ scope: 'local' }));
         if (error) throw error;
       } finally {
-        authRevisionRef.current += 1;
-        publishSession(null);
-        setStatus('ready');
+        setSession(null);
+        setLoading(false);
       }
     },
-    retrySessionCheck,
-  }), [status, session, publishSession, retrySessionCheck]);
+  }), [loading, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

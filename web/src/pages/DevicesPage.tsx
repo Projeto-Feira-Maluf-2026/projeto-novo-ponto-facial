@@ -15,9 +15,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { CameraCapture } from '../components/CameraCapture';
 import { apiClient } from '../services/api';
-import { describeApiError } from '../services/apiErrors';
 import type { CameraConfig, CameraTestResponse, Device, Worksite } from '../types/domain';
-import { formatInAppTimeZone, parseApiDate } from '../utils/dateTime';
 
 const cameraTypes = [
   { value: 'WEBCAM', label: 'Webcam local' },
@@ -84,8 +82,8 @@ export function DevicesPage() {
       const page = await apiClient.devices();
       setDevices(page.items);
       setSelected((current) => current ?? page.items[0] ?? null);
-    } catch (error) {
-      setMessage(describeApiError(error, 'listar as câmeras'));
+    } catch {
+      setMessage('Entre novamente e verifique se a API está online.');
     } finally {
       setLoadingDevices(false);
     }
@@ -142,8 +140,8 @@ export function DevicesPage() {
       const result = await apiClient.testCamera(form.camera);
       setTestResult(result);
       setMessage(result.message);
-    } catch (error) {
-      setMessage(describeApiError(error, 'testar a câmera'));
+    } catch {
+      setMessage('Não foi possível testar a câmera.');
     } finally {
       setTesting(false);
     }
@@ -167,8 +165,8 @@ export function DevicesPage() {
       setTestResult(null);
       setMessage('Câmera salva e pronta para leitura facial.');
       await loadDevices();
-    } catch (error) {
-      setMessage(describeApiError(error, 'salvar a câmera'));
+    } catch {
+      setMessage('Não foi possível salvar a câmera.');
     } finally {
       setSaving(false);
     }
@@ -188,9 +186,9 @@ export function DevicesPage() {
         if (current) URL.revokeObjectURL(current);
         return url;
       });
-    } catch (error) {
+    } catch {
       setPreviewUrl('');
-      setMessage(describeApiError(error, 'carregar a prévia da câmera'));
+      setMessage('Não foi possível carregar a prévia da câmera.');
     } finally {
       setPreviewLoading(false);
     }
@@ -203,8 +201,8 @@ export function DevicesPage() {
       const result = await apiClient.testSavedCamera(device.id);
       setMessage(result.message);
       await loadDevices();
-    } catch (error) {
-      setMessage(describeApiError(error, 'testar a câmera salva'));
+    } catch {
+      setMessage('Não foi possível testar a câmera salva.');
     } finally {
       setTesting(false);
     }
@@ -362,7 +360,7 @@ export function DevicesPage() {
                     <span className={`status-pill ${statusPill(device.status)}`}><span className="status-dot" /> {device.metadata_json?.camera?.camera_type ?? 'WEBCAM'}</span>
                   </div>
                   <div className="camera-card-actions">
-                    <span>{device.last_seen_at ? `Visto ${formatInAppTimeZone(parseApiDate(device.last_seen_at), { dateStyle: 'short', timeStyle: 'short' })}` : 'Sem atividade recente'}</span>
+                    <span>{device.last_seen_at ? `Visto ${new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(device.last_seen_at))}` : 'Sem atividade recente'}</span>
                     <button type="button" onClick={() => testSavedCamera(device)} className="icon-button" title="Testar câmera" aria-label={`Testar ${device.name}`}><RefreshCcw size={16} /></button>
                   </div>
                 </article>

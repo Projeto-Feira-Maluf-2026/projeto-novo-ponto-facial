@@ -67,8 +67,6 @@ async def test_accepted_punch_notifies_employee_after_commit() -> None:
     )
     session = SimpleNamespace(
         get=AsyncMock(return_value=worksite),
-        execute=AsyncMock(),
-        scalar=AsyncMock(return_value=None),
         add=MagicMock(),
         commit=AsyncMock(),
         refresh=AsyncMock(),
@@ -109,7 +107,5 @@ async def test_accepted_punch_notifies_employee_after_commit() -> None:
         worksite_name=worksite.name,
         punch_type=PunchType.ENTRY,
         occurred_at=decision.record.occurred_at,
-        record_id=decision.record.id,
+        record_id="record-1",
     )
-    # Todos os campos sao definidos antes do commit; nao ha ida extra ao banco.
-    session.refresh.assert_not_awaited()

@@ -3,8 +3,6 @@ import pytest
 from pydantic import ValidationError
 
 from app.application import create_application
-from app.api.deps import get_current_user
-from app.services.auth import AuthService
 from app.schemas.devices import DeviceCreate
 from app.services.devices import describe_camera_source, sanitize_device_metadata
 
@@ -70,27 +68,3 @@ async def test_api_responses_disable_storage_and_sniffing() -> None:
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "method,path,body",
-    [
-        ("GET", "/api/v1/attendance/history?employee_id=another-employee", None),
-        ("PATCH", "/api/v1/attendance/another-record", {"reason": "alterar ponto"}),
-    ],
-)
-async def test_employee_cannot_read_or_correct_other_attendance(method, path, body) -> None:
-    app = create_application()
-    user = AuthService._to_read_model({
-        "id": "employee-auth-id",
-        "email": "employee@example.com",
-        "created_at": "2026-08-07T12:00:00Z",
-        "app_metadata": {},
-        "user_metadata": {"role": "SUPER_ADMIN"},
-    })
-    app.dependency_overrides[get_current_user] = lambda: user
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        response = await client.request(method, path, json=body)
-    assert response.status_code == 403

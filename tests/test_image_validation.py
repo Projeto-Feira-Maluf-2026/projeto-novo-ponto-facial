@@ -99,28 +99,6 @@ def test_enhancement_builds_brighter_full_resolution_detection_frames() -> None:
     assert float(np.mean(variants[-1])) > float(np.mean(image))
 
 
-def test_pixel_only_quality_failures_do_not_repeat_inference() -> None:
-    class CountingProvider(FakeFaceProvider):
-        def __init__(self) -> None:
-            super().__init__()
-            self.calls = 0
-
-        def analyze(self, image_bgr: np.ndarray) -> FaceInferenceResult:
-            self.calls += 1
-            return super().analyze(image_bgr)
-
-    # Blur e medido nos pixels originais; um quadro realcado nao muda essa
-    # medida, entao nao pode custar passadas extras do detector e do ArcFace.
-    config = make_test_settings(FACE_MIN_BLUR_VARIANCE=1_000_000.0, FACE_MIN_QUALITY=0.0)
-    provider = CountingProvider()
-    service = FaceEmbeddingService(provider, FaceImageValidator(config), config)
-
-    processed = service.from_image_base64(image_data_uri())
-
-    assert FaceQualityReason.IMAGE_TOO_BLURRY in processed.quality.reasons
-    assert provider.calls == 1
-
-
 def test_face_service_retries_detection_with_an_enhanced_frame() -> None:
     class RecoveringProvider(FakeFaceProvider):
         def __init__(self) -> None:

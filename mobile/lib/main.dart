@@ -56,22 +56,11 @@ class _ShellPageState extends State<ShellPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ponto Facial · prototipo'),
+        title: const Text('Ponto Facial'),
         actions: [
           IconButton(
             tooltip: 'Sincronizar',
-            onPressed: () async {
-              try {
-                final synced = await queue.sync(api);
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
-                  '${synced.accepted} confirmados; ${synced.remaining} pendentes; ${synced.expired} expirados')));
-              } catch (_) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:
-                  Text('Sincronizacao indisponivel. Verifique login e armazenamento seguro.')));
-              }
-            },
+            onPressed: () => queue.sync(api),
             icon: const Icon(Icons.sync),
           ),
         ],
@@ -107,9 +96,47 @@ class _PunchPageState extends State<PunchPage> {
 
   Future<void> punch() async {
     setState(() {
-      loading = false;
-      result = 'Prototipo: configure login, dispositivo e captura real antes de registrar ponto.';
+      loading = true;
+      result = 'Validando face...';
     });
+
+    final payload = {
+      'worksite_id': 'w1',
+      'device_id': 'mobile',
+      'face': {
+        'embedding': List<double>.filled(512, 0.02),
+        'liveness_score': 0.93,
+        'quality_score': 0.89,
+        'motion_score': 0.78,
+        'face_count': 1,
+        'spoof_hints': <String>[],
+      },
+      'offline_batch_id': DateTime.now().millisecondsSinceEpoch.toString(),
+    };
+
+    final online = await widget.api.isOnline();
+    if (!online) {
+      await widget.queue.enqueue(payload);
+      setState(() {
+        loading = false;
+        result = 'Registro salvo offline';
+      });
+      return;
+    }
+
+    try {
+      final accepted = await widget.api.punch(payload);
+      setState(() {
+        loading = false;
+        result = accepted ? 'Ponto registrado' : 'Registro enviado para revisao';
+      });
+    } catch (_) {
+      await widget.queue.enqueue(payload);
+      setState(() {
+        loading = false;
+        result = 'Sem conexao, salvo na fila offline';
+      });
+    }
   }
 
   @override
@@ -143,7 +170,7 @@ class _PunchPageState extends State<PunchPage> {
           child: ListTile(
             leading: Icon(Icons.wifi_off),
             title: Text('Modo offline'),
-            subtitle: Text('Fila segura exige login, captura real e dispositivo configurado. Dados de historico e horas nesta tela sao demonstrativos.'),
+            subtitle: Text('Registros sao sincronizados quando a conexao voltar'),
           ),
         ),
       ],

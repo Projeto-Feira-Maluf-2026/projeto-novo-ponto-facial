@@ -9,23 +9,23 @@ from app.schemas.common import ORMModel
 class EmployeeCreate(BaseModel):
     registration: str = Field(min_length=2, max_length=40)
     name: str = Field(min_length=2, max_length=160)
-    document: str | None = Field(default=None, max_length=32)
-    phone: str | None = Field(default=None, max_length=32)
+    document: str | None = None
+    phone: str | None = None
     email: EmailStr | None = None
     department_id: str | None = None
     job_role_id: str | None = None
-    worksite_ids: list[str] = Field(default_factory=list, max_length=100)
+    worksite_ids: list[str] = Field(default_factory=list)
     status: EmployeeStatus = EmployeeStatus.ACTIVE
 
 
 class EmployeeUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=160)
-    document: str | None = Field(default=None, max_length=32)
-    phone: str | None = Field(default=None, max_length=32)
+    document: str | None = None
+    phone: str | None = None
     email: EmailStr | None = None
     department_id: str | None = None
     job_role_id: str | None = None
-    worksite_ids: list[str] | None = Field(default=None, max_length=100)
+    worksite_ids: list[str] | None = None
     status: EmployeeStatus | None = None
 
 

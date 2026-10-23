@@ -796,9 +796,6 @@ body::before {
   min-height: 56px;
   border-radius: 14px;
   background: #0e1511;
-  /* The unlayered `button { color: inherit }` reset in styles.css beats the layered
-     .login-submit color, which left the label dark on this dark button. */
-  color: #ffffff;
   box-shadow: 0 16px 36px rgb(7 16 10 / 0.18);
 }
 
@@ -1795,39 +1792,4 @@ body::before {
     height: clamp(440px, 62vh, 690px) !important;
     min-height: 440px;
   }
-}
-
-/* Reserve the actual action width; the central navigation must not overlap it. */
-@media (min-width: 1200px) {
-  .app-topbar { grid-template-columns: max-content minmax(0, 1fr) max-content; }
-  .desktop-primary-nav {
-    width: max-content;
-    max-width: 100%;
-    justify-content: flex-start;
-    overflow-x: auto;
-  }
-}
-
-/* Session outage screen: always on the dark login canvas, whatever the theme. */
-.auth-unavailable-actions .btn-primary {
-  border-color: #eef5ef;
-  background: #eef5ef;
-  color: #0b100d;
-}
-
-.auth-unavailable-actions .btn-primary:hover:not(:disabled) {
-  border-color: #ffffff;
-  background: #ffffff;
-}
-
-.auth-unavailable-actions .btn-secondary {
-  border: 1px solid rgb(255 255 255 / 0.32);
-  background: transparent;
-  color: #f1f5f0;
-}
-
-.auth-unavailable-actions .btn-secondary:hover:not(:disabled) {
-  border-color: rgb(255 255 255 / 0.5);
-  background: rgb(255 255 255 / 0.06);
-  color: #ffffff;
 }
