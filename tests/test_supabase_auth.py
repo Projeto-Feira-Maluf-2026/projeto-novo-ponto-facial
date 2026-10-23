@@ -178,6 +178,40 @@ async def test_auth_provider_timeout_is_retryable_instead_of_internal_error(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("provider_status", [408, 429, 500, 502, 503, 504])
+async def test_auth_provider_http_outage_is_not_reported_as_invalid_session(
+    monkeypatch, provider_status,
+) -> None:
+    AuthService._cache.clear()
+    monkeypatch.setattr(settings, "SUPABASE_JWKS_JSON", None)
+
+    async def unavailable(*_args, **_kwargs):
+        return httpx.Response(provider_status, text="private upstream details")
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", unavailable)
+    with pytest.raises(AppError) as captured:
+        await AuthService().authenticate("synthetic-outage-token")
+    assert captured.value.code == "AUTH_PROVIDER_UNAVAILABLE"
+    assert captured.value.status_code == 503
+    assert captured.value.details == {"retryable": True}
+    assert "private upstream details" not in str(captured.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider_status", [400, 401, 403, 404, 422])
+async def test_rejected_auth_session_still_fails_closed(monkeypatch, provider_status) -> None:
+    AuthService._cache.clear()
+    monkeypatch.setattr(settings, "SUPABASE_JWKS_JSON", None)
+
+    async def rejected(*_args, **_kwargs):
+        return httpx.Response(provider_status)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", rejected)
+    with pytest.raises(PermissionError):
+        await AuthService().authenticate("synthetic-rejected-token")
+
+
+@pytest.mark.asyncio
 async def test_recently_validated_session_avoids_repeated_supabase_requests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

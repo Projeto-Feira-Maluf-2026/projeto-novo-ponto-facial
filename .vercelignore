@@ -41,6 +41,9 @@ tests/
 ui-ux-pro-max-skill-*/
 prompt.txt
 rodar.txt
+CONTEXTO_PROJETO.txt
+PROMPT_MELHORIA_PROJETO.txt
+skills-lock.json
 README.md
 docker-compose.yml
 api/Dockerfile

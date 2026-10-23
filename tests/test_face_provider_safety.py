@@ -46,7 +46,7 @@ def test_fake_provider_is_blocked_outside_tests() -> None:
         )
 
 
-@pytest.mark.parametrize("origin", ["*", "https://example.com/path", "https://user:pass@example.com", "http://localhost:5173"])
+@pytest.mark.parametrize("origin", ["*", "https://example.com/path", "https://user:pass@example.com", "http://example.com"])
 def test_production_cors_rejects_wildcards_paths_credentials_and_http(origin):
     with pytest.raises(ValidationError, match="CORS"):
         Settings(_env_file=None, **SUPABASE_SETTINGS, ENVIRONMENT="production",

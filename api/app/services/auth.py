@@ -80,6 +80,16 @@ class AuthService:
                 503,
                 {"retryable": True},
             ) from exc
+        if response.status_code in {408, 429} or response.status_code >= 500:
+            # An upstream outage says nothing about the token's validity. Sending
+            # 401 here caused the frontend to destroy a valid local session.
+            # Never grant cached/stale access or expose the upstream response body.
+            raise AppError(
+                "AUTH_PROVIDER_UNAVAILABLE",
+                "Nao foi possivel validar a sessao agora. Tente novamente em instantes.",
+                503,
+                {"retryable": True},
+            )
         if response.status_code != 200:
             self._cache.pop(cache_key, None)
             raise PermissionError("Sessao invalida ou expirada")

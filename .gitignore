@@ -103,6 +103,7 @@ Desktop.ini
 # Materiais locais de agentes e rascunhos, sem efeito na aplicacao
 .agents/
 .codex/
+skills-lock.json
 design-system/
 ui-ux-pro-max-skill-*/
 prompt.txt

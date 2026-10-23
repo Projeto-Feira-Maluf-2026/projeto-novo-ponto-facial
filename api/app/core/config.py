@@ -175,15 +175,29 @@ class Settings(BaseSettings):
             # deployed API readiness while their mandatory Redis is unavailable.
             self.REDIS_REQUIRED = True
 
-        origins = [*self.cors_origins, self.FRONTEND_URL.rstrip("/")]
-        for origin in origins:
+        # Legacy Vercel deployments used the same comma-separated allowlist as
+        # local development. Discard *only* HTTP loopback origins on deployment;
+        # they must neither authorize browser requests nor crash every cold start.
+        # Validate raw entries first so malformed local URLs cannot bypass checks.
+        deployed = environment in {"staging", "production"}
+        configured_origins = [value.strip() for value in self.CORS_ORIGINS.split(",")
+                              if value.strip()]
+        allowed_origins = []
+        frontend_origin = self.FRONTEND_URL.rstrip("/")
+        for origin in [*configured_origins, frontend_origin]:
             parsed = urlsplit(origin)
             if (parsed.scheme not in {"http", "https"} or not parsed.hostname
                     or parsed.username or parsed.password or parsed.query or parsed.fragment
                     or parsed.path or "*" in origin):
                 raise ValueError("CORS e FRONTEND_URL exigem origens HTTP(S) exatas sem caminho")
-            if environment in {"staging", "production"} and parsed.scheme != "https":
+            if deployed and parsed.scheme == "http" and origin != frontend_origin:
+                if parsed.hostname in {"localhost", "127.0.0.1", "::1"}:
+                    continue
+            if deployed and parsed.scheme != "https":
                 raise ValueError("Staging e production exigem origens CORS HTTPS")
+            if origin in configured_origins and origin not in allowed_origins:
+                allowed_origins.append(origin)
+        self.CORS_ORIGINS = ",".join(allowed_origins)
         if environment in {"staging", "production"} and self.CORS_ORIGIN_REGEX:
             raise ValueError("Staging e production exigem allowlist CORS exata sem regex")
 

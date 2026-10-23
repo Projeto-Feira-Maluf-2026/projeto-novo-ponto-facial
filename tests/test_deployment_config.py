@@ -24,6 +24,12 @@ def test_vercel_routes_every_api_path_to_the_python_entrypoint() -> None:
     assert "api/index.py" in config["functions"]
 
 
+def test_vercel_installs_from_the_committed_npm_lockfile() -> None:
+    config = json.loads((PROJECT_ROOT / "vercel.json").read_text(encoding="utf-8"))
+    assert config["installCommand"] == "npm ci"
+    assert (PROJECT_ROOT / "package-lock.json").is_file()
+
+
 def test_vercel_blob_sdk_is_installed_in_the_lightweight_function() -> None:
     requirements = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
 

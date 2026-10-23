@@ -23,6 +23,28 @@ VITE_FACE_API_URL=https://curitiba-gestao-face.vercel.app/api/v1
 Aplique a migration Supabase antes do deploy. `SUPABASE_SECRET_KEY` nao e necessaria na
 Vercel; ela deve existir somente no ambiente local usado pelo script administrativo.
 
+## Cold start e configuração de produção
+
+Use somente origens HTTPS necessárias em `CORS_ORIGINS`, por exemplo
+`https://curitiba-gestao.vercel.app`. Na produção/staging, entradas HTTP loopback
+legadas (`localhost`, `127.0.0.1` e `::1`) são descartadas, nunca autorizadas.
+Outras origens HTTP ou URLs malformadas continuam impedindo a inicialização.
+`FRONTEND_URL` deve ser uma origem HTTPS, sem caminho.
+
+Esta versão exige Redis disponível para limitar mutações em produção. Defina
+`REDIS_URL` para o serviço distribuído real; o padrão local não é suficiente.
+Sem Redis, mutações falham fechadas com 503 e readiness não deve ficar saudável.
+O serviço facial também exige calibração/PAD conforme o ambiente: não mude
+`ENVIRONMENT` para development para contornar as proteções de produção.
+
+Depois de um deploy autorizado, confira `/api/health/live` (JSON 200),
+`/api/health/ready` (JSON 200 somente com dependências saudáveis) e
+`/api/v1/dashboard` sem token (JSON 401). Um build marcado Ready não confirma
+que a Function conseguiu importar a aplicação. Em caso de 500
+`FUNCTION_INVOCATION_FAILED`, consulte os logs de runtime, sem expor segredos.
+
+Diagnóstico e testes da recuperação: [recovery-2026-10-23.md](recovery-2026-10-23.md).
+
 ## Dependencias de reconhecimento facial
 
 O `requirements.txt` da raiz contem apenas as dependencias do runtime serverless da
