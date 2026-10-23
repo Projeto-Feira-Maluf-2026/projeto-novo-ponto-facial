@@ -1,4 +1,5 @@
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -28,6 +29,22 @@ def test_vercel_installs_from_the_committed_npm_lockfile() -> None:
     config = json.loads((PROJECT_ROOT / "vercel.json").read_text(encoding="utf-8"))
     assert config["installCommand"] == "npm ci"
     assert (PROJECT_ROOT / "package-lock.json").is_file()
+
+
+@pytest.mark.parametrize("path", ["vercel.json", "api/vercel.json"])
+def test_dependency_bot_previews_do_not_fill_the_deployment_queue(path) -> None:
+    config = json.loads((PROJECT_ROOT / path).read_text(encoding="utf-8"))
+    # Main and developer previews keep Vercel's enabled default; only bot refs skip.
+    assert config["git"]["deploymentEnabled"] == {"dependabot/**": False}
+
+
+def test_historical_secret_baseline_cannot_ignore_new_commits_or_whole_paths() -> None:
+    entries = [line for line in (PROJECT_ROOT / ".gitleaksignore").read_text(
+        encoding="utf-8",
+    ).splitlines() if line and not line.startswith("#")]
+    assert len(entries) == 8
+    for entry in entries:
+        assert re.fullmatch(r"[0-9a-f]{40}:[^:*]+:[a-z0-9-]+:[0-9]+", entry)
 
 
 def test_vercel_blob_sdk_is_installed_in_the_lightweight_function() -> None:

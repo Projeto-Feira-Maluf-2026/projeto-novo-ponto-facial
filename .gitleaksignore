@@ -1,0 +1,12 @@
+# Historical findings reviewed on 2026-10-23. Owner confirmed the OpenAI key
+# revoked and the old encryption/pepper examples unused in every current environment.
+# Documentation curl samples are historical examples. No secret values stored here.
+# Commit-specific fingerprints only: scanning of new commits/occurrences stays enabled.
+b2433bd07db7cd783b06586ade6c9ca840f03f01:.env.example:generic-api-key:9
+b2433bd07db7cd783b06586ade6c9ca840f03f01:api/.env.example:generic-api-key:8
+a8536532e98b78e84983224f4395df0501f93d5a:docs/vercel.md:curl-auth-header:32
+0c34460d32cee6acf6dbcffb61c3f94adff603e9:docs/vercel.md:curl-auth-header:33
+a609dc3bc6b989ab47edd2a0347c88bfeccce538:docs/vercel.md:generic-api-key:14
+e968a6f111e0a99fb6cea998f51d298365906478:.env.example:openai-api-key:19
+95fc2526010ef963dd886132ff8adf3d47177943:docs/vercel.md:generic-api-key:14
+8782f378e422cf5cf2f2cf19940679d2017ea4a5:docs/vercel.md:generic-api-key:14
