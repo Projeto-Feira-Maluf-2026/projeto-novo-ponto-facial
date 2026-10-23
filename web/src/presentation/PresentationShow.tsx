@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, Check, Eye, Lock, Moon, Pause, Play, ShieldCheck
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import type { PunchType } from '../types/domain';
+import { formatInAppTimeZone } from '../utils/dateTime';
 import {
   firstName,
   joinNames,
@@ -50,7 +51,7 @@ function readShowTheme(): ShowTheme {
 }
 
 function formatTime(value: Date) {
-  return value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return formatInAppTimeZone(value, { hour: '2-digit', minute: '2-digit' });
 }
 
 function initials(name: string) {
