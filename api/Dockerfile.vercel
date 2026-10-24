@@ -18,7 +18,8 @@ RUN mkdir -p /opt/insightface/models/buffalo_l \
     && curl --fail --location --retry 4 --retry-all-errors \
         https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip \
         --output /tmp/buffalo_l.zip \
-    && unzip -q /tmp/buffalo_l.zip -d /opt/insightface/models/buffalo_l \
+    && unzip -q /tmp/buffalo_l.zip det_10g.onnx w600k_r50.onnx \
+        -d /opt/insightface/models/buffalo_l \
     && test -s /opt/insightface/models/buffalo_l/det_10g.onnx \
     && test -s /opt/insightface/models/buffalo_l/w600k_r50.onnx \
     && rm -f /tmp/buffalo_l.zip

@@ -40,6 +40,13 @@
 4. Identificação em grupo prepara a galeria uma vez por requisição/modelo.
    Análise e verificação passam o trabalho nativo para `asyncio.to_thread`,
    preservando a trava de inferência do provider sem bloquear o event loop.
+5. Container facial: extrair do pacote `buffalo_l` somente `det_10g.onnx` e
+   `w600k_r50.onnx`, correspondentes aos únicos módulos já habilitados
+   (`detection`, `recognition`). `FaceAnalysis` carregava os outros três modelos
+   antes de descartá-los. Isso exclui **149.961.039 bytes** de pesos não usados
+   (inventário do ZIP oficial local), sem alterar os dois arquivos usados,
+   checksum/model_version, embeddings ou critérios de decisão. MediaPipe no
+   navegador, pose por cinco landmarks e recursos do produto permanecem iguais.
 
 Sem dependências novas, migrations, alterações de esquema, perda de recursos ou
 mudanças nos critérios de similaridade, ambiguidade, qualidade e liveness.
@@ -68,7 +75,7 @@ trabalhadas, rejeitados, revisão manual, 3 queries, limite de paralelismo, orde
 falha de paginação, equivalência matemática da galeria, vetores inválidos, TTL,
 invalidação, isolamento por autorização/obra, limite de cache e thread de análise.
 
-Verificação local final: Ruff, TypeScript e build passaram; 333 testes Python
+Verificação local final: Ruff, TypeScript e build passaram; 335 testes Python
 passaram e 1 teste PostgreSQL isolado foi pulado; 103 testes web passaram.
 
 ## Publicação e rollback
@@ -78,10 +85,29 @@ de ambos os projetos; publicar cada runtime e conferir readiness, autenticação
 leituras protegidas, rejeições anônimas e assets. Comparar HTTPS depois do deploy
 com o mesmo percurso, distinguindo variação de rede de ganho de código.
 
-Base para rollback: commit `ac4d79d`; principal
+Base do primeiro lote para rollback: commit `ac4d79d`; principal
 `dpl_DfzTvVfmJf8NzTAQaFofqwehiSF1`; facial
 `dpl_CGM6H2rLTBbrMzDT3RkwUXyyQduG`. Usar promoção/rollback suportado pela conta,
 sem excluir deployments, forçar Git ou contornar cotas.
+
+Primeiro lote publicado no commit `3454379`: ambos os deployments Ready e
+promovidos nos domínios públicos; 30 verificações de readiness, Redis/banco,
+login, leituras protegidas, rejeições anônimas e validação sem gravar registros,
+HTML e assets passaram. Mediana HTTPS do dashboard: **774 → 638 ms**, três
+amostras antes e depois, sem promessa de SLA. Funcionários/obras em página única
+ficaram próximos da medição anterior; o paralelismo beneficia listas multipágina.
+CI remoto: API, web, ensaio PostgreSQL, dependências, secrets e ambos CodeQL verdes.
+Npm audit: zero vulnerabilidades. Git limpo após commit/push.
+
+A análise sintética sem rosto após esse lote ainda apresentou cold start e
+realces caros (12.255 ms fim a fim / 8.585 ms internos); motivou o segundo passo
+da imagem menor. Isso não é uma identificação real e não deve ser anunciado
+como latência de reconhecimento de pessoas.
+
+Base imediata para rollback do segundo lote: `3454379`; principal
+`dpl_CFGUMQm4NxDtGdo584JbUek52WqN`; facial
+`dpl_GFvau54XVsozfxS4qziMAyStW4aZ`. A versão anterior das otimizações permanece
+publicável sem reconstruir o container e sem depender de rollback profundo pago.
 
 Não foram realizados teste real com câmera/funcionário, teste de carga ou aprovação
 de precisão/PAD. Validar com operadores nos dispositivos reais após publicação;

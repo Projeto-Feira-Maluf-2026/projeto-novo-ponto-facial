@@ -1,4 +1,5 @@
 import json
+import ast
 import re
 import tomllib
 from pathlib import Path
@@ -85,6 +86,29 @@ def test_container_and_windows_setup_use_supported_python() -> None:
 
     assert dockerfile.startswith("FROM python:3.12-slim")
     assert "py -3.12 -m venv" in setup_script
+
+
+def test_face_container_extracts_only_the_two_models_used_by_the_provider():
+    dockerfile = (PROJECT_ROOT / 'api' / 'Dockerfile.vercel').read_text(encoding='utf-8')
+    extraction = dockerfile.split('&& unzip ', 1)[1].split('&&', 1)[0]
+    assert extraction.split() == [
+        '-q', '/tmp/buffalo_l.zip', 'det_10g.onnx', 'w600k_r50.onnx',
+        '\\', '-d', '/opt/insightface/models/buffalo_l', '\\',
+    ]
+    for name in ('det_10g.onnx', 'w600k_r50.onnx'):
+        assert f'test -s /opt/insightface/models/buffalo_l/{name}' in dockerfile
+
+
+def test_slim_face_models_preserve_all_enabled_insightface_tasks():
+    source = (PROJECT_ROOT / 'api/app/services/ai/insightface_provider.py').read_text(
+        encoding='utf-8',
+    )
+    call = next(node for node in ast.walk(ast.parse(source))
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == 'FaceAnalysis')
+    enabled = next(keyword.value for keyword in call.keywords
+                   if keyword.arg == 'allowed_modules')
+    assert ast.literal_eval(enabled) == ['detection', 'recognition']
 
 
 def test_face_runtime_mode_has_explicit_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
