@@ -34,6 +34,11 @@ Outras origens HTTP ou URLs malformadas continuam impedindo a inicialização.
 Esta versão exige Redis disponível para limitar mutações em produção. Defina
 `REDIS_URL` para o serviço distribuído real; o padrão local não é suficiente.
 Sem Redis, mutações falham fechadas com 503 e readiness não deve ficar saudável.
+Com a integração Upstash conectada usando prefixo `PONTO_LIMIT`, a API prefere
+automaticamente `PONTO_LIMIT_REDIS_URL` (obrigatoriamente TLS) a `REDIS_URL`.
+Assim, a integração mantém e rotaciona a credencial sem cópias manuais. Valor
+ausente ou vazio preserva a configuração Redis existente, inclusive no Docker.
+Use plano gratuito e `autoUpgrade=false` quando não houver autorização de custos.
 O serviço facial também exige calibração/PAD conforme o ambiente: não mude
 `ENVIRONMENT` para development para contornar as proteções de produção.
 

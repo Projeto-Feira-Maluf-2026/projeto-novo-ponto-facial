@@ -15,6 +15,8 @@ _SYNTHETIC_ENVIRONMENT = {
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_test",
     "PASSWORD_PEPPER": "ci-only-password-pepper-value-1234567890",
     "FIELD_ENCRYPTION_KEY": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=",
+    "PONTO_LIMIT_REDIS_URL": "",
+    "REDIS_URL": "redis://127.0.0.1:1/0",
 }
 # Overwrite, not setdefault: a real DATABASE_URL exported in the shell must not win.
 os.environ.update(_SYNTHETIC_ENVIRONMENT)

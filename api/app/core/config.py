@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     SUPABASE_PUBLISHABLE_KEY: str
     SUPABASE_JWKS_JSON: str | None = None
     REDIS_URL: str = "redis://localhost:6379/0"
+    PONTO_LIMIT_REDIS_URL: str | None = Field(default=None, repr=False)
     REDIS_REQUIRED: bool = False
     HEALTHCHECK_TIMEOUT_SECONDS: float = 1.5
     AUTH_TIMEOUT_SECONDS: float = 4.5
@@ -170,6 +171,14 @@ class Settings(BaseSettings):
             raise ValueError(f"ENVIRONMENT deve ser um de {sorted(allowed_environments)}")
         self.ENVIRONMENT = environment
         self.FACE_PROVIDER = provider
+        # The marketplace owns this variable and updates it on credential rotation.
+        # Prefer it to a legacy localhost REDIS_URL without copying credentials.
+        managed_redis = (self.PONTO_LIMIT_REDIS_URL or "").strip()
+        if managed_redis:
+            managed_endpoint = urlsplit(managed_redis)
+            if managed_endpoint.scheme != "rediss" or not managed_endpoint.hostname:
+                raise ValueError("PONTO_LIMIT_REDIS_URL exige um endpoint Redis TLS valido")
+            self.REDIS_URL = managed_redis
         if environment in {"staging", "production"}:
             # Mutation quotas are distributed; readiness must never advertise
             # deployed API readiness while their mandatory Redis is unavailable.
