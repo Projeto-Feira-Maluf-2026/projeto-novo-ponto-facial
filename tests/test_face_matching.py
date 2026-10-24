@@ -8,6 +8,7 @@ from app.services.ai.facial_service import (
     cosine_similarity,
     face_match_confidence_score,
     is_face_match_ambiguous,
+    prepare_face_gallery,
     rank_identity_candidates,
     serialize_embedding,
 )
@@ -69,6 +70,34 @@ def test_vectorized_matching_across_batch_boundary_matches_scalar_reference() ->
     assert [item.employee_id for item in ranked] == sorted(
         expected, key=expected.get, reverse=True
     )
+    gallery = prepare_face_gallery(pools, 32)
+    assert rank_identity_candidates(query, gallery) == ranked
+    for batch in gallery.batches:
+        assert not batch.normalized.flags.writeable
+        assert not batch.centroids.flags.writeable
+
+
+def test_prepared_gallery_reuses_vectors_for_new_queries_and_does_not_keep_source_blobs():
+    pools = {'a': [candidate('a', [1.0, 0.0], .9)],
+             'b': [candidate('b', [0.0, 1.0], .9)]}
+    gallery = prepare_face_gallery(pools, 2)
+    for query in ([1.0, 0.0], [0.0, 1.0], [0.5, 0.5]):
+        assert rank_identity_candidates(query, gallery) == rank_identity_candidates(query, pools)
+    pools.clear()
+    assert rank_identity_candidates([0.0, 1.0], gallery)[0].employee_id == 'b'
+    assert rank_identity_candidates([1.0, 0.0, 0.0], gallery) == []
+    assert rank_identity_candidates([float('nan'), 0.0], gallery) == []
+
+
+def test_prepared_gallery_ignores_invalid_templates_identically():
+    pools = {'a': [candidate('good', [1.0, 0.0], .9),
+                   TemplateCandidate('nan', np.array([float('nan'), 0], np.float32).tobytes(), .9),
+                   TemplateCandidate('bad', b'bad', .9),
+                   candidate('wrong-dimension', [1.0, 0.0, 0.0], .9)]}
+    ranked = rank_identity_candidates([1.0, 0.0], prepare_face_gallery(pools, 2))
+    assert ranked == rank_identity_candidates([1.0, 0.0], pools)
+    assert ranked[0].template_count == 1
+    assert ranked[0].rejected_template_count == 3
 
 
 def test_finite_large_vectors_normalize_without_overflow() -> None:

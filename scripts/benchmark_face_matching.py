@@ -1,17 +1,18 @@
 """Compare local matching with Git HEAD using synthetic vectors only.
 
 Run with the project's Python 3.12 environment from any working directory:
-    api/.venv-audit/Scripts/python.exe scripts/benchmark_face_matching.py
+    api/.venv/Scripts/python.exe scripts/benchmark_face_matching.py
 
 This measures matching, not image decoding, inference, database or PAD accuracy.
 No biometric captures, models, database connections or external services are used.
-Normal application configuration is required for module imports.
+Configuration is synthetic; local .env files are not loaded.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import statistics
 import subprocess
@@ -26,7 +27,7 @@ def main() -> None:
     parser.add_argument("--repeats", type=int, default=7)
     parser.add_argument("--seed", type=int, default=20261010)
     parser.add_argument(
-        "--baseline", default="824178f", help="Git revision before this audit"
+        "--baseline", default="ac4d79d", help="Git revision before gallery preparation"
     )
     parser.add_argument(
         "--baseline-file",
@@ -39,6 +40,16 @@ def main() -> None:
 
     root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(root / "api"))
+    # The benchmark never needs live configuration, credentials or services.
+    os.environ.update({
+        "PONTO_SKIP_DOTENV": "1", "ENVIRONMENT": "test", "FACE_PROVIDER": "fake",
+        "DATABASE_URL": "postgresql://postgres:test@db.example.supabase.co:5432/postgres",
+        "SUPABASE_URL": "https://example.supabase.co",
+        "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_test",
+        "PASSWORD_PEPPER": "benchmark-only-password-pepper-1234567890",
+        "FIELD_ENCRYPTION_KEY": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=",
+        "EMAIL_NOTIFICATIONS_ENABLED": "false", "PONTO_LIMIT_REDIS_URL": "",
+    })
     import numpy as np
     from app.services.ai import facial_service as current
 
@@ -71,12 +82,18 @@ def main() -> None:
 
         measurements = {}
         rankings = {}
-        for name, module in [("HEAD", baseline), ("working_tree", current)]:
-            module.rank_identity_candidates(query, pools)
+        preparation_start = time.perf_counter()
+        gallery = current.prepare_face_gallery(pools, len(query))
+        preparation_ms = (time.perf_counter() - preparation_start) * 1000
+        for name, module, candidates in [
+            ("HEAD", baseline, pools), ("working_tree", current, pools),
+            ("warm_gallery", current, gallery),
+        ]:
+            module.rank_identity_candidates(query, candidates)
             samples = []
             for _ in range(args.repeats):
                 started = time.perf_counter()
-                rankings[name] = module.rank_identity_candidates(query, pools)
+                rankings[name] = module.rank_identity_candidates(query, candidates)
                 samples.append((time.perf_counter() - started) * 1000)
             measurements[name] = round(statistics.median(samples), 3)
 
@@ -95,6 +112,8 @@ def main() -> None:
         if not same_order:
             # Fail instead of printing identifiers: the report stays aggregate-only.
             raise SystemExit("A ordem das identidades mudou entre HEAD e a arvore local")
+        if rankings["working_tree"] != rankings["warm_gallery"]:
+            raise SystemExit("A galeria preparada mudou os resultados")
         print(
             json.dumps(
                 {
@@ -104,6 +123,7 @@ def main() -> None:
                     "seed": args.seed,
                     "repeats": args.repeats,
                     "median_ms": measurements,
+                    "gallery_preparation_ms": round(preparation_ms, 3),
                     "same_identity_order": True,
                     "max_score_drift": drift,
                 }

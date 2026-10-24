@@ -47,6 +47,24 @@ class TemplateCandidate:
 
 
 @dataclass(frozen=True)
+class _PreparedGalleryBatch:
+    identities: tuple[tuple[str, int, int, int], ...]
+    normalized: np.ndarray
+    valid: np.ndarray
+    qualities: np.ndarray
+    centroids: np.ndarray
+
+
+@dataclass(frozen=True)
+class PreparedFaceGallery:
+    """Request/cache-owned derived vectors; never persisted or sent to a client."""
+
+    dimension: int
+    batches: tuple[_PreparedGalleryBatch, ...]
+    source_template_count: int
+
+
+@dataclass(frozen=True)
 class ProcessedFace:
     image: ValidatedFaceImage
     inference: FaceInferenceResult
@@ -191,23 +209,13 @@ def _clamp_score(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
-def rank_identity_candidates(
-    query_embedding: list[float] | np.ndarray,
+def prepare_face_gallery(
     candidates_by_employee: Mapping[str, list[TemplateCandidate]],
-) -> list[RankedFaceMatch]:
-    """Rank identities with a quality-weighted centroid and a robust per-template score.
-
-    Templates are quality-gated and capped before scoring. This keeps an identity from
-    gaining weight merely because it has more stored captures.
-    """
-    try:
-        query = _normalize_embedding(query_embedding)
-    except (TypeError, ValueError):
-        return []
-
-    ranked: list[RankedFaceMatch] = []
+    dimension: int,
+) -> PreparedFaceGallery:
+    """Normalize templates and calculate centroids once per gallery snapshot."""
+    batches = []
     maximum_templates = max(1, int(settings.FACE_IDENTITY_MAX_TEMPLATES))
-    top_k = max(1, int(settings.FACE_IDENTITY_TOP_K))
     minimum_quality = float(settings.FACE_MATCH_MIN_TEMPLATE_QUALITY)
 
     # Bound temporary matrices: never materialize the complete tenant gallery.
@@ -235,7 +243,7 @@ def rank_identity_candidates(
                 except (TypeError, ValueError):
                     rejected_count += 1
                     continue
-                if vector.shape != query.shape:
+                if vector.shape != (dimension,):
                     rejected_count += 1
                     continue
                 raw_vectors.append(vector)
@@ -251,7 +259,6 @@ def rank_identity_candidates(
         valid = np.isfinite(matrix).all(axis=1) & np.isfinite(norms) & (norms > 1e-9)
         normalized = np.zeros_like(matrix)
         np.divide(matrix.astype(np.float64), norms[:, None], out=normalized, where=valid[:, None])
-        similarities = np.einsum("ij,j->i", normalized, query)
         weights = np.maximum(np.asarray(raw_qualities), 1e-6) * valid
         starts = [entry[1] for entry in prepared]
         weight_totals = np.add.reduceat(weights, starts)
@@ -263,14 +270,46 @@ def rank_identity_candidates(
         )
         centroid_norms = np.maximum(np.linalg.norm(centroids, axis=1), 1e-9)
         centroids /= centroid_norms[:, None]
-        centroid_scores = np.clip(np.einsum("ij,j->i", centroids, query), 0.0, 1.0)
-        for index, (employee_id, start, end, quality_values, rejected_count) in enumerate(prepared):
-            mask = valid[start:end]
-            vectors = normalized[start:end][mask]
+        qualities = np.asarray(raw_qualities)
+        for array in (normalized, valid, qualities, centroids):
+            array.setflags(write=False)
+        batches.append(_PreparedGalleryBatch(
+            identities=tuple((employee_id, start, end, rejected_count)
+                             for employee_id, start, end, _, rejected_count in prepared),
+            normalized=normalized, valid=valid, qualities=qualities, centroids=centroids,
+        ))
+    return PreparedFaceGallery(
+        dimension, tuple(batches), sum(len(items) for items in candidates_by_employee.values()),
+    )
+
+
+def rank_identity_candidates(
+    query_embedding: list[float] | np.ndarray,
+    candidates_by_employee: Mapping[str, list[TemplateCandidate]] | PreparedFaceGallery,
+) -> list[RankedFaceMatch]:
+    """Score a fresh query with unchanged quality, centroid and ambiguity rules."""
+    try:
+        query = _normalize_embedding(query_embedding)
+    except (TypeError, ValueError):
+        return []
+    gallery = (
+        candidates_by_employee if isinstance(candidates_by_employee, PreparedFaceGallery)
+        else prepare_face_gallery(candidates_by_employee, len(query))
+    )
+    if gallery.dimension != len(query):
+        return []
+    ranked: list[RankedFaceMatch] = []
+    top_k = max(1, int(settings.FACE_IDENTITY_TOP_K))
+    for batch in gallery.batches:
+        similarities = np.einsum("ij,j->i", batch.normalized, query)
+        centroid_scores = np.clip(np.einsum("ij,j->i", batch.centroids, query), 0.0, 1.0)
+        for index, (employee_id, start, end, rejected_count) in enumerate(batch.identities):
+            mask = batch.valid[start:end]
+            template_count = int(np.count_nonzero(mask))
             rejected_count += int(np.count_nonzero(~mask))
-            if not len(vectors):
+            if not template_count:
                 continue
-            qualities = np.asarray(quality_values)[mask]
+            qualities = batch.qualities[start:end][mask]
             individual_scores = (
                 np.clip(similarities[start:end][mask], 0.0, 1.0) * (0.85 + 0.15 * qualities)
             ).tolist()
@@ -283,7 +322,7 @@ def rank_identity_candidates(
                     employee_id=employee_id,
                     score=aggregate_score,
                     best_score=_clamp_score(max(individual_scores)),
-                    template_count=len(vectors),
+                    template_count=template_count,
                     centroid_score=centroid_score,
                     robust_score=robust_score,
                     rejected_template_count=rejected_count,

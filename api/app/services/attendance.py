@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import UTC, datetime, time, timedelta
 from statistics import median
 from time import monotonic
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy import and_, desc, or_, select
@@ -28,6 +31,9 @@ from app.schemas.attendance import (
     PunchCreate,
 )
 from app.services.audit import audit
+
+if TYPE_CHECKING:
+    from app.services.ai.facial_service import PreparedFaceGallery
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +70,8 @@ _recent_suspicious_attempts: dict[tuple, float] = {}
 # cada leitura do terminal. O cadastro invalida o cache deste processo; outras
 # instancias convergem pelo TTL.
 TEMPLATE_CACHE_TTL_SECONDS = 30.0
-_shared_template_cache: dict[tuple, tuple[float, list]] = {}
+TEMPLATE_CACHE_MAX_GALLERIES = 16
+_shared_template_cache: dict[tuple, tuple[float, PreparedFaceGallery]] = {}
 
 
 def invalidate_face_template_cache() -> None:
@@ -128,7 +135,7 @@ class AttendanceService:
         self.pending_email_notifications: dict[str, dict] = {}
         # A instância vive somente durante uma requisição. Em uma batida em
         # grupo, todos os rostos consultam o mesmo conjunto de matrículas.
-        self._template_cache: dict[tuple[str | None, str | None], list] = {}
+        self._template_cache: dict[tuple[str | None, str | None], PreparedFaceGallery] = {}
         # Em lote, todas as batidas entram em uma unica transacao e um unico
         # commit; os e-mails so saem depois que a rota confirma o commit.
         self.defer_commit = defer_email_notifications
@@ -666,6 +673,7 @@ class AttendanceService:
             TemplateCandidate,
             face_match_confidence_score,
             is_face_match_ambiguous,
+            prepare_face_gallery,
             rank_identity_candidates,
         )
 
@@ -706,35 +714,42 @@ class AttendanceService:
             provider_info.normalization_version,
             employee_id,
             worksite_id,
+            # A gallery loaded under one persisted resource scope must never
+            # be reused for a different manager/employee's authorization scope.
+            getattr(self.session, "info", {}).get("resource_access"),
         )
         use_shared_cache = settings.ENVIRONMENT != "test"
-        templates = self._template_cache.get(cache_key)
-        if templates is None and use_shared_cache:
+        gallery = self._template_cache.get(cache_key)
+        if gallery is None and use_shared_cache:
+            now = monotonic()
+            for key, (loaded_at, _) in list(_shared_template_cache.items()):
+                if now - loaded_at > TEMPLATE_CACHE_TTL_SECONDS:
+                    _shared_template_cache.pop(key, None)
             shared = _shared_template_cache.get(shared_key)
-            if shared is not None and monotonic() - shared[0] <= TEMPLATE_CACHE_TTL_SECONDS:
-                templates = shared[1]
-        if templates is None:
+            if shared is not None:
+                gallery = shared[1]
+        if gallery is None:
             expected_blob_size = int(provider_info.embedding_dimension or 0) * 4
-            templates = [
-                (
-                    template.employee_id,
-                    TemplateCandidate(
-                        template_id=template.id,
-                        embedding=bytes(template.embedding),
-                        quality_score=float(template.quality_score),
-                    ),
-                )
-                for template in await self.session.scalars(statement)
-                if len(template.embedding) == expected_blob_size
-            ]
+            candidates_by_employee: dict[str, list[TemplateCandidate]] = {}
+            for template in await self.session.scalars(statement):
+                if len(template.embedding) == expected_blob_size:
+                    candidates_by_employee.setdefault(template.employee_id, []).append(
+                        TemplateCandidate(
+                            template_id=template.id,
+                            embedding=bytes(template.embedding),
+                            quality_score=float(template.quality_score),
+                        )
+                    )
+            gallery = prepare_face_gallery(
+                candidates_by_employee, int(provider_info.embedding_dimension or 0),
+            )
             if use_shared_cache:
-                _shared_template_cache[shared_key] = (monotonic(), templates)
-        self._template_cache[cache_key] = templates
-        if not templates:
+                if len(_shared_template_cache) >= TEMPLATE_CACHE_MAX_GALLERIES:
+                    _shared_template_cache.pop(next(iter(_shared_template_cache)))
+                _shared_template_cache[shared_key] = (monotonic(), gallery)
+        self._template_cache[cache_key] = gallery
+        if not gallery.source_template_count:
             return None, 0.0, None, 0.0, "no_compatible_templates"
-        candidates_by_employee: dict[str, list[TemplateCandidate]] = {}
-        for template_employee_id, candidate in templates:
-            candidates_by_employee.setdefault(template_employee_id, []).append(candidate)
 
         query_vectors = np.asarray([candidate[0] for candidate in vectors], dtype=np.float32)
         query_weights = np.asarray(
@@ -743,7 +758,7 @@ class AttendanceService:
         )
         query_vector = np.average(query_vectors, axis=0, weights=query_weights)
         query_vector /= max(float(np.linalg.norm(query_vector)), 1e-9)
-        ranked = rank_identity_candidates(query_vector, candidates_by_employee)
+        ranked = rank_identity_candidates(query_vector, gallery)
         if not ranked:
             return None, 0.0, None, 0.0, "low_similarity"
 

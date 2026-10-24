@@ -37,12 +37,14 @@ from app.schemas.ai import (
 )
 from app.services.ai.facial_service import (
     FaceEmbeddingService,
+    PreparedFaceGallery,
     ProcessedFace,
     TemplateCandidate,
     face_match_confidence_score,
     face_match_margin,
     get_face_provider,
     is_face_match_ambiguous,
+    prepare_face_gallery,
     rank_identity_candidates,
 )
 from app.services.ai.image_validation import FaceImageValidator
@@ -54,7 +56,7 @@ router = APIRouter()
 @dataclass(frozen=True)
 class _IdentificationGallery:
     employees_by_id: dict[str, Employee]
-    candidates_by_employee: dict[str, list[TemplateCandidate]]
+    candidates: PreparedFaceGallery
 
 
 def _inference_compatibility_key(inference) -> tuple[str | None, str | None, int | None, str | None, str | None]:
@@ -112,7 +114,9 @@ async def _load_identification_gallery(
                 quality_score=template.quality_score,
             )
         )
-    return _IdentificationGallery(employees_by_id, candidates_by_employee)
+    return _IdentificationGallery(employees_by_id, prepare_face_gallery(
+        candidates_by_employee, int(inference.embedding_dimension or 0),
+    ))
 
 
 def _request_id(request: Request) -> str:
@@ -191,7 +195,7 @@ def _identification_response(
     if not processed.quality.accepted or inference.embedding is None:
         return FaceIdentifyResponse(**analysis.model_dump(), matched=False)
 
-    candidates = gallery.candidates_by_employee if gallery else {}
+    candidates = gallery.candidates if gallery else {}
     employees = gallery.employees_by_id if gallery else {}
     ranked = rank_identity_candidates(inference.embedding, candidates)
     best_match = ranked[0] if ranked else None
@@ -291,7 +295,9 @@ async def analyze_face(
     request: Request,
     _: UserRead = Depends(require_scopes(Scope.ATTENDANCE_WRITE)),
 ) -> FaceAnalyzeResponse:
-    processed = FaceEmbeddingService().from_image_base64(payload.image_base64)
+    processed = await asyncio.to_thread(
+        FaceEmbeddingService().from_image_base64, payload.image_base64,
+    )
     return _analysis_response(request, processed)
 
 
@@ -357,7 +363,9 @@ async def verify_face(
     if not employee:
         raise AppError("EMPLOYEE_NOT_FOUND", "Funcionario nao encontrado", 404)
 
-    processed = FaceEmbeddingService().from_image_base64(payload.image_base64)
+    processed = await asyncio.to_thread(
+        FaceEmbeddingService().from_image_base64, payload.image_base64,
+    )
     analysis = _analysis_response(request, processed)
     inference = processed.inference
 

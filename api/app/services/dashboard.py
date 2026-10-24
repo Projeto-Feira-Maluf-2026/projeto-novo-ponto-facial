@@ -35,39 +35,50 @@ class DashboardService:
     async def metrics(self) -> DashboardMetrics:
         start, end = local_day_utc_bounds(datetime.now(SAO_PAULO).date())
         day = (AttendanceRecord.occurred_at >= start, AttendanceRecord.occurred_at < end)
-        accepted = AttendanceRecord.status == AttendanceStatus.ACCEPTED
         # ORM queries inherit the request's persisted worksite/employee authorization criteria.
-        total = int(await self.session.scalar(select(func.count(Employee.id)).where(
-            Employee.status == EmployeeStatus.ACTIVE
-        )) or 0)
-        present = int(await self.session.scalar(select(func.count(
-            func.distinct(AttendanceRecord.employee_id)
-        )).where(*day, accepted)) or 0)
-        records_today = int(await self.session.scalar(select(func.count(AttendanceRecord.id)).where(*day)) or 0)
-        worksites = int(await self.session.scalar(select(func.count(Worksite.id)).where(Worksite.active.is_(True))) or 0)
-        connected = int(await self.session.scalar(select(func.count(CaptureDevice.id)).where(CaptureDevice.last_seen_at >= start)) or 0)
-        alerts = int(await self.session.scalar(select(func.count(SuspiciousAttempt.id)).where(
-            SuspiciousAttempt.created_at >= start, SuspiciousAttempt.created_at < end
-        )) or 0)
+        # One round trip for independent counts, without sharing an AsyncSession
+        # between concurrent tasks or bypassing ORM resource scopes with raw SQL.
+        total, worksites, connected, alerts = (await self.session.execute(select(
+            select(func.count(Employee.id)).where(
+                Employee.status == EmployeeStatus.ACTIVE
+            ).scalar_subquery(),
+            select(func.count(Worksite.id)).where(Worksite.active.is_(True)).scalar_subquery(),
+            select(func.count(CaptureDevice.id)).where(
+                CaptureDevice.last_seen_at >= start
+            ).scalar_subquery(),
+            select(func.count(SuspiciousAttempt.id)).where(
+                SuspiciousAttempt.created_at >= start, SuspiciousAttempt.created_at < end
+            ).scalar_subquery(),
+        ))).one()
         by_worksite = [dict(name=name, records=count) for name, count in await self.session.execute(
             select(Worksite.name, func.count(AttendanceRecord.id))
             .outerjoin(AttendanceRecord, (AttendanceRecord.worksite_id == Worksite.id) & day[0] & day[1])
             .where(Worksite.active.is_(True)).group_by(Worksite.id, Worksite.name).order_by(Worksite.name)
         )]
         timeline_counts = {}
-        records = await self.session.stream_scalars(select(AttendanceRecord).where(*day).order_by(
+        # Only load columns used by the aggregates, not notes/metadata/biometric
+        # scores or ORM entities for every attendance record of the day.
+        records = await self.session.stream(select(
+            AttendanceRecord.employee_id, AttendanceRecord.occurred_at,
+            AttendanceRecord.punch_type, AttendanceRecord.status,
+        ).where(*day).order_by(
             AttendanceRecord.occurred_at, AttendanceRecord.id
-        ))
+        ).execution_options(yield_per=500))
         previous = {}
+        present_ids = set()
+        records_today = 0
         seconds = 0.0
         async for record in records:
+            records_today += 1
             hour = as_local(record.occurred_at).strftime("%H:00")
             timeline_counts[hour] = timeline_counts.get(hour, 0) + 1
             if record.status != AttendanceStatus.ACCEPTED:
                 continue
+            present_ids.add(record.employee_id)
             prior = previous.get(record.employee_id)
             seconds += completed_interval_seconds(prior, record)
             previous[record.employee_id] = record
+        present = len(present_ids)
         return DashboardMetrics(
             total_employees=total, present_employees=present,
             absent_employees=max(total-present, 0), records_today=records_today,

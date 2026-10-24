@@ -192,6 +192,8 @@ async function fallback<T>(request: Promise<{ data: T }>, value: T): Promise<T> 
 export const LIST_PAGE_SIZE = 200;
 /** Upper bound for a full list load; beyond it the UI reports a partial list. */
 export const LIST_MAX_PAGES = 25;
+/** Bound fan-out so a large tenant does not open 24 requests at once. */
+export const LIST_PAGE_CONCURRENCY = 3;
 
 type PageGetter<T> = (page: number, size: number) => Promise<{ data: Page<T> }>;
 
@@ -201,12 +203,21 @@ type PageGetter<T> = (page: number, size: number) => Promise<{ data: Page<T> }>;
  */
 export async function fetchAllPages<T extends { id: string }>(getPage: PageGetter<T>): Promise<{ data: Page<T> }> {
   const byId = new Map<string, T>();
-  let total = 0;
-  for (let page = 1; page <= LIST_MAX_PAGES; page += 1) {
-    const { data } = await getPage(page, LIST_PAGE_SIZE);
-    total = data.total;
+  const { data: first } = await getPage(1, LIST_PAGE_SIZE);
+  let total = first.total;
+  const append = (data: Page<T>) => {
+    total = Math.max(total, data.total);
     for (const item of data.items) byId.set(item.id, item);
-    if (data.items.length < LIST_PAGE_SIZE || byId.size >= total) break;
+  };
+  append(first);
+  const lastPage = Math.min(LIST_MAX_PAGES, Math.ceil(total / LIST_PAGE_SIZE));
+  for (let page = 2; page <= lastPage && byId.size < total; page += LIST_PAGE_CONCURRENCY) {
+    const pages = await Promise.all(
+      Array.from({ length: Math.min(LIST_PAGE_CONCURRENCY, lastPage - page + 1) },
+        (_, index) => getPage(page + index, LIST_PAGE_SIZE)),
+    );
+    // Promise.all preserves page order, regardless of response order.
+    for (const { data } of pages) append(data);
   }
   const items = [...byId.values()];
   return { data: { items, total: Math.max(total, items.length), page: 1, size: items.length } };

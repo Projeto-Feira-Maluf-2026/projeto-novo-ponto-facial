@@ -3,6 +3,7 @@ import pytest
 from pydantic import ValidationError
 from unittest.mock import AsyncMock, Mock
 from types import SimpleNamespace
+from threading import get_ident
 
 from app.api.v1.routes import ai as ai_routes
 from app.api.health import health_snapshot
@@ -22,6 +23,30 @@ from app.services.ai.facial_service import get_face_provider
 
 
 application_under_test = create_application()
+
+
+@pytest.mark.asyncio
+async def test_face_analysis_does_not_block_the_api_event_loop(monkeypatch):
+    from app.schemas.ai import FaceAnalyzeRequest
+
+    event_loop_thread = get_ident()
+    inference_threads = []
+    processed = object()
+    expected = object()
+
+    def analyze(_image):
+        inference_threads.append(get_ident())
+        return processed
+
+    monkeypatch.setattr(ai_routes, 'FaceEmbeddingService',
+                        lambda: SimpleNamespace(from_image_base64=analyze))
+    monkeypatch.setattr(ai_routes, '_analysis_response', lambda *_args: expected)
+    response = await ai_routes.analyze_face(
+        FaceAnalyzeRequest(image_base64='data:image/jpeg;base64,abc'),
+        SimpleNamespace(), SimpleNamespace(),
+    )
+    assert response is expected
+    assert inference_threads and inference_threads[0] != event_loop_thread
 
 
 @pytest.mark.asyncio
