@@ -118,19 +118,19 @@ describe('apresentação com mais de um rosto', () => {
     expect(api.punchBatch.mock.calls[1][0][0].face.image_base64).toBe('face-b');
   });
 
-  it('abre com quem foi reconhecido quando um rosto não é identificado a tempo', async () => {
+  it('abre rápido com quem foi reconhecido quando um rosto falha em leituras seguidas', async () => {
     api.punchBatch
       .mockResolvedValueOnce({ decisions: [accepted('a', 'Ana Souza'), rejected], processed: 2, accepted: 1, manual_review: 0 })
       .mockResolvedValue({ decisions: [rejected], processed: 1, accepted: 0, manual_review: 0 });
     render(<FacialTerminalPage />);
 
-    // Grupo de 2: 4 s + 2,5 s pelo segundo rosto.
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
-    expect(screen.queryByRole('dialog', { name: 'Apresentação' })).not.toBeInTheDocument();
-    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 3_000 });
+    // Três leituras seguidas sem registrar o rosto que falta bastam: a
+    // apresentação não espera o prazo inteiro do grupo.
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 2_000 });
     expect(dialog).toHaveTextContent('Ana Souza');
     expect(dialog).not.toHaveTextContent('|');
-  }, 12_000);
+    expect(api.punchBatch).toHaveBeenCalledTimes(4);
+  });
 
   it('dá tempo para registrar um grupo de cinco pessoas, uma de cada vez', async () => {
     const names = ['Ana Souza', 'Bruno Lima', 'Carla Dias', 'Davi Rocha', 'Elisa Melo'];

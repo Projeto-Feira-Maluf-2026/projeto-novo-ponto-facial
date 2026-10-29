@@ -82,10 +82,13 @@ const GROUP_RESULT_HOLD_MS = 1_200;
 // Em grupo, os rostos que faltam são relidos quase de imediato.
 const PARTIAL_RESULT_HOLD_MS = 100;
 const MAX_FACES_PER_SCAN = 5;
-// Depois do primeiro reconhecimento, a apresentação ainda espera um pouco:
-// o detector do navegador costuma encontrar o segundo rosto alguns quadros
-// depois do primeiro, e a contagem local oscila quando alguém vira o rosto.
-const GROUP_PRESENTATION_MIN_WAIT_MS = 900;
+// Com uma pessoa só, a apresentação espera um instante: o detector do
+// navegador às vezes encontra o segundo rosto alguns quadros depois.
+// Com o grupo inteiro registrado, ela abre na hora.
+const SINGLE_PRESENTATION_MIN_WAIT_MS = 400;
+// Quem falha em leituras seguidas (rosto sem cadastro, mal posicionado) não
+// segura a apresentação de quem já foi registrado.
+const GROUP_PRESENTATION_MAX_FAILED_READS = 3;
 // Tempo de espera pelos demais rostos (por exemplo, alguém sem cadastro)
 // antes de abrir com quem já foi reconhecido. Cresce com o tamanho do grupo:
 // cada rosto a mais no quadro ganha tempo extra para ser registrado.
@@ -100,6 +103,7 @@ type PresentationDraft = {
   participants: PresentationParticipantResult[];
   startedAt: number;
   lastProgressAt: number;
+  failedReads: number;
   // Maior número de rostos visto desde o primeiro reconhecimento; uma queda
   // momentânea na contagem não pode encerrar a espera pelo grupo.
   maxFaces: number;
@@ -335,7 +339,8 @@ export function FacialTerminalPage() {
     );
     if (
       now >= deadline
-      || (everyoneRegistered && elapsed >= GROUP_PRESENTATION_MIN_WAIT_MS && !punchInFlightRef.current)
+      || (everyoneRegistered && (groupSize > 1 || elapsed >= SINGLE_PRESENTATION_MIN_WAIT_MS))
+      || draft.failedReads >= GROUP_PRESENTATION_MAX_FAILED_READS
     ) {
       flushPresentationDraftRef.current();
       return;
@@ -491,10 +496,14 @@ export function FacialTerminalPage() {
           // Uma batida duplicada sozinha não reabre a apresentação, mas entra
           // no grupo quando há alguém novo sendo apresentado.
           if (draft || newlyCompletedRecords.length) {
+            // Leitura que registrou alguém novo zera as falhas; só conta como
+            // falha a leitura em que nenhum rosto pendente foi registrado.
+            const participantsBefore = draft?.participants.length ?? 0;
             const nextDraft = draft || {
               participants: [],
               startedAt: Date.now(),
               lastProgressAt: Date.now(),
+              failedReads: 0,
               maxFaces: localFaceCountRef.current,
             };
             for (const record of registeredRecords) {
@@ -512,6 +521,12 @@ export function FacialTerminalPage() {
               });
             }
             nextDraft.maxFaces = Math.max(nextDraft.maxFaces, localFaceCountRef.current, validCandidates.length);
+            if (nextDraft.participants.length > participantsBefore) {
+              nextDraft.failedReads = 0;
+            } else if (completed < validCandidates.length) {
+              nextDraft.failedReads += 1;
+            }
+
             presentationDraftRef.current = nextDraft;
             groupStillForming = nextDraft.participants.length < Math.min(nextDraft.maxFaces, MAX_FACES_PER_SCAN);
           }
@@ -548,6 +563,13 @@ export function FacialTerminalPage() {
         return completed;
       }
 
+      const pendingDraft = presentationDraftRef.current;
+      if (pendingDraft) {
+        pendingDraft.failedReads += 1;
+        resultHoldUntilRef.current = Date.now() + PARTIAL_RESULT_HOLD_MS;
+        checkPresentationDraft();
+        return 0;
+      }
       resultHoldUntilRef.current = Date.now() + RETRY_RESULT_HOLD_MS;
       setMode('attention');
       setGuidance(attendanceReasonMessage(batch.decisions[0]?.reasons || []));
