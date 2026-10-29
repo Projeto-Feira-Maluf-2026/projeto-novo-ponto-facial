@@ -124,10 +124,39 @@ describe('apresentação com mais de um rosto', () => {
       .mockResolvedValue({ decisions: [rejected], processed: 1, accepted: 0, manual_review: 0 });
     render(<FacialTerminalPage />);
 
-    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 6_000 });
+    // Grupo de 2: 4 s + 2,5 s pelo segundo rosto.
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    expect(screen.queryByRole('dialog', { name: 'Apresentação' })).not.toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 3_000 });
     expect(dialog).toHaveTextContent('Ana Souza');
     expect(dialog).not.toHaveTextContent('|');
-  }, 10_000);
+  }, 12_000);
+
+  it('dá tempo para registrar um grupo de cinco pessoas, uma de cada vez', async () => {
+    const names = ['Ana Souza', 'Bruno Lima', 'Carla Dias', 'Davi Rocha', 'Elisa Melo'];
+    scene.faces = names.map((_, index) => ({
+      image: `face-${index}`,
+      box: { x: index * 0.2, y: 0.2, width: 0.15, height: 0.3 },
+    }));
+    // Cada leitura demora 1,2 s e registra só o primeiro rosto pendente:
+    // o grupo inteiro leva mais que o antigo limite fixo de 4 s.
+    let registered = 0;
+    api.punchBatch.mockImplementation(async (punches: unknown[]) => {
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+      const index = registered;
+      registered += 1;
+      return {
+        decisions: punches.map((_, position) => (
+          position === 0 ? accepted(String(index), names[index]) : rejected
+        )),
+        processed: punches.length, accepted: 1, manual_review: 0,
+      };
+    });
+    render(<FacialTerminalPage />);
+
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 12_000 });
+    expect(dialog).toHaveTextContent(names.join(' | '));
+  }, 15_000);
 
   it('uma queda momentânea na contagem de rostos não corta o grupo', async () => {
     let finishSecond!: (value: object) => void;

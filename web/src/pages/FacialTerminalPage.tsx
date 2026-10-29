@@ -86,14 +86,20 @@ const MAX_FACES_PER_SCAN = 5;
 // o detector do navegador costuma encontrar o segundo rosto alguns quadros
 // depois do primeiro, e a contagem local oscila quando alguém vira o rosto.
 const GROUP_PRESENTATION_MIN_WAIT_MS = 900;
-// Tempo máximo de espera pelos demais rostos (por exemplo, alguém sem
-// cadastro) antes de abrir com quem já foi reconhecido.
+// Tempo de espera pelos demais rostos (por exemplo, alguém sem cadastro)
+// antes de abrir com quem já foi reconhecido. Cresce com o tamanho do grupo:
+// cada rosto a mais no quadro ganha tempo extra para ser registrado.
 const GROUP_PRESENTATION_WAIT_MS = 4_000;
+const GROUP_PRESENTATION_WAIT_PER_FACE_MS = 2_500;
+// Enquanto alguém novo continua sendo registrado, o grupo segue aberto.
+const GROUP_PRESENTATION_PROGRESS_GRACE_MS = 3_000;
+const GROUP_PRESENTATION_MAX_WAIT_MS = 20_000;
 const GROUP_PRESENTATION_CHECK_MS = 150;
 
 type PresentationDraft = {
   participants: PresentationParticipantResult[];
   startedAt: number;
+  lastProgressAt: number;
   // Maior número de rostos visto desde o primeiro reconhecimento; uma queda
   // momentânea na contagem não pode encerrar a espera pelo grupo.
   maxFaces: number;
@@ -315,10 +321,20 @@ export function FacialTerminalPage() {
     const draft = presentationDraftRef.current;
     if (!draft) return;
     draft.maxFaces = Math.max(draft.maxFaces, localFaceCountRef.current);
-    const elapsed = Date.now() - draft.startedAt;
-    const everyoneRegistered = draft.participants.length >= Math.min(draft.maxFaces, MAX_FACES_PER_SCAN);
+    const now = Date.now();
+    const elapsed = now - draft.startedAt;
+    const groupSize = Math.min(draft.maxFaces, MAX_FACES_PER_SCAN);
+    const everyoneRegistered = draft.participants.length >= groupSize;
+    const deadline = Math.min(
+      draft.startedAt + GROUP_PRESENTATION_MAX_WAIT_MS,
+      Math.max(
+        draft.startedAt + GROUP_PRESENTATION_WAIT_MS
+          + GROUP_PRESENTATION_WAIT_PER_FACE_MS * Math.max(0, groupSize - 1),
+        draft.lastProgressAt + GROUP_PRESENTATION_PROGRESS_GRACE_MS,
+      ),
+    );
     if (
-      elapsed >= GROUP_PRESENTATION_WAIT_MS
+      now >= deadline
       || (everyoneRegistered && elapsed >= GROUP_PRESENTATION_MIN_WAIT_MS && !punchInFlightRef.current)
     ) {
       flushPresentationDraftRef.current();
@@ -478,12 +494,14 @@ export function FacialTerminalPage() {
             const nextDraft = draft || {
               participants: [],
               startedAt: Date.now(),
+              lastProgressAt: Date.now(),
               maxFaces: localFaceCountRef.current,
             };
             for (const record of registeredRecords) {
               if (nextDraft.participants.some((participant) => (
                 participant.id === record.id || participant.name === record.employee
               ))) continue;
+              nextDraft.lastProgressAt = Date.now();
               nextDraft.participants.push({
                 id: record.id,
                 name: record.employee,
