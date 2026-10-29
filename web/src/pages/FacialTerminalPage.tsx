@@ -82,12 +82,21 @@ const GROUP_RESULT_HOLD_MS = 1_200;
 // Em grupo, os rostos que faltam são relidos quase de imediato.
 const PARTIAL_RESULT_HOLD_MS = 100;
 const MAX_FACES_PER_SCAN = 5;
-// Tempo máximo que a apresentação espera pelos demais rostos do quadro
-// (por exemplo, alguém sem cadastro) antes de abrir com quem já foi reconhecido.
-const GROUP_PRESENTATION_WAIT_MS = 3_500;
+// Depois do primeiro reconhecimento, a apresentação ainda espera um pouco:
+// o detector do navegador costuma encontrar o segundo rosto alguns quadros
+// depois do primeiro, e a contagem local oscila quando alguém vira o rosto.
+const GROUP_PRESENTATION_MIN_WAIT_MS = 900;
+// Tempo máximo de espera pelos demais rostos (por exemplo, alguém sem
+// cadastro) antes de abrir com quem já foi reconhecido.
+const GROUP_PRESENTATION_WAIT_MS = 4_000;
+const GROUP_PRESENTATION_CHECK_MS = 150;
 
 type PresentationDraft = {
   participants: PresentationParticipantResult[];
+  startedAt: number;
+  // Maior número de rostos visto desde o primeiro reconhecimento; uma queda
+  // momentânea na contagem não pode encerrar a espera pelo grupo.
+  maxFaces: number;
 };
 const RETRY_RESULT_HOLD_MS = 180;
 const SERVICE_RETRY_HOLD_MS = 1_200;
@@ -299,6 +308,25 @@ export function FacialTerminalPage() {
     flushPresentationDraftRef.current = flushPresentationDraft;
   }, [flushPresentationDraft]);
 
+  // Abre a apresentação quando todos os rostos vistos já foram registrados
+  // (respeitando a espera mínima) ou quando o prazo do grupo acaba.
+  const checkPresentationDraft = useCallback(() => {
+    window.clearTimeout(presentationTimerRef.current);
+    const draft = presentationDraftRef.current;
+    if (!draft) return;
+    draft.maxFaces = Math.max(draft.maxFaces, localFaceCountRef.current);
+    const elapsed = Date.now() - draft.startedAt;
+    const everyoneRegistered = draft.participants.length >= Math.min(draft.maxFaces, MAX_FACES_PER_SCAN);
+    if (
+      elapsed >= GROUP_PRESENTATION_WAIT_MS
+      || (everyoneRegistered && elapsed >= GROUP_PRESENTATION_MIN_WAIT_MS && !punchInFlightRef.current)
+    ) {
+      flushPresentationDraftRef.current();
+      return;
+    }
+    presentationTimerRef.current = window.setTimeout(() => checkPresentationDraft(), GROUP_PRESENTATION_CHECK_MS);
+  }, []);
+
   useEffect(() => () => window.clearTimeout(presentationTimerRef.current), []);
 
   const handleLocalFacePresence = useCallback((present: boolean) => {
@@ -309,9 +337,8 @@ export function FacialTerminalPage() {
     const previousCount = localFaceCountRef.current;
     localFacePresentRef.current = count > 0;
     localFaceCountRef.current = count;
-    // Quem ainda não foi reconhecido saiu do quadro: não há mais por quem esperar.
-    if (presentationDraftRef.current && completedFaceBoxesRef.current.length >= count) {
-      flushPresentationDraftRef.current();
+    if (presentationDraftRef.current) {
+      presentationDraftRef.current.maxFaces = Math.max(presentationDraftRef.current.maxFaces, count);
     }
     if (count === 0) {
       awaitingFaceExitRef.current = false;
@@ -439,26 +466,24 @@ export function FacialTerminalPage() {
         if (allCompleted && completedFaceBoxesRef.current.length >= localFaceCountRef.current) {
           awaitingFaceExitRef.current = true;
         }
-        resultHoldUntilRef.current = Date.now() + (
-          allCompleted
-            ? validCandidates.length > 1 ? GROUP_RESULT_HOLD_MS : SINGLE_RESULT_HOLD_MS
-            : PARTIAL_RESULT_HOLD_MS
-        );
-        setMode(batch.manual_review > 0 ? 'review' : allCompleted ? 'accepted' : 'attention');
-
-        // A apresentação espera todos os rostos do quadro serem reconhecidos
+        // A apresentação espera todos os rostos do quadro serem registrados
         // (ou o prazo do grupo acabar) para mostrar o nome de todos juntos.
-        let waitingForGroup = false;
+        let groupStillForming = false;
         if (presentation.active) {
-          const acceptedRecords = completedRecords.filter((record) => record.status === 'ACCEPTED');
+          const registeredRecords = completedRecords;
           const draft = presentationDraftRef.current;
           // Uma batida duplicada sozinha não reabre a apresentação, mas entra
           // no grupo quando há alguém novo sendo apresentado.
-          const hasFreshParticipant = acceptedRecords.some((record) => newlyCompletedRecords.includes(record));
-          if (draft || hasFreshParticipant) {
-            const nextDraft = draft || { participants: [] };
-            for (const record of acceptedRecords) {
-              if (nextDraft.participants.some((participant) => participant.id === record.id)) continue;
+          if (draft || newlyCompletedRecords.length) {
+            const nextDraft = draft || {
+              participants: [],
+              startedAt: Date.now(),
+              maxFaces: localFaceCountRef.current,
+            };
+            for (const record of registeredRecords) {
+              if (nextDraft.participants.some((participant) => (
+                participant.id === record.id || participant.name === record.employee
+              ))) continue;
               nextDraft.participants.push({
                 id: record.id,
                 name: record.employee,
@@ -468,26 +493,27 @@ export function FacialTerminalPage() {
                 email: record.email,
               });
             }
+            nextDraft.maxFaces = Math.max(nextDraft.maxFaces, localFaceCountRef.current, validCandidates.length);
             presentationDraftRef.current = nextDraft;
-            const everyoneRecognized = completedFaceBoxesRef.current.length >= localFaceCountRef.current;
-            if (everyoneRecognized || nextDraft.participants.length >= MAX_FACES_PER_SCAN) {
-              flushPresentationDraft();
-            } else {
-              waitingForGroup = true;
-              if (!draft) {
-                presentationTimerRef.current = window.setTimeout(
-                  () => flushPresentationDraftRef.current(),
-                  GROUP_PRESENTATION_WAIT_MS,
-                );
-              }
-            }
+            groupStillForming = nextDraft.participants.length < Math.min(nextDraft.maxFaces, MAX_FACES_PER_SCAN);
           }
         }
 
-        if (waitingForGroup) {
-          const recognizedCount = presentationDraftRef.current?.participants.length || 0;
+        // Enquanto o grupo se forma, a câmera continua lendo sem pausa.
+        resultHoldUntilRef.current = Date.now() + (
+          presentationDraftRef.current
+            ? PARTIAL_RESULT_HOLD_MS
+            : allCompleted
+              ? validCandidates.length > 1 ? GROUP_RESULT_HOLD_MS : SINGLE_RESULT_HOLD_MS
+              : PARTIAL_RESULT_HOLD_MS
+        );
+        setMode(batch.manual_review > 0 ? 'review' : allCompleted ? 'accepted' : 'attention');
+
+        if (groupStillForming) {
+          const draft = presentationDraftRef.current;
+          const registeredCount = draft?.participants.length || 0;
           setMode('confirming');
-          setGuidance(`${recognizedCount} de ${Math.max(localFaceCountRef.current, recognizedCount + 1)} pessoas reconhecidas. Aguardando os demais rostos…`);
+          setGuidance(`${registeredCount} de ${draft?.maxFaces || registeredCount} pessoas reconhecidas. Aguardando os demais rostos…`);
         } else if (validCandidates.length > 1) {
           setGuidance(allCompleted
             ? `${completed} pontos registrados nesta leitura.`
@@ -500,6 +526,7 @@ export function FacialTerminalPage() {
               ? 'O registro foi recebido e será conferido pela equipe responsável.'
               : `${punchLabels[result?.punch_type || 'ENTRY']} registrada com sucesso.`);
         }
+        checkPresentationDraft();
         return completed;
       }
 
@@ -516,7 +543,7 @@ export function FacialTerminalPage() {
     } finally {
       punchInFlightRef.current = false;
     }
-  }, [employees, flushPresentationDraft, presentation.active, worksiteId]);
+  }, [checkPresentationDraft, employees, presentation.active, worksiteId]);
 
   useEffect(() => {
     const controller = new AbortController();
