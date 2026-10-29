@@ -26,6 +26,7 @@ import { usePresentationMode } from '../presentation/PresentationContext';
 import {
   shouldOfferPresentationResult,
   type PresentationEmailStatus,
+  type PresentationParticipantResult,
   type PresentationResult,
 } from '../presentation/presentationResult';
 import type {
@@ -78,8 +79,16 @@ type PunchCandidate = {
 const RECOGNITION_INTERVAL_MS = 80;
 const SINGLE_RESULT_HOLD_MS = 1_400;
 const GROUP_RESULT_HOLD_MS = 1_200;
-const PARTIAL_RESULT_HOLD_MS = 260;
+// Em grupo, os rostos que faltam são relidos quase de imediato.
+const PARTIAL_RESULT_HOLD_MS = 100;
 const MAX_FACES_PER_SCAN = 5;
+// Tempo máximo que a apresentação espera pelos demais rostos do quadro
+// (por exemplo, alguém sem cadastro) antes de abrir com quem já foi reconhecido.
+const GROUP_PRESENTATION_WAIT_MS = 3_500;
+
+type PresentationDraft = {
+  participants: PresentationParticipantResult[];
+};
 const RETRY_RESULT_HOLD_MS = 180;
 const SERVICE_RETRY_HOLD_MS = 1_200;
 
@@ -180,6 +189,9 @@ export function FacialTerminalPage() {
   const triggerScanRef = useRef<(() => void) | null>(null);
   const awaitingFaceExitRef = useRef(false);
   const completedFaceBoxesRef = useRef<CameraFaceBox[]>([]);
+  const presentationDraftRef = useRef<PresentationDraft | null>(null);
+  const presentationTimerRef = useRef(0);
+  const flushPresentationDraftRef = useRef<() => void>(() => undefined);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
@@ -213,6 +225,8 @@ export function FacialTerminalPage() {
 
   useEffect(() => {
     if (!presentation.active) {
+      window.clearTimeout(presentationTimerRef.current);
+      presentationDraftRef.current = null;
       setPresentationResult(null);
       return;
     }
@@ -267,6 +281,26 @@ export function FacialTerminalPage() {
   }, [fullscreen]);
 
   const selectedWorksite = worksites.find((worksite) => worksite.id === worksiteId);
+
+  // Abre a apresentação com todos os rostos reconhecidos até agora.
+  const flushPresentationDraft = useCallback(() => {
+    window.clearTimeout(presentationTimerRef.current);
+    const draft = presentationDraftRef.current;
+    presentationDraftRef.current = null;
+    if (!draft || !shouldOfferPresentationResult(presentation.active, draft.participants)) return;
+    setPresentationResult({
+      worksiteName: selectedWorksite?.name || 'Obra selecionada',
+      worksiteCode: selectedWorksite?.code,
+      participants: draft.participants,
+    });
+  }, [presentation.active, selectedWorksite?.code, selectedWorksite?.name]);
+
+  useEffect(() => {
+    flushPresentationDraftRef.current = flushPresentationDraft;
+  }, [flushPresentationDraft]);
+
+  useEffect(() => () => window.clearTimeout(presentationTimerRef.current), []);
+
   const handleLocalFacePresence = useCallback((present: boolean) => {
     localFacePresentRef.current = present;
   }, []);
@@ -275,6 +309,10 @@ export function FacialTerminalPage() {
     const previousCount = localFaceCountRef.current;
     localFacePresentRef.current = count > 0;
     localFaceCountRef.current = count;
+    // Quem ainda não foi reconhecido saiu do quadro: não há mais por quem esperar.
+    if (presentationDraftRef.current && completedFaceBoxesRef.current.length >= count) {
+      flushPresentationDraftRef.current();
+    }
     if (count === 0) {
       awaitingFaceExitRef.current = false;
       completedFaceBoxesRef.current = [];
@@ -407,23 +445,50 @@ export function FacialTerminalPage() {
             : PARTIAL_RESULT_HOLD_MS
         );
         setMode(batch.manual_review > 0 ? 'review' : allCompleted ? 'accepted' : 'attention');
-        const acceptedForPresentation = newlyCompletedRecords.filter((record) => record.status === 'ACCEPTED');
-        const presentationParticipants = acceptedForPresentation.map((record) => ({
-          id: record.id,
-          name: record.employee,
-          registration: record.registration,
-          punchType: record.punchType,
-          occurredAt: record.occurredAt,
-          email: record.email,
-        }));
-        if (shouldOfferPresentationResult(presentation.active, presentationParticipants)) {
-          setPresentationResult({
-            worksiteName: selectedWorksite?.name || 'Obra selecionada',
-            worksiteCode: selectedWorksite?.code,
-            participants: presentationParticipants,
-          });
+
+        // A apresentação espera todos os rostos do quadro serem reconhecidos
+        // (ou o prazo do grupo acabar) para mostrar o nome de todos juntos.
+        let waitingForGroup = false;
+        if (presentation.active) {
+          const acceptedRecords = completedRecords.filter((record) => record.status === 'ACCEPTED');
+          const draft = presentationDraftRef.current;
+          // Uma batida duplicada sozinha não reabre a apresentação, mas entra
+          // no grupo quando há alguém novo sendo apresentado.
+          const hasFreshParticipant = acceptedRecords.some((record) => newlyCompletedRecords.includes(record));
+          if (draft || hasFreshParticipant) {
+            const nextDraft = draft || { participants: [] };
+            for (const record of acceptedRecords) {
+              if (nextDraft.participants.some((participant) => participant.id === record.id)) continue;
+              nextDraft.participants.push({
+                id: record.id,
+                name: record.employee,
+                registration: record.registration,
+                punchType: record.punchType,
+                occurredAt: record.occurredAt,
+                email: record.email,
+              });
+            }
+            presentationDraftRef.current = nextDraft;
+            const everyoneRecognized = completedFaceBoxesRef.current.length >= localFaceCountRef.current;
+            if (everyoneRecognized || nextDraft.participants.length >= MAX_FACES_PER_SCAN) {
+              flushPresentationDraft();
+            } else {
+              waitingForGroup = true;
+              if (!draft) {
+                presentationTimerRef.current = window.setTimeout(
+                  () => flushPresentationDraftRef.current(),
+                  GROUP_PRESENTATION_WAIT_MS,
+                );
+              }
+            }
+          }
         }
-        if (validCandidates.length > 1) {
+
+        if (waitingForGroup) {
+          const recognizedCount = presentationDraftRef.current?.participants.length || 0;
+          setMode('confirming');
+          setGuidance(`${recognizedCount} de ${Math.max(localFaceCountRef.current, recognizedCount + 1)} pessoas reconhecidas. Aguardando os demais rostos…`);
+        } else if (validCandidates.length > 1) {
           setGuidance(allCompleted
             ? `${completed} pontos registrados nesta leitura.`
             : `${completed} de ${validCandidates.length} pontos foram registrados; os demais rostos serão tentados novamente.`);
@@ -451,7 +516,7 @@ export function FacialTerminalPage() {
     } finally {
       punchInFlightRef.current = false;
     }
-  }, [employees, presentation.active, selectedWorksite?.code, selectedWorksite?.name, worksiteId]);
+  }, [employees, flushPresentationDraft, presentation.active, worksiteId]);
 
   useEffect(() => {
     const controller = new AbortController();

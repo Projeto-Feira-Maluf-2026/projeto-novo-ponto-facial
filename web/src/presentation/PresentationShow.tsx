@@ -214,7 +214,7 @@ function CodeSignature({ seed }: { seed: string }) {
 }
 
 function MatchBoard({ participants }: { participants: PresentationParticipantResult[] }) {
-  const matches = participants.slice(0, 3);
+  const matches = participants.slice(0, 5);
   const slots = Array.from({ length: 6 }, (_, index) => matches[index] ?? null);
   return (
     <div className="show-visual show-match" aria-hidden="true">
