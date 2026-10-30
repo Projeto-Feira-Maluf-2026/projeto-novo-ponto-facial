@@ -135,6 +135,29 @@ def test_adaptive_detector_keeps_near_face_on_fastest_pass() -> None:
     provider._faces_for_sizes.assert_called_once_with(image, [(320, 320)])
 
 
+def test_adaptive_detector_does_not_upscale_small_terminal_crop_to_1280() -> None:
+    # Recorte de rosto enviado pelo terminal: 576 px. Sem rosto em 320, a
+    # proxima escala (640) ja cobre a imagem e 1280 so ampliaria pixels.
+    image = np.zeros((576, 576, 3), dtype=np.uint8)
+    provider = InsightFaceArcFaceProvider(detection_sizes=[(320, 320), (640, 640), (1280, 1280)])
+    provider._faces_for_sizes = MagicMock(return_value=[])
+
+    assert provider._adaptive_faces(image) == []
+    assert [item.args[1] for item in provider._faces_for_sizes.call_args_list] == [
+        [(320, 320)],
+        [(640, 640)],
+    ]
+
+
+def test_useful_detection_sizes_keep_every_scale_for_full_frames() -> None:
+    sizes = [(320, 320), (640, 640), (1280, 1280)]
+    full_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+    tiny_crop = np.zeros((300, 300, 3), dtype=np.uint8)
+
+    assert InsightFaceArcFaceProvider._useful_detection_sizes(sizes, full_frame) == sizes
+    assert InsightFaceArcFaceProvider._useful_detection_sizes(sizes, tiny_crop) == [(320, 320)]
+
+
 def _provider_with_detected_faces(faces: list) -> tuple[InsightFaceArcFaceProvider, MagicMock]:
     provider = InsightFaceArcFaceProvider(
         detection_sizes=[(320, 320)],

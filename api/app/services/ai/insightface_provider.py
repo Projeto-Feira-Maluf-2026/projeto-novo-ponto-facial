@@ -360,8 +360,27 @@ class InsightFaceArcFaceProvider(FaceProvider):
         )
         return best_area_ratio < 0.028
 
+    @staticmethod
+    def _useful_detection_sizes(
+        sizes: list[tuple[int, int]],
+        image_bgr: np.ndarray,
+    ) -> list[tuple[int, int]]:
+        """Drop passes that would only upscale an already small image.
+
+        O terminal envia recortes de 384 a 576 px. Detectar em 1280 amplia o
+        recorte mais de duas vezes, custa ~16x a passada de 320 e nao traz
+        detalhe novo. Mantem-se a primeira escala que ja cobre a imagem.
+        """
+        longest_side = max(int(image_bgr.shape[0]), int(image_bgr.shape[1]), 1)
+        useful: list[tuple[int, int]] = []
+        for size in sizes:
+            useful.append(size)
+            if max(size) >= longest_side:
+                break
+        return useful
+
     def _adaptive_faces(self, image_bgr: np.ndarray) -> list[Any]:
-        sizes = list(self.detection_sizes)
+        sizes = self._useful_detection_sizes(list(self.detection_sizes), image_bgr)
         if len(sizes) <= 1:
             return self._faces_for_sizes(image_bgr, sizes)
         # Sempre começa pela passagem mais barata. Recortes próximos normalmente

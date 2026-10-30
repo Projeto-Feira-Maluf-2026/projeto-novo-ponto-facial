@@ -56,7 +56,13 @@ def test_attendance_confidence_uses_only_measured_server_signals() -> None:
 
 @pytest.mark.parametrize(
     "reason",
-    ["IMAGE_TOO_BLURRY", "EXCESSIVE_YAW", "EXCESSIVE_PITCH", "EXCESSIVE_ROLL"],
+    [
+        "IMAGE_TOO_BLURRY",
+        "EXCESSIVE_YAW",
+        "EXCESSIVE_PITCH",
+        "EXCESSIVE_ROLL",
+        "FACE_OFF_CENTER",
+    ],
 )
 def test_attendance_allows_distance_sensitive_quality_warning(reason: str) -> None:
     processed = SimpleNamespace(
@@ -73,6 +79,18 @@ def test_attendance_still_rejects_unsafe_quality_failure() -> None:
         quality=SimpleNamespace(
             accepted=False,
             reasons=["IMAGE_TOO_BLURRY", "LOW_OVERALL_QUALITY"],
+        ),
+    )
+
+    assert attendance_frame_is_usable(processed) is False
+
+
+def test_attendance_still_rejects_face_cut_by_the_image_border() -> None:
+    processed = SimpleNamespace(
+        inference=SimpleNamespace(embedding=[1.0, 0.0]),
+        quality=SimpleNamespace(
+            accepted=False,
+            reasons=["FACE_OFF_CENTER", "FACE_OUT_OF_FRAME"],
         ),
     )
 

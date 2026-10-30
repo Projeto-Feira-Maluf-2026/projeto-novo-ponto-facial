@@ -48,6 +48,10 @@ ATTENDANCE_RECOVERABLE_QUALITY_REASONS = {
     "EXCESSIVE_YAW",
     "EXCESSIVE_PITCH",
     "EXCESSIVE_ROLL",
+    # A posicao do rosto no quadro nao altera o embedding alinhado pelos cinco
+    # pontos. Recusar por isso so fazia o terminal repetir leituras de quem
+    # estava perto da camera ou fora do centro.
+    "FACE_OFF_CENTER",
 }
 
 

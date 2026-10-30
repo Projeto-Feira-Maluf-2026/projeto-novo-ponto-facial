@@ -13,6 +13,7 @@ vi.mock('@mediapipe/tasks-vision', async () => {
 import {
   calculateFaceCropRegion,
   calculateFaceOverlayRect,
+  planFaceCropDraw,
   cameraAccessErrorMessage,
   faceBoxesFromLandmarks,
   isPlausibleDistantFace,
@@ -199,18 +200,32 @@ describe('calculateFaceCropRegion', () => {
     expect(crop!.side).toBeGreaterThan(100);
   });
 
-  it('mantém o recorte dentro dos limites do vídeo', () => {
-    const crop = calculateFaceCropRegion(
-      { x: 0.01, y: 0.02, width: 0.2, height: 0.35 },
-      640,
-      480,
-    );
+  it('mantém o rosto centralizado mesmo quando ele está na borda do vídeo', () => {
+    const face = { x: 0.01, y: 0.02, width: 0.2, height: 0.35 };
+    const crop = calculateFaceCropRegion(face, 640, 480);
 
     expect(crop).not.toBeNull();
-    expect(crop!.sourceX).toBe(0);
-    expect(crop!.sourceY).toBe(0);
-    expect(crop!.sourceX + crop!.side).toBeLessThanOrEqual(640);
-    expect(crop!.sourceY + crop!.side).toBeLessThanOrEqual(480);
+    const faceCenterX = (face.x + face.width / 2) * 640;
+    const faceCenterY = (face.y + face.height * 0.46) * 480;
+    expect(crop!.sourceX + crop!.side / 2).toBeCloseTo(faceCenterX);
+    expect(crop!.sourceY + crop!.side / 2).toBeCloseTo(faceCenterY);
+    expect(crop!.sourceX).toBeLessThan(0);
+  });
+
+  it('não espreme um rosto muito próximo contra as bordas do recorte', () => {
+    // Rosto de ~500 px num vídeo 1280x720, encostado na lateral direita.
+    const face = { x: 0.68, y: 0.12, width: 0.3, height: 0.7 };
+    const crop = calculateFaceCropRegion(face, 1280, 720);
+
+    expect(crop).not.toBeNull();
+    const faceWidth = face.width * 1280;
+    const faceHeight = face.height * 720;
+    const faceLeft = face.x * 1280 - crop!.sourceX;
+    const faceTop = face.y * 720 - crop!.sourceY;
+    expect(faceLeft).toBeGreaterThan(crop!.side * 0.1);
+    expect(crop!.side - (faceLeft + faceWidth)).toBeGreaterThan(crop!.side * 0.1);
+    expect(faceTop).toBeGreaterThan(crop!.side * 0.1);
+    expect(crop!.side - (faceTop + faceHeight)).toBeGreaterThan(crop!.side * 0.05);
   });
 
   it('usa um recorte mais fechado para preservar detalhes de um rosto distante', () => {
@@ -221,6 +236,34 @@ describe('calculateFaceCropRegion', () => {
     expect(crop!.side).toBeGreaterThanOrEqual(128);
     expect(crop!.side).toBeLessThan(190);
     expect((distantFace.width * 1920) / crop!.side).toBeGreaterThan(0.4);
+  });
+});
+
+describe('planFaceCropDraw', () => {
+  it('desenha só a parte existente do vídeo e completa o resto do quadrado', () => {
+    const plan = planFaceCropDraw({ sourceX: -100, sourceY: 50, side: 400 }, 640, 480, 200);
+
+    expect(plan).toEqual({
+      sourceX: 0,
+      sourceY: 50,
+      sourceWidth: 300,
+      sourceHeight: 400,
+      targetX: 50,
+      targetY: 0,
+      targetWidth: 150,
+      targetHeight: 200,
+      padded: true,
+    });
+  });
+
+  it('não marca preenchimento quando o recorte cabe no vídeo', () => {
+    const plan = planFaceCropDraw({ sourceX: 100, sourceY: 40, side: 300 }, 640, 480, 384);
+    expect(plan?.padded).toBe(false);
+    expect(plan?.targetWidth).toBeCloseTo(384);
+  });
+
+  it('recusa recorte totalmente fora do vídeo', () => {
+    expect(planFaceCropDraw({ sourceX: 700, sourceY: 0, side: 100 }, 640, 480, 384)).toBeNull();
   });
 });
 
