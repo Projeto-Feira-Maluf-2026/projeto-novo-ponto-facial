@@ -336,17 +336,60 @@ export function calculateFaceCropRegion(
   const separatedSide = Number.isFinite(nearestCenterDistance)
     ? Math.max(minimumFaceSide, nearestCenterDistance * 0.72)
     : baseSide;
+  // O recorte fica sempre centrado no rosto. Antes ele era empurrado para
+  // dentro do vídeo, e um rosto próximo ou na borda chegava ao servidor
+  // descentralizado ou encostado no limite da imagem (FACE_OFF_CENTER /
+  // FACE_OUT_OF_FRAME), sendo recusado leitura após leitura. A parte do
+  // quadrado que sai do vídeo é preenchida com cinza neutro na captura.
   const cropSide = Math.min(
     baseSide,
     separatedSide,
-    frameWidth,
-    frameHeight,
+    Math.max(frameWidth, frameHeight),
   );
 
   return {
-    sourceX: clamp(centerX - cropSide / 2, 0, frameWidth - cropSide),
-    sourceY: clamp(centerY - cropSide / 2, 0, frameHeight - cropSide),
+    sourceX: centerX - cropSide / 2,
+    sourceY: centerY - cropSide / 2,
     side: cropSide,
+  };
+}
+
+export type FaceCropDrawPlan = {
+  sourceX: number;
+  sourceY: number;
+  sourceWidth: number;
+  sourceHeight: number;
+  targetX: number;
+  targetY: number;
+  targetWidth: number;
+  targetHeight: number;
+  padded: boolean;
+};
+
+/** Maps the part of a (possibly out-of-frame) crop that exists in the video onto the canvas. */
+export function planFaceCropDraw(
+  crop: FaceCropRegion,
+  frameWidth: number,
+  frameHeight: number,
+  targetSize: number,
+): FaceCropDrawPlan | null {
+  const left = Math.max(0, crop.sourceX);
+  const top = Math.max(0, crop.sourceY);
+  const right = Math.min(frameWidth, crop.sourceX + crop.side);
+  const bottom = Math.min(frameHeight, crop.sourceY + crop.side);
+  if (right - left < 1 || bottom - top < 1 || crop.side <= 0 || targetSize <= 0) return null;
+  const scale = targetSize / crop.side;
+  return {
+    sourceX: left,
+    sourceY: top,
+    sourceWidth: right - left,
+    sourceHeight: bottom - top,
+    targetX: (left - crop.sourceX) * scale,
+    targetY: (top - crop.sourceY) * scale,
+    targetWidth: (right - left) * scale,
+    targetHeight: (bottom - top) * scale,
+    padded: left > crop.sourceX || top > crop.sourceY
+      || right < crop.sourceX + crop.side || bottom < crop.sourceY + crop.side,
   };
 }
 
@@ -1116,22 +1159,28 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           const targetSize = distantFace
             ? 384
             : crop.side < 720 ? 384 : Math.min(576, Math.round(crop.side));
+          const plan = planFaceCropDraw(crop, video.videoWidth, video.videoHeight, targetSize);
+          if (!plan) return null;
           canvas.width = targetSize;
           canvas.height = targetSize;
           const context = canvas.getContext('2d');
           if (!context) return null;
           context.imageSmoothingEnabled = true;
           context.imageSmoothingQuality = 'high';
+          if (plan.padded) {
+            context.fillStyle = 'rgb(118, 118, 118)';
+            context.fillRect(0, 0, targetSize, targetSize);
+          }
           context.drawImage(
             video,
-            crop.sourceX,
-            crop.sourceY,
-            crop.side,
-            crop.side,
-            0,
-            0,
-            targetSize,
-            targetSize,
+            plan.sourceX,
+            plan.sourceY,
+            plan.sourceWidth,
+            plan.sourceHeight,
+            plan.targetX,
+            plan.targetY,
+            plan.targetWidth,
+            plan.targetHeight,
           );
           return canvas.toDataURL('image/jpeg', distantFace ? 0.90 : 0.88);
         };

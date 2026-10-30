@@ -70,3 +70,9 @@ ou correção em vez de reduzir o limiar de identidade.
 - Em grupo, todas as batidas entram em uma transação e um commit. O e-mail sai em segundo plano, depois da resposta ao terminal.
 - O container facial mantém um pool pequeno de conexões com o Postgres em vez de abrir uma conexão por leitura.
 - Tentativas rejeitadas idênticas (mesma obra e motivo) são gravadas no máximo uma vez a cada 8 s.
+
+## Rostos próximos e fora do centro (30/10/2026)
+
+- O terminal recorta um quadrado sempre centrado no rosto. Quando o quadrado passa da borda do vídeo, a sobra é preenchida com cinza neutro em vez de empurrar o recorte para dentro. Antes, quem estava perto da câmera ou na lateral chegava ao servidor descentralizado e encostado na borda da imagem (`FACE_OFF_CENTER` / `FACE_OUT_OF_FRAME`) e era recusado em toda leitura.
+- O detector não usa escalas maiores que a própria imagem: um recorte de 384–576 px para em 640 e não roda a passada de 1280, que só ampliava pixels. Leitura sem rosto num recorte de 576 px caiu de ~1,9 s para ~0,6 s em CPU.
+- Na batida de ponto, `FACE_OFF_CENTER` deixou de impedir a comparação: a posição no quadro não muda o embedding alinhado pelos cinco pontos. `FACE_OUT_OF_FRAME` continua bloqueando.
