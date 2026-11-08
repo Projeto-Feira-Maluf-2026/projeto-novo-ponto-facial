@@ -8,6 +8,7 @@ import { Layout } from './components/Layout';
 import { BrandMark } from './components/BrandMark';
 import { useSmoothNavigation } from './animations/useSmoothNavigation';
 import { useUtilityEffects } from './effects/useUtilityEffects';
+import { apiClient } from './services/api';
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const DevicesPage = lazy(() => import('./pages/DevicesPage').then((module) => ({ default: module.DevicesPage })));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((module) => ({ default: module.EmployeesPage })));
@@ -39,17 +40,30 @@ export default function App() {
   const { loading, retrySessionCheck, session, signOut, status, user } = useAuth();
   const privilegedRoles: AppRole[] = ['SUPER_ADMIN', 'RH', 'GESTOR_OBRA', 'SUPERVISOR'];
   const initialPath = userHasRole(user, privilegedRoles) ? '/' : '/terminal-facial';
-  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const canSeeDashboard = userHasRole(user, privilegedRoles);
+  useEffect(() => {
+    // Start the overview request together with the lazy page chunk instead of
+    // after it (removes one network round trip from the first paint). The
+    // shared read cache hands this same in-flight request to the page.
+    if (session && canSeeDashboard && window.location.pathname === '/') {
+      void apiClient.dashboard().catch(() => undefined);
+    }
+  }, [session, canSeeDashboard]);
+
+  // theme-init.js already applied the saved (or system) theme before the first paint.
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('theme', dark ? 'dark' : 'light');
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    // Saved only when the person toggles; until then the system theme is followed.
   }, [dark]);
 
   const toggleTheme = (origin?: { x: number; y: number }) => {
     const nextDark = !dark;
     const applyTheme = () => {
       document.documentElement.classList.toggle('dark', nextDark);
+      document.documentElement.dataset.theme = nextDark ? 'dark' : 'light';
       localStorage.setItem('theme', nextDark ? 'dark' : 'light');
       flushSync(() => setDark(nextDark));
     };

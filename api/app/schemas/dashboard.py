@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MetricCard(BaseModel):
@@ -18,4 +18,7 @@ class DashboardMetrics(BaseModel):
     fraud_alerts: int
     by_worksite: list[dict]
     timeline: list[dict]
-
+    # Additive, read-only fields for the dashboard history widgets.
+    status_today: dict[str, int] = Field(default_factory=dict)
+    daily: list[dict] = Field(default_factory=list)
+    recent: list[dict] = Field(default_factory=list)

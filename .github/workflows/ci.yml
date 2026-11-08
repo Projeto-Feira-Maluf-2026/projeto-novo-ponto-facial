@@ -61,7 +61,9 @@ jobs:
           npm run build --workspace=web
 
   postgres-rehearsal:
-    runs-on: ubuntu-latest
+    # 24.04 ainda publica postgresql-client-16 (mesma versao do servico); o
+    # ubuntu-latest (26.04) so tem o cliente 18, cujo dump nao restaura no 16.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       postgres:

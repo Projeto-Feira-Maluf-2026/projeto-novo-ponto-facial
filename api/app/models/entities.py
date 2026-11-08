@@ -284,6 +284,10 @@ class AttendanceRecord(Base, TimestampMixin):
         Index("ix_attendance_worksite_date", "worksite_id", "occurred_at"),
         Index("ix_attendance_occurred_at", "occurred_at"),
         Index("ix_attendance_status_occurred_at", "status", "occurred_at"),
+        Index(
+            "ix_attendance_occurred_cover", "occurred_at",
+            postgresql_include=["employee_id", "worksite_id", "status", "punch_type"],
+        ),
     )
 
 
