@@ -907,7 +907,7 @@ function NewRecordPanel({ open, onClose, onToast }: { open: boolean; onClose: ()
       onToast('pos', `Relatório ${result.filename} baixado`);
       onClose();
     } catch (exportError) {
-      const message = exportError instanceof Error && exportError.message && !/^Request failed|Network Error/i.test(exportError.message)
+      const message = exportError instanceof Error && exportError.message && !/^(Request failed|Network Error)/i.test(exportError.message)
         ? exportError.message
         : 'Não foi possível gerar o relatório. Tente de novo.';
       setError(message);
