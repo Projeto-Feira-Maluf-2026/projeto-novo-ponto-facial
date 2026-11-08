@@ -1,14 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="g" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2c5a37"/>
-      <stop offset="1" stop-color="#13271f"/>
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="60" height="60" rx="17" fill="url(#g)"/>
-  <path d="M13 22v-5a4 4 0 0 1 4-4h5M42 13h5a4 4 0 0 1 4 4v5M51 42v5a4 4 0 0 1-4 4h-5M22 51h-5a4 4 0 0 1-4-4v-5" fill="none" stroke="#c9e69c" stroke-width="3.4" stroke-linecap="round"/>
-  <rect x="20" y="31" width="7" height="14" rx="1.6" fill="#fff" opacity="0.7"/>
-  <rect x="28.5" y="27" width="7" height="18" rx="1.6" fill="#fff"/>
-  <rect x="37" y="34" width="7" height="11" rx="1.6" fill="#fff" opacity="0.7"/>
-  <circle cx="32" cy="20.5" r="3.4" fill="#c9e69c"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="ta" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#23272a"/><stop offset="1" stop-color="#0d0f10"/></linearGradient><linearGradient id="ha" x1="0" y1="2" x2="0" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="16" fill="url(#ta)"/><rect x="2.5" y="2.5" width="59" height="59" rx="15.5" fill="none" stroke="url(#ha)"/><path d="M40.40 22.63A14 14 0 1 0 40.40 41.37" fill="none" stroke="#f4f5f2" stroke-width="7" stroke-linecap="round"/><circle cx="43.5" cy="32" r="4.2" fill="#d4f36b"/></svg>
