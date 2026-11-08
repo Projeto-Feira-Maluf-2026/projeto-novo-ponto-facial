@@ -132,19 +132,69 @@ export function GlassShell({
     };
   }, [menuOpen]);
 
-  // Pointer-following highlight on every glass card (--mx / --my), one listener.
+  // Pointer light, 3D tilt on cards and background parallax, all from one listener.
   useEffect(() => {
     const root = document.querySelector<HTMLElement>('.lg-root');
+    const backdrop = root?.querySelector<HTMLElement>('.lg-backdrop');
     if (!root) return undefined;
-    const move = (event: PointerEvent) => {
-      const card = (event.target as HTMLElement).closest<HTMLElement>('.lg-glass');
+    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    let current: HTMLElement | null = null;
+    let frame = 0;
+    let last: PointerEvent | null = null;
+
+    const release = (card: HTMLElement | null) => {
+      if (!card) return;
+      card.dataset.hover = 'false';
+      card.style.setProperty('--rx', '0deg');
+      card.style.setProperty('--ry', '0deg');
+      card.style.setProperty('--lift', '0px');
+    };
+
+    const paint = () => {
+      frame = 0;
+      const event = last;
+      if (!event) return;
+      if (backdrop) {
+        backdrop.style.setProperty('--px', ((event.clientX / window.innerWidth) * 2 - 1).toFixed(3));
+        backdrop.style.setProperty('--py', ((event.clientY / window.innerHeight) * 2 - 1).toFixed(3));
+      }
+      const card = (event.target as HTMLElement).closest<HTMLElement>('.lg-kpis .lg-kpi, .lg-glass:not(.lg-kpis):not(.lg-topbar):not(.lg-menu)');
+      if (card !== current) {
+        release(current);
+        current = card;
+      }
       if (!card) return;
       const rect = card.getBoundingClientRect();
-      card.style.setProperty('--mx', `${event.clientX - rect.left}px`);
-      card.style.setProperty('--my', `${event.clientY - rect.top}px`);
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      card.style.setProperty('--mx', `${x}px`);
+      card.style.setProperty('--my', `${y}px`);
+      if (!finePointer || document.documentElement.dataset.motionMode === 'reduced') return;
+      // Small cards tilt more than wide ones, so big panels never feel wobbly.
+      const max = Math.max(1, Math.min(7, 1800 / rect.width));
+      const nx = x / rect.width - 0.5;
+      const ny = y / rect.height - 0.5;
+      card.dataset.hover = 'true';
+      card.style.setProperty('--ry', `${(nx * max).toFixed(2)}deg`);
+      card.style.setProperty('--rx', `${(-ny * max).toFixed(2)}deg`);
+      card.style.setProperty('--lift', rect.width < 420 ? '-4px' : '-1px');
+    };
+
+    const move = (event: PointerEvent) => {
+      last = event;
+      if (!frame) frame = requestAnimationFrame(paint);
+    };
+    const leave = () => {
+      release(current);
+      current = null;
     };
     root.addEventListener('pointermove', move, { passive: true });
-    return () => root.removeEventListener('pointermove', move);
+    root.addEventListener('pointerleave', leave);
+    return () => {
+      cancelAnimationFrame(frame);
+      root.removeEventListener('pointermove', move);
+      root.removeEventListener('pointerleave', leave);
+    };
   }, []);
 
   const themeLabel = dark ? 'Usar tema claro' : 'Usar tema escuro';

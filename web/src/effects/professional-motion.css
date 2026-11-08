@@ -14,9 +14,13 @@ html[data-route-transition="true"]::view-transition-group(app-brand) { animation
 .worksite-selector-item:focus-visible { outline: 3px solid var(--color-accent); outline-offset: -4px; }
 .table-cell-skeleton::after, .route-loading-line::after { animation: skeleton-sweep 1.5s ease-in-out infinite; }
 .table-cell-skeleton, .route-loading-line { contain: paint; }
-@media (prefers-reduced-motion: reduce) {
-  *:not([data-motion-preview="full"], [data-motion-preview="full"] *), *:not([data-motion-preview="full"], [data-motion-preview="full"] *)::before, *:not([data-motion-preview="full"], [data-motion-preview="full"] *)::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
-  .worksite-selector-item > svg { transform: none; }
-}
+/* Animações reduzidas: só pelo botão "Reduzir animações" do app. */
+html[data-motion-mode="reduced"] *:not([data-motion-preview="full"], [data-motion-preview="full"] *),
+html[data-motion-mode="reduced"] *:not([data-motion-preview="full"], [data-motion-preview="full"] *)::before,
+html[data-motion-mode="reduced"] *:not([data-motion-preview="full"], [data-motion-preview="full"] *)::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  html[data-motion-mode="reduced"]::view-transition-group(*),
+html[data-motion-mode="reduced"]::view-transition-old(*),
+html[data-motion-mode="reduced"]::view-transition-new(*) { animation: none !important; }
+  html[data-motion-mode="reduced"] .worksite-selector-item > svg { transform: none; }
+
 html[data-motion-mode="reduced"] *, html[data-motion-mode="reduced"] *::before, html[data-motion-mode="reduced"] *::after { animation: none !important; transition: none !important; }

@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
+import { motionReduced } from '../utils/motionPreference';
 
 type NavigatorWithMemory = Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
 
 export function useUtilityEffects() {
   useEffect(() => {
     const navigatorInfo = navigator as NavigatorWithMemory;
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reducedMotion = motionReduced();
     const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     const constrainedDevice = (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4)
       || (navigatorInfo.deviceMemory !== undefined && navigatorInfo.deviceMemory <= 4)
@@ -37,7 +38,7 @@ export function useUtilityEffects() {
       element.style.setProperty('--pointer-y', `${(y - 0.5) * 2}`);
     };
     const onPointerMove = (event: PointerEvent) => {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (motionReduced()) return;
       const element = (event.target as Element | null)?.closest<HTMLElement>('[data-tilt], [data-lens-track]');
       if (!element) return;
       pending = { element, event };

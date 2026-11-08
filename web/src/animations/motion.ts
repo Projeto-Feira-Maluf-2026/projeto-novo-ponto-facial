@@ -1,4 +1,5 @@
 import { animate, createScope, createTimeline, stagger, utils, type Scope } from 'animejs';
+import { motionReduced } from '../utils/motionPreference';
 
 export const motionTokens = {
   duration: {
@@ -24,7 +25,7 @@ export const motionTokens = {
 } as const;
 
 const reducedMotionMedia = {
-  reduceMotion: '(prefers-reduced-motion: reduce)',
+  reduceMotion: 'not all',
 };
 
 function visibleElements(elements: Element[]) {
@@ -150,7 +151,7 @@ export function createModalMotion(root: HTMLElement): Scope {
 }
 
 export function playModalExit(root: HTMLElement | null, onComplete: () => void) {
-  if (!root || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!root || motionReduced()) {
     onComplete();
     return;
   }
@@ -178,7 +179,7 @@ export function moveIndicator(
   axis: 'x' | 'y',
 ) {
   const isFirstPosition = indicator.dataset.motionReady !== 'true';
-  if (isFirstPosition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (isFirstPosition || motionReduced()) {
     if (axis === 'y') utils.set(indicator, { y: target.offsetTop, height: target.offsetHeight });
     else utils.set(indicator, { x: target.offsetLeft, width: target.offsetWidth });
     indicator.dataset.motionReady = 'true';

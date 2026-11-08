@@ -328,10 +328,12 @@
   .enrollment-camera { height: 390px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 1ms !important; }
-}
+/* Animações reduzidas: só pelo botão "Reduzir animações" do app. */
+html[data-motion-mode="reduced"] { scroll-behavior: auto; }
+  html[data-motion-mode="reduced"] *,
+html[data-motion-mode="reduced"] *::before,
+html[data-motion-mode="reduced"] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 1ms !important; }
+
 
 @font-face {
   font-family: "Source Sans 3 Variable";

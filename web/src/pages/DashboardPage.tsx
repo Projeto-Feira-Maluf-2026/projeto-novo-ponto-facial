@@ -24,6 +24,7 @@ import { useDashboardSearch } from '../components/GlassShell';
 import { apiClient, type ReportExportPayload } from '../services/api';
 import type { AttendanceRecordStatus, DashboardDay, DashboardMetrics, DashboardRecentRecord } from '../types/domain';
 import { appDateInput, appDayBoundaryIso, formatInAppTimeZone, parseApiDate, shiftDateInput } from '../utils/dateTime';
+import { motionReduced } from '../utils/motionPreference';
 
 const REFRESH_MS = 20_000;
 const nf = new Intl.NumberFormat('pt-BR');
@@ -31,8 +32,7 @@ const nf = new Intl.NumberFormat('pt-BR');
 /* ------------------------------------------------------------------ helpers */
 
 function prefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    || document.documentElement.dataset.motionMode === 'reduced';
+  return motionReduced();
 }
 
 /** Counts from the previously shown value to the new one. */

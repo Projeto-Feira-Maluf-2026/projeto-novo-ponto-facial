@@ -482,7 +482,7 @@ html[data-theme="dark"] .lg-root .lg-chip[data-tone="pos"] { color: #111; backgr
 .lg-root .lg-route .lg-glass,
 .lg-route > :not(.lg-page-head),
 .lg-route > * > :is(.app-card, .form-panel, .toolbar-panel, .table-shell) {
-  animation: lg-card-in .7s var(--smooth) both;
+  animation: lg-card-in .7s var(--smooth) backwards;
 }
 .lg-root .lg-route .lg-glass:nth-child(2) { animation-delay: 60ms; }
 .lg-root .lg-route .lg-glass:nth-child(3) { animation-delay: 120ms; }
@@ -501,8 +501,201 @@ html[data-theme="dark"] .lg-root .lg-chip[data-tone="pos"] { color: #111; backgr
   .lg-side-indicator { border-radius: 16px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .lg-side-indicator { transition: none; }
-  .lg-root .lg-route, .lg-root .lg-route .lg-glass { animation: none !important; filter: none; }
-}
+/* Animações reduzidas: só pelo botão "Reduzir animações" do app. */
 html[data-motion-mode="reduced"] .lg-side-indicator { transition: none; }
+  html[data-motion-mode="reduced"] .lg-root .lg-route,
+html[data-motion-mode="reduced"] .lg-root .lg-route .lg-glass { animation: none !important; filter: none; }
+
+html[data-motion-mode="reduced"] .lg-side-indicator { transition: none; }
+
+
+/* =====================================================================
+ * Profundidade e movimento
+ * Vidro em camadas (brilho especular, borda que pega a luz do cursor),
+ * inclinação 3D leve, fundo com paralaxe e entradas com mola.
+ * ===================================================================== */
+
+.lg-root { --sheen: rgb(255 255 255 / 0.7); --edge-light: rgb(255 255 255 / 0.95); --tilt-max: 0; }
+html[data-theme="dark"] .lg-root {
+  --sheen: rgb(255 255 255 / 0.1);
+  --edge-light: rgb(255 255 255 / 0.55);
+  --blob-1: rgb(190 235 70 / 0.3);
+  --blob-2: rgb(130 100 255 / 0.24);
+  --blob-3: rgb(40 190 170 / 0.2);
+}
+
+/* Fundo: luzes maiores, mais vivas, e que acompanham o cursor de leve. */
+.lg-root .lg-backdrop {
+  transform: translate3d(calc(var(--px, 0) * -18px), calc(var(--py, 0) * -14px), 0) scale(1.08);
+  transition: transform 1.2s var(--smooth), background .5s var(--smooth);
+}
+.lg-root .lg-blob { animation: lg-drift 22s ease-in-out infinite alternate; filter: blur(80px) saturate(140%); }
+.lg-root .lg-blob-2 { animation-duration: 26s; animation-delay: -9s; }
+.lg-root .lg-blob-3 { animation-duration: 19s; animation-delay: -4s; }
+@keyframes lg-drift {
+  0% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); border-radius: 50% 46% 54% 48%; }
+  33% { transform: translate3d(7vmax, -4vmax, 0) scale(1.12) rotate(40deg); border-radius: 42% 58% 46% 54%; }
+  66% { transform: translate3d(-5vmax, 6vmax, 0) scale(.92) rotate(-20deg); border-radius: 56% 44% 52% 46%; }
+  100% { transform: translate3d(4vmax, 3vmax, 0) scale(1.06) rotate(25deg); border-radius: 48% 52% 44% 56%; }
+}
+
+/* Vidro em camadas. */
+.lg-root .lg-glass,
+.lg-root .lg-kpis .lg-kpi,
+.lg-route :is(
+  .app-card, .form-panel, .toolbar-panel, .table-shell, .empty-state-panel,
+  .camera-card, .worksite-command, .worksite-portfolio, .worksite-intelligence,
+  .worksite-digital-panel, .report-panel, .presentation-card, .audit-panel,
+  .device-card, .employee-card, .enrollment-panel,
+  .presentation-flow, .presentation-live-metrics, .presentation-diagnostics,
+  .presentation-recent, .presentation-explainer, .presentation-safety-note
+) {
+  background:
+    radial-gradient(140% 90% at 0% 0%, var(--sheen), transparent 46%),
+    linear-gradient(160deg, var(--glass-a), var(--glass-b)) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(185%) brightness(1.04);
+  backdrop-filter: blur(40px) saturate(185%) brightness(1.04);
+  box-shadow:
+    inset 0 1px 0 var(--glass-hi),
+    inset 0 -1px 0 rgb(255 255 255 / 0.03),
+    0 2px 6px -2px rgb(0 0 0 / 0.14),
+    var(--shadow) !important;
+}
+
+/* Borda que acende onde o cursor está. */
+.lg-root .lg-glass::before,
+.lg-root .lg-kpis .lg-kpi::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background:
+    radial-gradient(240px circle at var(--mx, -999px) var(--my, -999px), var(--edge-light), transparent 62%),
+    linear-gradient(155deg, var(--rim), var(--rim-low) 30%, transparent 55%, var(--rim-low) 80%, var(--rim)) !important;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+  z-index: 2;
+}
+.lg-root .lg-glass::after,
+.lg-root .lg-kpis .lg-kpi::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(520px circle at var(--mx, 50%) var(--my, -40%), var(--glow), transparent 42%);
+  opacity: 0;
+  transition: opacity .5s var(--smooth);
+  pointer-events: none;
+}
+.lg-root :is(.lg-glass, .lg-kpis .lg-kpi):hover::after { opacity: 1; }
+html[data-theme="dark"] .lg-root { --glow: rgb(255 255 255 / 0.09); }
+
+/* Inclinação 3D (valores vindos do cursor em GlassShell). */
+.lg-root :is(.lg-glass, .lg-kpis .lg-kpi):not(.lg-topbar):not(.lg-menu) {
+  transform: perspective(1400px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translate3d(0, var(--lift, 0px), 0);
+  transform-style: preserve-3d;
+  transition:
+    transform .9s var(--spring),
+    box-shadow .5s var(--smooth),
+    background .5s var(--smooth);
+  will-change: transform;
+}
+.lg-root :is(.lg-glass, .lg-kpis .lg-kpi):not(.lg-topbar):not(.lg-menu)[data-hover="true"] {
+  transition: transform .18s linear, box-shadow .5s var(--smooth), background .5s var(--smooth);
+}
+
+/* Indicadores soltos: cada um vira um bloco de vidro, sem cartão em volta. */
+.lg-root .lg-kpis.lg-glass {
+  background: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none !important;
+  padding: 0;
+  transform: none;
+}
+.lg-root .lg-kpis.lg-glass::before,
+.lg-root .lg-kpis.lg-glass::after { display: none; }
+.lg-root .lg-kpis { gap: 14px; }
+.lg-root .lg-kpis .lg-kpi {
+  position: relative;
+  border-radius: 22px;
+  padding: 18px;
+  isolation: isolate;
+}
+.lg-root .lg-kpis .lg-kpi:nth-child(1) { animation-delay: 80ms; }
+.lg-root .lg-kpis .lg-kpi:nth-child(2) { animation-delay: 130ms; }
+.lg-root .lg-kpis .lg-kpi:nth-child(3) { animation-delay: 180ms; }
+.lg-root .lg-kpis .lg-kpi:nth-child(4) { animation-delay: 230ms; }
+.lg-root .lg-kpis .lg-kpi:nth-child(5) { animation-delay: 280ms; }
+.lg-root .lg-kpis .lg-kpi:nth-child(6) { animation-delay: 330ms; }
+.lg-root .lg-kpis .lg-kpi { animation: lg-card-in .8s var(--spring) backwards; }
+.lg-root .lg-kpi-icon { transition: transform .6s var(--spring); }
+.lg-root .lg-kpi:hover .lg-kpi-icon { transform: translateZ(30px) scale(1.12) rotate(-8deg); }
+
+/* Entradas com mola. */
+@keyframes lg-card-in {
+  0% { opacity: 0; transform: perspective(1400px) translate3d(0, 26px, 0) rotateX(6deg) scale(.965); filter: blur(10px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: perspective(1400px) translate3d(0, 0, 0) rotateX(0) scale(1); filter: none; }
+}
+.lg-root .lg-route .lg-glass { animation: lg-card-in .9s var(--spring) backwards; }
+@keyframes lg-head-in {
+  from { opacity: 0; transform: translateY(105%); clip-path: inset(0 0 100% 0); }
+  to { opacity: 1; transform: none; clip-path: inset(0 0 -20% 0); }
+}
+.lg-root :is(.lg-page-head h1, .lg-hero-number, .lg-greet strong) { animation: lg-head-in .9s var(--spring) .12s backwards; }
+.lg-root :is(.lg-page-head p, .lg-greet span) { animation: lg-head-in .9s var(--spring) .22s backwards; }
+.lg-root .lg-topbar { animation: lg-top-in .8s var(--spring) backwards; }
+.lg-root .lg-sidebar { animation: lg-side-in .9s var(--spring) backwards; }
+@keyframes lg-top-in { from { opacity: 0; transform: translateY(-18px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes lg-side-in { from { opacity: 0; transform: translateX(-22px) scale(.97); } to { opacity: 1; transform: none; } }
+@media (max-width: 759px) {
+  @keyframes lg-side-in { from { opacity: 0; transform: translateY(30px) scale(.96); } to { opacity: 1; transform: none; } }
+}
+
+/* Linhas das tabelas entram em cascata. */
+@keyframes lg-row-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.lg-root :is(.lg-table tbody tr, .data-table tbody tr) { animation: lg-row-in .55s var(--smooth) backwards; }
+.lg-root :is(.lg-table tbody tr, .data-table tbody tr):nth-child(1) { animation-delay: 260ms; }
+.lg-root :is(.lg-table tbody tr, .data-table tbody tr):nth-child(2) { animation-delay: 310ms; }
+.lg-root :is(.lg-table tbody tr, .data-table tbody tr):nth-child(3) { animation-delay: 360ms; }
+.lg-root :is(.lg-table tbody tr, .data-table tbody tr):nth-child(4) { animation-delay: 410ms; }
+.lg-root :is(.lg-table tbody tr, .data-table tbody tr):nth-child(5) { animation-delay: 460ms; }
+.lg-root :is(.lg-table tbody tr, .data-table tbody tr):nth-child(n+6) { animation-delay: 510ms; }
+
+/* Microinterações. */
+.lg-root :is(.lg-btn, .btn, .lg-icon-btn, .icon-button, .lg-pills button, .lg-seg span) {
+  transition: transform .5s var(--spring), box-shadow .35s var(--smooth), background-color .3s var(--smooth), color .3s var(--smooth), opacity .3s var(--smooth);
+}
+.lg-root :is(.lg-btn, .btn, .lg-icon-btn, .icon-button):not(:disabled):hover { transform: translateY(-2px); }
+.lg-root :is(.lg-btn, .btn, .lg-icon-btn, .icon-button, .lg-pills button):not(:disabled):active { transform: scale(.95); transition-duration: .12s; }
+.lg-root :is(.lg-btn-primary, .btn-primary) { position: relative; overflow: hidden; isolation: isolate; }
+.lg-route .btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform .9s var(--smooth);
+}
+html[data-theme="dark"] .lg-route .btn-primary::after { background: linear-gradient(110deg, transparent 30%, rgb(0 0 0 / 0.14) 50%, transparent 70%); }
+.lg-route .btn-primary:not(:disabled):hover::after { transform: translateX(120%); }
+.lg-root .lg-side-btn svg { transition: transform .55s var(--spring); }
+.lg-root .lg-side-btn:hover svg { transform: scale(1.14) translateY(-1px); }
+.lg-root .lg-side-btn:active svg { transform: scale(.9); }
+.lg-root .lg-side-btn[data-tip]::after { transition: opacity .25s var(--smooth), transform .5s var(--spring); }
+.lg-root .lg-avatar { transition: transform .5s var(--spring), box-shadow .35s var(--smooth); }
+.lg-root .lg-avatar:hover { transform: scale(1.08) rotate(-4deg); }
+.lg-root .lg-menu { transform-origin: top right; animation: lg-menu-in .45s var(--spring) both; }
+@keyframes lg-menu-in { from { opacity: 0; transform: translateY(-8px) scale(.92); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+
+/* Pulso nos indicadores "ao vivo". */
+@keyframes lg-live { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--lime) 70%, transparent); } 100% { box-shadow: 0 0 0 9px transparent; } }
+.lg-root :is(.lg-status[data-tone="pos"], .lg-chip[data-tone="pos"])::before { animation: lg-live 2.2s var(--smooth) infinite; border-radius: 50%; }
+
+html[data-motion-mode="reduced"] .lg-root .lg-backdrop { transform: none; }
+html[data-motion-mode="reduced"] .lg-root :is(.lg-glass, .lg-kpis .lg-kpi) { transform: none !important; }

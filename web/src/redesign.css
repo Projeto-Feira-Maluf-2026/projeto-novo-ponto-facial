@@ -1648,11 +1648,11 @@ body::before {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-hero::before {
+/* Animações reduzidas: só pelo botão "Reduzir animações" do app. */
+html[data-motion-mode="reduced"] .dashboard-hero::before {
     animation: none;
   }
-}
+
 
 /* Restaura a composição anterior do terminal; as correções ficam só no fluxo técnico. */
 .terminal-shell {

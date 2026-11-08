@@ -9,6 +9,7 @@ import { BrandMark } from './components/BrandMark';
 import { useSmoothNavigation } from './animations/useSmoothNavigation';
 import { useUtilityEffects } from './effects/useUtilityEffects';
 import { apiClient } from './services/api';
+import { motionReduced } from './utils/motionPreference';
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const DevicesPage = lazy(() => import('./pages/DevicesPage').then((module) => ({ default: module.DevicesPage })));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((module) => ({ default: module.EmployeesPage })));
@@ -74,7 +75,7 @@ export default function App() {
       };
     };
 
-    if (!transitionDocument.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!transitionDocument.startViewTransition || motionReduced()) {
       applyTheme();
       return;
     }
