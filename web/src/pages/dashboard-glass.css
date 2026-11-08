@@ -949,7 +949,7 @@ html[data-theme="dark"] .lg-pills button[data-tone="neg"][aria-pressed="true"] {
   }
   .lg-side-logo { display: none; }
   .lg-side-links, .lg-side-foot { flex-direction: row; gap: 2px; padding: 0; }
-  .lg-side-links { flex: 1; justify-content: space-around; }
+  .lg-side-links { flex: 1; justify-content: space-between; overflow-x: auto; scrollbar-width: none; }
   .lg-side-btn { width: 44px; height: 48px; border-radius: 15px; }
   .lg-side-btn[data-tip]::after { display: none; }
   .lg-side-foot .lg-side-btn:first-child { display: none; }
