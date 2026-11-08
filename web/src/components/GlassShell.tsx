@@ -1,5 +1,5 @@
 import { LogOut, Moon, MonitorPlay, Search, Sparkles, Sun, type LucideIcon } from 'lucide-react';
-import { createContext, useContext, useEffect, useId, useRef, useState, type RefObject } from 'react';
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 import { BrandMark } from './BrandMark';
@@ -83,6 +83,31 @@ export function GlassShell({
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+  const linksRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+
+  // Sliding pill behind the active nav item (vertical bar on desktop, bottom bar on mobile).
+  useLayoutEffect(() => {
+    const links = linksRef.current;
+    const indicator = indicatorRef.current;
+    if (!links || !indicator) return undefined;
+    const place = () => {
+      const active = links.querySelector<HTMLElement>('.lg-side-btn[data-active="true"]');
+      if (!active) {
+        indicator.dataset.hidden = 'true';
+        return;
+      }
+      indicator.dataset.hidden = 'false';
+      indicator.style.setProperty('--ix', `${active.offsetLeft}px`);
+      indicator.style.setProperty('--iy', `${active.offsetTop}px`);
+      indicator.style.setProperty('--iw', `${active.offsetWidth}px`);
+      indicator.style.setProperty('--ih', `${active.offsetHeight}px`);
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(links);
+    return () => observer.disconnect();
+  }, [location.pathname, navItems.length]);
   const firstName = displayName.split(/\s+/)[0];
   const today = formatInAppTimeZone(new Date(), { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -141,7 +166,8 @@ export function GlassShell({
           <NavLink to="/" className="lg-side-logo" aria-label="Curitiba Empreiteira, visão geral">
             <BrandMark />
           </NavLink>
-          <div className="lg-side-links">
+          <div ref={linksRef} className="lg-side-links">
+            <span ref={indicatorRef} className="lg-side-indicator" data-hidden="true" aria-hidden="true" />
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActivePath(location.pathname, item.to);
