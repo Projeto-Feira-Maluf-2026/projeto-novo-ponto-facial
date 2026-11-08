@@ -283,81 +283,92 @@ html[data-theme="dark"] .lg-root [role="dialog"]:not(.lg-sheet):not(.presentatio
 .lg-route .presentation-console > :not(.presentation-intro) a { color: var(--pos); }
 
 /* =====================================================================
- * Clean: base branca/preta, verde só como detalhe (status, foco, gráficos).
- * Vem depois de dashboard-glass.css e sobrescreve tokens e efeitos.
+ * Vidro estilo iPhone: fundo com luzes suaves, cartões de vidro fosco,
+ * destaque em lima e transições com mola. Sobrescreve os tokens de
+ * dashboard-glass.css (importado antes).
  * ===================================================================== */
 
 .lg-root {
-  --bg: #f7f7f6;
-  --bg-2: #f7f7f6;
-  --ink: #111312;
-  --muted: #5d625f;
-  --faint: #8a8f8c;
-  --glass-a: rgb(255 255 255 / 0.92);
-  --glass-b: rgb(255 255 255 / 0.92);
-  --rim: rgb(255 255 255 / 0);
-  --line: rgb(17 19 18 / 0.08);
-  --chip: rgb(17 19 18 / 0.045);
-  --shadow: 0 1px 2px rgb(17 19 18 / 0.04), 0 8px 24px -12px rgb(17 19 18 / 0.12);
-  --pos: #1f8a4c;
-  --pos-soft: rgb(31 138 76 / 0.1);
-  --brand-a: #111312;
-  --brand-b: #111312;
+  --bg: #e9ebee;
+  --bg-2: #e9ebee;
+  --ink: #121414;
+  --muted: #565c5e;
+  --faint: #858b8d;
+  --glass-a: rgb(255 255 255 / 0.66);
+  --glass-b: rgb(255 255 255 / 0.36);
+  --glass-hi: rgb(255 255 255 / 0.95);
+  --rim: rgb(255 255 255 / 0.9);
+  --rim-low: rgb(255 255 255 / 0.25);
+  --line: rgb(18 20 20 / 0.07);
+  --chip: rgb(18 20 20 / 0.05);
+  --shadow: 0 1px 1px rgb(18 20 20 / 0.03), 0 18px 44px -22px rgb(18 20 20 / 0.28);
+  --pos: #4d7c0f;
+  --pos-soft: rgb(132 184 22 / 0.16);
+  --lime: #b5e035;
+  --lime-ink: #4d7c0f;
+  --brand-a: #121414;
+  --brand-b: #121414;
   --on-brand: #ffffff;
-  --accent-bar: #1f8a4c;
-  --blob-1: transparent;
-  --blob-2: transparent;
-  --blob-3: transparent;
-  --glow: rgb(17 19 18 / 0.025);
-  --radius: 20px;
+  --blob-1: rgb(196 238 84 / 0.55);
+  --blob-2: rgb(176 160 255 / 0.4);
+  --blob-3: rgb(120 220 210 / 0.3);
+  --glow: rgb(255 255 255 / 0.5);
+  --radius: 24px;
 
-  --ui-surface: #ffffff;
-  --ui-surface-strong: #ffffff;
-  --ui-accent-strong: #111312;
-  --ui-line-strong: rgb(17 19 18 / 0.14);
+  --ui-surface: var(--glass-a);
+  --ui-surface-strong: rgb(255 255 255 / 0.8);
+  --ui-accent-strong: var(--ink);
+  --ui-line-strong: rgb(18 20 20 / 0.14);
   --ui-shadow-card: var(--shadow);
-  --ui-shadow-hover: 0 1px 2px rgb(17 19 18 / 0.05), 0 14px 32px -14px rgb(17 19 18 / 0.18);
-  --button-bg: #111312;
-  --button-bg-hover: #2a2d2b;
-  --button-fg: #ffffff;
+  --ui-shadow-hover: 0 1px 1px rgb(18 20 20 / 0.04), 0 26px 56px -24px rgb(18 20 20 / 0.36);
+  --button-bg: var(--brand-a);
+  --button-bg-hover: #2a2d2e;
+  --button-fg: var(--on-brand);
 }
 
 html[data-theme="dark"] .lg-root {
-  --bg: #0b0b0b;
-  --bg-2: #0b0b0b;
-  --ink: #f2f2f1;
-  --muted: #a3a6a4;
-  --faint: #6f7371;
-  --glass-a: rgb(24 24 24 / 0.92);
-  --glass-b: rgb(24 24 24 / 0.92);
-  --rim: rgb(255 255 255 / 0);
+  --bg: #0b0c0d;
+  --bg-2: #0b0c0d;
+  --ink: #f3f4f2;
+  --muted: #a9adab;
+  --faint: #737877;
+  --glass-a: rgb(255 255 255 / 0.085);
+  --glass-b: rgb(255 255 255 / 0.03);
+  --glass-hi: rgb(255 255 255 / 0.16);
+  --rim: rgb(255 255 255 / 0.2);
+  --rim-low: rgb(255 255 255 / 0.04);
   --line: rgb(255 255 255 / 0.08);
-  --chip: rgb(255 255 255 / 0.055);
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 30px -14px rgb(0 0 0 / 0.7);
-  --pos: #4cc77a;
-  --pos-soft: rgb(76 199 122 / 0.12);
-  --brand-a: #f2f2f1;
-  --brand-b: #f2f2f1;
-  --on-brand: #0b0b0b;
-  --accent-bar: #4cc77a;
-  --blob-1: transparent;
-  --blob-2: transparent;
-  --blob-3: transparent;
-  --glow: rgb(255 255 255 / 0.025);
+  --chip: rgb(255 255 255 / 0.06);
+  --shadow: 0 1px 1px rgb(0 0 0 / 0.3), 0 24px 60px -28px rgb(0 0 0 / 0.9);
+  --pos: #c8ec62;
+  --pos-soft: rgb(200 236 98 / 0.13);
+  --lime: #d4f36b;
+  --lime-ink: #d4f36b;
+  --brand-a: #f3f4f2;
+  --brand-b: #f3f4f2;
+  --on-brand: #0b0c0d;
+  --blob-1: rgb(190 235 70 / 0.2);
+  --blob-2: rgb(130 100 255 / 0.18);
+  --blob-3: rgb(40 170 160 / 0.12);
+  --glow: rgb(255 255 255 / 0.07);
 
-  --ui-surface: #181818;
-  --ui-surface-strong: #1e1e1e;
-  --ui-accent-strong: #f2f2f1;
-  --button-bg: #f2f2f1;
+  --ui-surface: var(--glass-a);
+  --ui-surface-strong: rgb(255 255 255 / 0.12);
+  --ui-accent-strong: var(--ink);
   --button-bg-hover: #ffffff;
-  --button-fg: #0b0b0b;
 }
 
-/* Fundo liso, sem manchas nem granulado. */
-.lg-root .lg-backdrop { background: var(--bg); }
-.lg-root :is(.lg-blob, .lg-grain) { display: none; }
+/* ------------------------------------------------------------ fundo */
 
-/* Cartões: superfície sólida, borda fina, sombra discreta. */
+.lg-root .lg-backdrop { background: var(--bg); }
+.lg-root .lg-blob { filter: blur(90px); opacity: 1; animation-duration: 28s; }
+.lg-root .lg-blob-1 { top: auto; bottom: -22vmax; left: -14vmax; }
+.lg-root .lg-blob-2 { top: -20vmax; right: -14vmax; }
+.lg-root .lg-blob-3 { bottom: auto; top: 34vh; left: 38vw; width: 30vmax; height: 30vmax; }
+.lg-root .lg-grain { opacity: .035; }
+
+/* ---------------------------------------------------- cartões de vidro */
+
 .lg-root .lg-glass,
 .lg-route :is(
   .app-card, .form-panel, .toolbar-panel, .table-shell, .empty-state-panel,
@@ -367,57 +378,131 @@ html[data-theme="dark"] .lg-root {
   .presentation-flow, .presentation-live-metrics, .presentation-diagnostics,
   .presentation-recent, .presentation-explainer, .presentation-safety-note
 ) {
-  background: var(--glass-a) !important;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  box-shadow: inset 0 0 0 1px var(--line), var(--shadow) !important;
+  background: linear-gradient(160deg, var(--glass-a), var(--glass-b)) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(170%);
+  backdrop-filter: blur(30px) saturate(170%);
+  box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow) !important;
 }
 .lg-root .lg-glass::before,
-.lg-route :is(.app-card, .form-panel, .toolbar-panel, .table-shell)::before { display: none !important; }
-.lg-root .lg-sidebar {
-  background: var(--glass-a);
-  box-shadow: inset 0 0 0 1px var(--line), var(--shadow);
+.lg-route :is(.app-card, .form-panel, .toolbar-panel, .table-shell)::before {
+  display: block !important;
+  background: linear-gradient(155deg, var(--rim), var(--rim-low) 30%, transparent 55%, var(--rim-low) 80%, var(--rim)) !important;
 }
-html.lg-refract .lg-root .lg-liquid { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.lg-root .lg-sidebar {
+  background: linear-gradient(170deg, var(--glass-a), var(--glass-b));
+  box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 1px var(--line), var(--shadow);
+}
+html.lg-refract .lg-root .lg-liquid { -webkit-backdrop-filter: url(#lg-liquid) blur(14px) saturate(170%); backdrop-filter: url(#lg-liquid) blur(14px) saturate(170%); }
 
-/* Botões e itens ativos: preto (ou branco no escuro), sem brilho. */
-.lg-root :is(.lg-side-btn[data-active="true"], .lg-side-btn[aria-pressed="true"], .lg-avatar, .lg-btn-primary, .lg-pills button[aria-pressed="true"]),
+/* Cartões pequenos sobem levemente no hover. */
+.lg-root :is(.lg-kpi, .lg-mini-stat, .lg-streak-box) {
+  transition: transform .5s var(--spring), box-shadow .35s var(--smooth), background-color .35s var(--smooth);
+}
+.lg-root :is(.lg-kpi, .lg-mini-stat, .lg-streak-box):hover { transform: translateY(-3px); }
+
+/* ----------------------------------------- menu com indicador deslizante */
+
+.lg-side-links { position: relative; }
+.lg-side-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--iw, 50px);
+  height: var(--ih, 50px);
+  border-radius: 17px;
+  background: var(--brand-a);
+  box-shadow: 0 10px 24px -12px rgb(0 0 0 / 0.5);
+  transform: translate3d(var(--ix, 0), var(--iy, 0), 0);
+  transition: transform .6s var(--spring), width .4s var(--smooth), height .4s var(--smooth), opacity .3s var(--smooth);
+  pointer-events: none;
+}
+.lg-side-indicator[data-hidden="true"] { opacity: 0; }
+.lg-side-links .lg-side-btn { z-index: 1; }
+.lg-side-links .lg-side-btn[data-active="true"] { background: transparent !important; box-shadow: none !important; color: var(--on-brand); transition: color .35s var(--smooth) .08s; }
+.lg-side-links .lg-side-btn[data-active="true"]:hover { background: transparent; }
+
+/* Itens ativos, avatar e botão principal: pílula sólida (preta no claro, branca no escuro). */
+.lg-root :is(.lg-side-foot .lg-side-btn[aria-pressed="true"], .lg-avatar, .lg-btn-primary, .lg-pills button[aria-pressed="true"]),
 .lg-route .btn-primary {
   background: var(--brand-a) !important;
   color: var(--on-brand) !important;
-  box-shadow: none !important;
+  box-shadow: 0 10px 26px -14px rgb(0 0 0 / 0.55) !important;
 }
-.lg-root .lg-avatar { box-shadow: 0 0 0 3px var(--bg) !important; }
-.lg-root .lg-btn-primary::after { display: none; }
-.lg-root .lg-btn-primary:hover,
-.lg-route .btn-primary:not(:disabled):hover { opacity: .88; box-shadow: none !important; }
-
-/* Verde só nos dados: barras, progresso e o dia de hoje. */
-.lg-root :is(.lg-progress span, .lg-mini-bars span[data-today] i) {
-  background: var(--accent-bar) !important;
-  box-shadow: none !important;
+.lg-root .lg-btn-primary,
+.lg-route .btn-primary { border-radius: 999px; }
+.lg-root .lg-btn-ghost,
+.lg-route :is(.btn-secondary, .btn-ghost, .btn-on-dark) {
+  border-radius: 999px;
+  background: var(--chip) !important;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 1px var(--line) !important;
 }
-.lg-root .lg-ring-value { filter: none; }
-.lg-root .lg-dots li[data-tone="pos"], .lg-root .lg-caption i[data-tone="pos"] { box-shadow: none; }
+.lg-root .lg-avatar { box-shadow: 0 0 0 2px var(--lime), 0 0 0 5px var(--bg) !important; }
+.lg-root .lg-btn-primary::after { background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.35) 50%, transparent 70%); }
+html[data-theme="dark"] .lg-root .lg-btn-primary::after { background: linear-gradient(110deg, transparent 30%, rgb(0 0 0 / 0.12) 50%, transparent 70%); }
 
-/* Topo e cabeçalhos mais leves. */
-.lg-root .lg-eyebrow { color: var(--faint); letter-spacing: .06em; }
-.lg-root .lg-page-head h1 { font-weight: 750; }
-.lg-route .presentation-console > :not(.presentation-intro) header span:first-child { color: var(--faint); }
-.lg-route .presentation-console > :not(.presentation-intro) a { color: var(--ink); }
+/* Filtros em pílula e segmentados de vidro. */
+.lg-root .lg-pills button { border-radius: 999px; transition: background-color .3s var(--smooth), color .3s var(--smooth), transform .45s var(--spring); }
+.lg-root .lg-pills button:active { transform: scale(.95); }
 .lg-route .segmented-button[aria-pressed="true"],
 .lg-route .segmented-button[aria-selected="true"],
-.lg-route .segmented-button[data-active="true"] { background: var(--ui-surface); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+.lg-route .segmented-button[data-active="true"] { background: var(--glass-hi); box-shadow: 0 4px 14px -6px rgb(0 0 0 / .3); }
 
-/* Bloco escuro da apresentação: neutro, sem verde. */
-.lg-route .presentation-intro { background: #111312 !important; }
-html[data-theme="dark"] .lg-route .presentation-intro { background: #181818 !important; box-shadow: inset 0 0 0 1px var(--line); }
+/* ------------------------------------------------- destaques em lima */
 
-/* Dados em tons neutros; o verde fica para o que é "bom" (aceito, hoje, meta). */
-.lg-root .lg-line { stroke-width: 2.2; }
-.lg-root .lg-hbar i { background: color-mix(in oklab, var(--ink) 75%, transparent); box-shadow: none; }
-.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="1"] { background: color-mix(in oklab, var(--ink) 9%, transparent); }
-.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="2"] { background: color-mix(in oklab, var(--ink) 20%, transparent); }
-.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="3"] { background: color-mix(in oklab, var(--ink) 30%, transparent); }
-.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="4"] { background: color-mix(in oklab, var(--ink) 62%, transparent); color: var(--bg); }
-.lg-root .lg-side-logo { filter: grayscale(1) contrast(1.1); }
+.lg-root :is(.lg-chip, .lg-status)[data-tone="pos"] { color: var(--lime-ink); background: var(--pos-soft); }
+html[data-theme="dark"] .lg-root .lg-chip[data-tone="pos"] { color: #111; background: var(--lime); }
+.lg-root .lg-progress span { background: linear-gradient(90deg, var(--lime), color-mix(in oklab, var(--lime) 55%, white)) !important; box-shadow: 0 0 18px -4px var(--lime) !important; }
+.lg-root .lg-mini-bars span i { border-radius: 999px; background: var(--chip); box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 0 0 1px var(--line); }
+.lg-root .lg-mini-bars span[data-today] i { background: var(--brand-a) !important; box-shadow: 0 10px 22px -10px rgb(0 0 0 / .5) !important; }
+.lg-root .lg-hbar i { background: linear-gradient(90deg, color-mix(in oklab, var(--lime) 70%, transparent), var(--lime)) !important; box-shadow: none; }
+.lg-root .lg-line { stroke: var(--lime-ink); stroke-width: 2.4; filter: drop-shadow(0 6px 10px color-mix(in oklab, var(--lime) 45%, transparent)); }
+.lg-root .lg-ring-value { stroke: var(--lime-ink); filter: drop-shadow(0 0 10px color-mix(in oklab, var(--lime) 40%, transparent)); }
+.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="1"] { background: color-mix(in oklab, var(--ink) 7%, transparent); }
+.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="2"] { background: color-mix(in oklab, var(--ink) 14%, transparent); }
+.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="3"] { background: color-mix(in oklab, var(--lime) 45%, transparent); }
+.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="4"] { background: var(--lime); color: #111; }
+.lg-root .lg-eyebrow { color: var(--faint); letter-spacing: .07em; }
+.lg-route .presentation-console > :not(.presentation-intro) header span:first-child { color: var(--faint); }
+.lg-route .presentation-console > :not(.presentation-intro) a { color: var(--ink); }
+.lg-route .presentation-intro { background: linear-gradient(150deg, #15171a, #0d0e10) !important; box-shadow: inset 0 1px 0 rgb(255 255 255 / .12), var(--shadow); }
+
+/* ------------------------------------------------------- transições */
+
+@keyframes lg-route-in {
+  from { opacity: 0; transform: translateY(12px) scale(.992); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes lg-card-in {
+  from { opacity: 0; transform: translateY(18px) scale(.985); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.lg-root .lg-route { animation: lg-route-in .6s var(--smooth) both; }
+.lg-root .lg-route .lg-glass,
+.lg-route > :not(.lg-page-head),
+.lg-route > * > :is(.app-card, .form-panel, .toolbar-panel, .table-shell) {
+  animation: lg-card-in .7s var(--smooth) both;
+}
+.lg-root .lg-route .lg-glass:nth-child(2) { animation-delay: 60ms; }
+.lg-root .lg-route .lg-glass:nth-child(3) { animation-delay: 120ms; }
+.lg-root .lg-route .lg-glass:nth-child(4) { animation-delay: 180ms; }
+.lg-root .lg-route .lg-glass:nth-child(5) { animation-delay: 240ms; }
+.lg-root .lg-route .lg-glass:nth-child(n+6) { animation-delay: 300ms; }
+
+/* Troca de tema: cores deslizam junto. */
+.lg-root :is(.lg-glass, .lg-sidebar, .lg-side-btn, .lg-chip, .lg-status, .btn, .input-field) {
+  transition-property: background, background-color, color, box-shadow, transform, opacity;
+  transition-duration: .5s;
+  transition-timing-function: var(--smooth);
+}
+
+@media (max-width: 759px) {
+  .lg-side-indicator { border-radius: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-side-indicator { transition: none; }
+  .lg-root .lg-route, .lg-root .lg-route .lg-glass { animation: none !important; filter: none; }
+}
+html[data-motion-mode="reduced"] .lg-side-indicator { transition: none; }
