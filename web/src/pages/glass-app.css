@@ -281,3 +281,143 @@ html[data-theme="dark"] .lg-root [role="dialog"]:not(.lg-sheet):not(.presentatio
 
 .lg-route .presentation-console > :not(.presentation-intro) header span:first-child { color: var(--pos); }
 .lg-route .presentation-console > :not(.presentation-intro) a { color: var(--pos); }
+
+/* =====================================================================
+ * Clean: base branca/preta, verde só como detalhe (status, foco, gráficos).
+ * Vem depois de dashboard-glass.css e sobrescreve tokens e efeitos.
+ * ===================================================================== */
+
+.lg-root {
+  --bg: #f7f7f6;
+  --bg-2: #f7f7f6;
+  --ink: #111312;
+  --muted: #5d625f;
+  --faint: #8a8f8c;
+  --glass-a: rgb(255 255 255 / 0.92);
+  --glass-b: rgb(255 255 255 / 0.92);
+  --rim: rgb(255 255 255 / 0);
+  --line: rgb(17 19 18 / 0.08);
+  --chip: rgb(17 19 18 / 0.045);
+  --shadow: 0 1px 2px rgb(17 19 18 / 0.04), 0 8px 24px -12px rgb(17 19 18 / 0.12);
+  --pos: #1f8a4c;
+  --pos-soft: rgb(31 138 76 / 0.1);
+  --brand-a: #111312;
+  --brand-b: #111312;
+  --on-brand: #ffffff;
+  --accent-bar: #1f8a4c;
+  --blob-1: transparent;
+  --blob-2: transparent;
+  --blob-3: transparent;
+  --glow: rgb(17 19 18 / 0.025);
+  --radius: 20px;
+
+  --ui-surface: #ffffff;
+  --ui-surface-strong: #ffffff;
+  --ui-accent-strong: #111312;
+  --ui-line-strong: rgb(17 19 18 / 0.14);
+  --ui-shadow-card: var(--shadow);
+  --ui-shadow-hover: 0 1px 2px rgb(17 19 18 / 0.05), 0 14px 32px -14px rgb(17 19 18 / 0.18);
+  --button-bg: #111312;
+  --button-bg-hover: #2a2d2b;
+  --button-fg: #ffffff;
+}
+
+html[data-theme="dark"] .lg-root {
+  --bg: #0b0b0b;
+  --bg-2: #0b0b0b;
+  --ink: #f2f2f1;
+  --muted: #a3a6a4;
+  --faint: #6f7371;
+  --glass-a: rgb(24 24 24 / 0.92);
+  --glass-b: rgb(24 24 24 / 0.92);
+  --rim: rgb(255 255 255 / 0);
+  --line: rgb(255 255 255 / 0.08);
+  --chip: rgb(255 255 255 / 0.055);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 30px -14px rgb(0 0 0 / 0.7);
+  --pos: #4cc77a;
+  --pos-soft: rgb(76 199 122 / 0.12);
+  --brand-a: #f2f2f1;
+  --brand-b: #f2f2f1;
+  --on-brand: #0b0b0b;
+  --accent-bar: #4cc77a;
+  --blob-1: transparent;
+  --blob-2: transparent;
+  --blob-3: transparent;
+  --glow: rgb(255 255 255 / 0.025);
+
+  --ui-surface: #181818;
+  --ui-surface-strong: #1e1e1e;
+  --ui-accent-strong: #f2f2f1;
+  --button-bg: #f2f2f1;
+  --button-bg-hover: #ffffff;
+  --button-fg: #0b0b0b;
+}
+
+/* Fundo liso, sem manchas nem granulado. */
+.lg-root .lg-backdrop { background: var(--bg); }
+.lg-root :is(.lg-blob, .lg-grain) { display: none; }
+
+/* Cartões: superfície sólida, borda fina, sombra discreta. */
+.lg-root .lg-glass,
+.lg-route :is(
+  .app-card, .form-panel, .toolbar-panel, .table-shell, .empty-state-panel,
+  .camera-card, .worksite-command, .worksite-portfolio, .worksite-intelligence,
+  .worksite-digital-panel, .report-panel, .presentation-card, .audit-panel,
+  .device-card, .employee-card, .enrollment-panel,
+  .presentation-flow, .presentation-live-metrics, .presentation-diagnostics,
+  .presentation-recent, .presentation-explainer, .presentation-safety-note
+) {
+  background: var(--glass-a) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow) !important;
+}
+.lg-root .lg-glass::before,
+.lg-route :is(.app-card, .form-panel, .toolbar-panel, .table-shell)::before { display: none !important; }
+.lg-root .lg-sidebar {
+  background: var(--glass-a);
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow);
+}
+html.lg-refract .lg-root .lg-liquid { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* Botões e itens ativos: preto (ou branco no escuro), sem brilho. */
+.lg-root :is(.lg-side-btn[data-active="true"], .lg-side-btn[aria-pressed="true"], .lg-avatar, .lg-btn-primary, .lg-pills button[aria-pressed="true"]),
+.lg-route .btn-primary {
+  background: var(--brand-a) !important;
+  color: var(--on-brand) !important;
+  box-shadow: none !important;
+}
+.lg-root .lg-avatar { box-shadow: 0 0 0 3px var(--bg) !important; }
+.lg-root .lg-btn-primary::after { display: none; }
+.lg-root .lg-btn-primary:hover,
+.lg-route .btn-primary:not(:disabled):hover { opacity: .88; box-shadow: none !important; }
+
+/* Verde só nos dados: barras, progresso e o dia de hoje. */
+.lg-root :is(.lg-progress span, .lg-mini-bars span[data-today] i) {
+  background: var(--accent-bar) !important;
+  box-shadow: none !important;
+}
+.lg-root .lg-ring-value { filter: none; }
+.lg-root .lg-dots li[data-tone="pos"], .lg-root .lg-caption i[data-tone="pos"] { box-shadow: none; }
+
+/* Topo e cabeçalhos mais leves. */
+.lg-root .lg-eyebrow { color: var(--faint); letter-spacing: .06em; }
+.lg-root .lg-page-head h1 { font-weight: 750; }
+.lg-route .presentation-console > :not(.presentation-intro) header span:first-child { color: var(--faint); }
+.lg-route .presentation-console > :not(.presentation-intro) a { color: var(--ink); }
+.lg-route .segmented-button[aria-pressed="true"],
+.lg-route .segmented-button[aria-selected="true"],
+.lg-route .segmented-button[data-active="true"] { background: var(--ui-surface); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+
+/* Bloco escuro da apresentação: neutro, sem verde. */
+.lg-route .presentation-intro { background: #111312 !important; }
+html[data-theme="dark"] .lg-route .presentation-intro { background: #181818 !important; box-shadow: inset 0 0 0 1px var(--line); }
+
+/* Dados em tons neutros; o verde fica para o que é "bom" (aceito, hoje, meta). */
+.lg-root .lg-line { stroke-width: 2.2; }
+.lg-root .lg-hbar i { background: color-mix(in oklab, var(--ink) 75%, transparent); box-shadow: none; }
+.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="1"] { background: color-mix(in oklab, var(--ink) 9%, transparent); }
+.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="2"] { background: color-mix(in oklab, var(--ink) 20%, transparent); }
+.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="3"] { background: color-mix(in oklab, var(--ink) 30%, transparent); }
+.lg-root :is(.lg-heat-cell, .lg-heat-legend i)[data-level="4"] { background: color-mix(in oklab, var(--ink) 62%, transparent); color: var(--bg); }
+.lg-root .lg-side-logo { filter: grayscale(1) contrast(1.1); }
