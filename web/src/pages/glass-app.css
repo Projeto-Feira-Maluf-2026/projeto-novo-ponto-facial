@@ -1,0 +1,283 @@
+/*
+ * Liquid glass para todas as abas.
+ * As telas antigas usam os tokens --ui-* / --color-*; aqui eles são remapeados
+ * para a paleta de vidro dentro de .lg-root, e os contêineres principais ganham
+ * o tratamento de vidro. Nenhuma regra fora de .lg-root é alterada.
+ */
+
+.lg-root {
+  --ui-canvas: transparent;
+  --ui-surface: rgb(255 255 255 / 0.5);
+  --ui-surface-strong: rgb(255 255 255 / 0.7);
+  --ui-surface-soft: var(--chip);
+  --ui-ink: var(--ink);
+  --ui-muted: var(--muted);
+  --ui-subtle: var(--faint);
+  --ui-line: var(--line);
+  --ui-line-strong: rgb(20 60 35 / 0.18);
+  --ui-accent: var(--pos);
+  --ui-accent-strong: #165a2e;
+  --ui-accent-soft: var(--pos-soft);
+  --ui-radius-control: 14px;
+  --ui-radius-card: 22px;
+  --ui-radius-panel: 26px;
+  --ui-shadow-card: inset 0 1px 0 var(--rim), var(--shadow);
+  --ui-shadow-hover: inset 0 1px 0 var(--rim), 0 24px 60px -20px rgb(16 40 24 / 0.3);
+
+  --color-canvas: transparent;
+  --color-surface: var(--ui-surface);
+  --color-surface-raised: var(--ui-surface-strong);
+  --color-surface-muted: var(--chip);
+  --color-line: var(--line);
+  --color-line-strong: var(--ui-line-strong);
+  --color-text: var(--ink);
+  --color-muted: var(--muted);
+  --color-subtle: var(--faint);
+  --color-accent: var(--pos);
+  --color-accent-strong: var(--ui-accent-strong);
+  --color-accent-soft: var(--pos-soft);
+  --color-success: var(--pos);
+  --color-success-soft: var(--pos-soft);
+  --color-warning: var(--warn);
+  --color-warning-soft: var(--warn-soft);
+  --color-danger: var(--neg);
+  --color-danger-soft: var(--neg-soft);
+  --radius-control: 14px;
+  --radius-card: 22px;
+  --radius-panel: 26px;
+  --shadow-card: var(--ui-shadow-card);
+  --shadow-hover: var(--ui-shadow-hover);
+  --card-bg: var(--ui-surface);
+  --card-border: var(--line);
+  --card-radius: 22px;
+  --card-shadow: var(--ui-shadow-card);
+  --button-bg: var(--ink);
+  --button-bg-hover: var(--ui-accent-strong);
+  --button-fg: var(--bg);
+  --button-radius: 14px;
+  --polish-accent: var(--pos);
+}
+
+html[data-theme="dark"] .lg-root {
+  --ui-surface: rgb(255 255 255 / 0.07);
+  --ui-surface-strong: rgb(255 255 255 / 0.11);
+  --ui-line-strong: rgb(255 255 255 / 0.18);
+  --ui-accent-strong: #b7f7c6;
+  --ui-shadow-hover: inset 0 1px 0 var(--rim), 0 30px 70px -20px rgb(0 0 0 / 0.8);
+}
+
+.lg-root h1, .lg-root h2, .lg-root h3, .lg-root h4 {
+  font-family: var(--font);
+  letter-spacing: -0.02em;
+}
+.lg-root :where(td, time, .metric-value) { font-variant-numeric: tabular-nums; }
+
+/* --------------------------------------------------------- page heading */
+
+.lg-route { max-width: 1580px; margin: 0 auto; }
+.lg-route > * + * { margin-top: var(--gap); }
+
+.lg-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 28px;
+  animation: lg-rise .6s var(--smooth) both;
+}
+.lg-page-head > div { position: relative; z-index: 1; }
+.lg-eyebrow {
+  display: inline-block;
+  margin-bottom: 6px;
+  color: var(--pos);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.lg-page-head h1 { margin: 0; font-size: clamp(26px, 3vw, 34px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; }
+.lg-page-head p { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 62ch; }
+
+/* ------------------------------------------------- glass containers */
+
+.lg-route :is(
+  .app-card, .form-panel, .toolbar-panel, .table-shell, .empty-state-panel,
+  .camera-card, .worksite-command, .worksite-portfolio, .worksite-intelligence,
+  .worksite-digital-panel, .report-panel, .presentation-card, .audit-panel,
+  .device-card, .employee-card, .enrollment-panel,
+  .presentation-flow, .presentation-live-metrics, .presentation-diagnostics,
+  .presentation-recent, .presentation-explainer, .presentation-safety-note
+) {
+  border: 0 !important;
+  border-radius: var(--radius) !important;
+  background: linear-gradient(145deg, var(--glass-a), var(--glass-b) 48%, var(--glass-a) 140%) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(190%);
+  backdrop-filter: blur(26px) saturate(190%);
+  box-shadow: inset 0 1px 0 var(--rim), var(--shadow) !important;
+  color: var(--ink);
+}
+
+/* Old decorative pseudo layers would cover the glass gradient. */
+.lg-route :is(.app-card, .form-panel, .toolbar-panel, .table-shell)::before {
+  background: linear-gradient(160deg, var(--rim), transparent 38%, transparent 62%, var(--rim)) !important;
+  opacity: 1 !important;
+  padding: 1px;
+  border-radius: inherit;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+/* ------------------------------------------------------------ controls */
+
+.lg-route .btn {
+  min-height: 44px;
+  border-radius: 14px;
+  font-family: var(--font);
+  font-weight: 700;
+  transition: transform .45s var(--spring), box-shadow .3s var(--smooth), background-color .25s var(--smooth);
+}
+.lg-route .btn:not(:disabled):hover { transform: translateY(-1px); }
+.lg-route .btn:not(:disabled):active { transform: scale(.97); }
+.lg-route .btn-primary {
+  border: 0;
+  color: var(--on-brand) !important;
+  background: linear-gradient(135deg, var(--brand-a), var(--brand-b)) !important;
+  box-shadow: 0 12px 26px -12px var(--brand-a), inset 0 1px 0 rgb(255 255 255 / 0.6) !important;
+}
+.lg-route .btn-primary:not(:disabled):hover { box-shadow: 0 16px 32px -12px var(--brand-a), inset 0 1px 0 rgb(255 255 255 / 0.6) !important; }
+.lg-route :is(.btn-secondary, .btn-ghost, .btn-on-dark) {
+  border: 0 !important;
+  color: var(--ink) !important;
+  background: var(--chip) !important;
+  box-shadow: inset 0 0 0 1px var(--line) !important;
+}
+.lg-route .btn-danger { border: 0; color: #fff; background: var(--neg); }
+.lg-route .icon-button {
+  border: 0;
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--chip);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.lg-route .icon-button:hover { color: var(--pos); }
+
+.lg-route :is(.input-field, select.input-field, textarea.input-field, .search-field) {
+  min-height: 44px;
+  border: 0 !important;
+  border-radius: 14px !important;
+  color: var(--ink);
+  background: var(--chip) !important;
+  box-shadow: inset 0 0 0 1px var(--line) !important;
+  font-family: var(--font);
+  transition: box-shadow .25s var(--smooth), background-color .25s var(--smooth);
+}
+.lg-route .input-field:focus,
+.lg-route .input-field:focus-visible,
+.lg-route .search-field:focus-within {
+  outline: 0 !important;
+  box-shadow: inset 0 0 0 2px var(--pos) !important;
+  background: var(--glass-a) !important;
+}
+.lg-route .input-field[aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--neg) !important; animation: lg-shake .45s var(--smooth); }
+.lg-route .input-field::placeholder { color: var(--faint); }
+.lg-route .field-label { color: var(--muted); font-size: 12.5px; font-weight: 650; }
+html[data-theme="dark"] .lg-route select.input-field option { background: #0b1a12; color: var(--ink); }
+
+.lg-route .segmented-control {
+  border: 0;
+  border-radius: 14px;
+  background: var(--chip);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.lg-route .segmented-button[aria-pressed="true"],
+.lg-route .segmented-button[aria-selected="true"],
+.lg-route .segmented-button[data-active="true"] {
+  color: var(--ink);
+  background: var(--glass-a);
+  box-shadow: 0 2px 8px -2px rgb(0 0 0 / 0.18), inset 0 1px 0 var(--rim);
+}
+
+.lg-route .feedback-banner {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  animation: lg-pop .45s var(--spring) both;
+}
+
+/* The search box is the label; its input stays flat inside it. */
+.lg-route .search-field input,
+.lg-route .search-field input:focus {
+  min-height: 0; border: 0 !important; outline: 0 !important;
+  background: transparent !important; box-shadow: none !important; color: var(--ink);
+}
+
+/* Dark hero cards keep their own light text. */
+.lg-route .presentation-intro :is(h1, h2, h3) { color: inherit; }
+.lg-route .presentation-console { grid-template-columns: minmax(0, 1fr); }
+.lg-route .presentation-console > *,
+.lg-route .presentation-console > * > * { min-width: 0; }
+.lg-route .presentation-pipeline span { border: 0; color: var(--ink); background: var(--chip); box-shadow: inset 0 0 0 1px var(--line); }
+.lg-route .presentation-pipeline i { background: var(--line); }
+.lg-route .presentation-flow li > svg { color: var(--pos); }
+.lg-route .presentation-console :is(h3, strong, b) { color: var(--ink); }
+.lg-route .presentation-console :is(p, small) { color: var(--muted); }
+.lg-route .presentation-intro :is(p, small, strong, b) { color: inherit; }
+
+/* -------------------------------------------------------------- tables */
+
+.lg-route .data-table { border-collapse: separate; border-spacing: 0; }
+.lg-route .data-table :is(th, td) { border-color: var(--line) !important; background: transparent; }
+.lg-route .data-table thead th {
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  background: transparent !important;
+}
+.lg-route .data-table tbody tr { background: transparent; transition: background-color .25s var(--smooth); }
+.lg-route .data-table tbody tr:hover { background: var(--chip) !important; }
+
+.lg-route .skeleton {
+  background: linear-gradient(90deg, var(--chip) 25%, var(--glass-a) 50%, var(--chip) 75%);
+  background-size: 300% 100%;
+  animation: lg-shimmer 1.4s linear infinite;
+}
+
+/* -------------------------------------------------------------- dialogs */
+
+.lg-root [role="dialog"]:not(.lg-sheet):not(.presentation-show) {
+  border: 0;
+  border-radius: 28px;
+  color: var(--ink);
+  background: linear-gradient(145deg, var(--glass-a), var(--glass-b) 48%, var(--glass-a) 140%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  backdrop-filter: blur(30px) saturate(190%);
+  box-shadow: inset 0 1px 0 var(--rim), 0 40px 120px -30px rgb(0 0 0 / 0.5);
+}
+html[data-theme="light"] .lg-root [role="dialog"]:not(.lg-sheet):not(.presentation-show) { background: rgb(255 255 255 / 0.86); }
+html[data-theme="dark"] .lg-root [role="dialog"]:not(.lg-sheet):not(.presentation-show) { background: rgb(14 26 19 / 0.88); }
+
+/* ----------------------------------------------------- staggered entry */
+
+.lg-route > :not(.lg-page-head),
+.lg-route > * > :is(.app-card, .form-panel, .toolbar-panel, .table-shell) {
+  animation: lg-rise .65s var(--smooth) both;
+}
+.lg-route > :nth-child(2) { animation-delay: 70ms; }
+.lg-route > :nth-child(3) { animation-delay: 140ms; }
+.lg-route > :nth-child(4) { animation-delay: 210ms; }
+.lg-route > :nth-child(5) { animation-delay: 280ms; }
+
+/* ------------------------------------------------------------ terminal */
+
+.lg-main.app-main-terminal { width: 100%; max-width: none; margin: 0; padding: 0; }
+.lg-main.app-main-terminal .lg-route { max-width: none; }
+
+@media (max-width: 759px) {
+  .lg-page-head { padding: 18px; align-items: flex-start; flex-direction: column; }
+}
+
+.lg-route .presentation-console > :not(.presentation-intro) header span:first-child { color: var(--pos); }
+.lg-route .presentation-console > :not(.presentation-intro) a { color: var(--pos); }

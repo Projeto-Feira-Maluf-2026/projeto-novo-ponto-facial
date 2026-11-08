@@ -8,6 +8,7 @@ import { formatInAppTimeZone } from '../utils/dateTime';
 import '@fontsource-variable/hanken-grotesk';
 import '@fontsource/ibm-plex-mono/500.css';
 import '../pages/dashboard-glass.css';
+import '../pages/glass-app.css';
 
 export interface GlassNavItem {
   to: string;
@@ -27,6 +28,9 @@ export function useDashboardSearch() {
 
 interface GlassShellProps {
   navItems: GlassNavItem[];
+  /** Title block for every screen except the overview, which has its own hero. */
+  heading?: { eyebrow: string; title: string; description: string } | null;
+  terminal?: boolean;
   dark: boolean;
   displayName: string;
   email?: string | null;
@@ -57,6 +61,8 @@ function isActivePath(pathname: string, target: string) {
 
 export function GlassShell({
   navItems,
+  heading = null,
+  terminal = false,
   dark,
   displayName,
   email,
@@ -177,7 +183,7 @@ export function GlassShell({
               <strong>{greeting()}, {firstName}</strong>
               <span>{today}{!online && <em className="lg-offline"> · sem conexão</em>}</span>
             </div>
-            <label className="lg-search">
+            {location.pathname === '/' && <label className="lg-search">
               <Search size={17} aria-hidden="true" />
               <span className="sr-only">Buscar funcionário ou obra nos pontos de hoje</span>
               <input
@@ -187,7 +193,7 @@ export function GlassShell({
                 placeholder="Buscar funcionário ou obra"
                 autoComplete="off"
               />
-            </label>
+            </label>}
             <div className="lg-top-actions">
               <button type="button" className="lg-icon-btn lg-liquid" onClick={toggleTheme} aria-label={themeLabel} title={themeLabel}>
                 {dark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
@@ -223,8 +229,26 @@ export function GlassShell({
             </div>
           </header>
 
-          <main ref={mainRef} id="main-content" tabIndex={-1} className="lg-main">
-            {children}
+          <main
+            ref={mainRef}
+            id="main-content"
+            tabIndex={-1}
+            className={terminal ? 'lg-main app-main app-main-terminal' : 'lg-main'}
+            data-route={location.pathname}
+          >
+            <div key={location.pathname} className="route-content lg-route">
+              {heading && (
+                <section className="lg-page-head lg-glass">
+                  <div>
+                    <span className="lg-eyebrow">{heading.eyebrow}</span>
+                    <h1>{heading.title}</h1>
+                    <p>{heading.description}</p>
+                  </div>
+                  {!online && <span className="lg-chip" data-tone="neg">Sem conexão</span>}
+                </section>
+              )}
+              {children}
+            </div>
           </main>
         </div>
       </div>
