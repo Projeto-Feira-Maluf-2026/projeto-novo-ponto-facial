@@ -1,3 +1,4 @@
+import { motionReduced } from '../utils/motionPreference';
 type IndicatorMotion = { cancel: () => void };
 
 export function moveIndicator(
@@ -6,7 +7,7 @@ export function moveIndicator(
   axis: 'x' | 'y',
 ): IndicatorMotion | null {
   const firstPosition = indicator.dataset.motionReady !== 'true';
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduceMotion = motionReduced();
   const placeImmediately = firstPosition || reduceMotion;
   if (placeImmediately) indicator.style.transition = 'none';
 

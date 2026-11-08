@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { motionReduced } from '../utils/motionPreference';
 
 export function routeLinkDestination(event: MouseEvent, currentUrl: string): string | null {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
@@ -22,8 +23,7 @@ export function useSmoothNavigation() {
     if (!transitionDocument.startViewTransition) return;
     let active = false;
     const click = (event: MouseEvent) => {
-      if (active || document.querySelector('.presentation-story') || window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        || document.documentElement.dataset.motionMode === 'reduced') return;
+      if (active || document.querySelector('.presentation-story') || motionReduced()) return;
       const destination = routeLinkDestination(event, window.location.href);
       if (!destination) return;
       event.preventDefault();

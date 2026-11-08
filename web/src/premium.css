@@ -2697,27 +2697,27 @@ textarea:focus-visible,
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-hero-actions i,
-  .live-note i,
-  .world-live-pill i,
-  .worksite-ops-sync i,
-  .terminal-camera-frame::after {
+/* Animações reduzidas: só pelo botão "Reduzir animações" do app. */
+html[data-motion-mode="reduced"] .dashboard-hero-actions i,
+html[data-motion-mode="reduced"] .live-note i,
+html[data-motion-mode="reduced"] .world-live-pill i,
+html[data-motion-mode="reduced"] .worksite-ops-sync i,
+html[data-motion-mode="reduced"] .terminal-camera-frame::after {
     animation: none !important;
   }
 
-  .terminal-flow-step[data-state="active"] .terminal-flow-icon {
+  html[data-motion-mode="reduced"] .terminal-flow-step[data-state="active"] .terminal-flow-icon {
     animation: none !important;
   }
 
-  .employee-drawer,
-  .employee-drawer-scrim {
+  html[data-motion-mode="reduced"] .employee-drawer,
+html[data-motion-mode="reduced"] .employee-drawer-scrim {
     animation: none !important;
   }
 
-  .metric-tile:hover,
-  .btn:hover:not(:disabled),
-  .icon-button:hover {
+  html[data-motion-mode="reduced"] .metric-tile:hover,
+html[data-motion-mode="reduced"] .btn:hover:not(:disabled),
+html[data-motion-mode="reduced"] .icon-button:hover {
     transform: none;
   }
-}
+

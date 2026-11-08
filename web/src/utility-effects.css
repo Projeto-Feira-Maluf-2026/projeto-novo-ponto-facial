@@ -646,27 +646,27 @@ html[data-spatial-effects="full"] .terminal-camera-card[data-mode="accepted"] {
 .activity-chart-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 @keyframes activity-line-draw { to { stroke-dashoffset: 0; } }
 
-@media (prefers-reduced-motion: reduce) {
-  .skeleton::after,
-  .ui-skeleton::after,
-  .face-track-overlay::after,
-  .terminal-scan-volume,
-  .glass-checkmark-3d,
-  .data-flow-cubes > span,
-  .activity-line { animation: none !important; }
-  .route-content { animation: utility-fade-in 180ms ease-out both !important; }
-  .form-panel.app-view-transition,
-  .configuration-panel.app-view-transition,
-  .modal-backdrop,
-  .enrollment-dialog-backdrop,
-  .employee-drawer-scrim { animation: utility-fade-in 160ms ease-out both !important; }
-  .modal-backdrop > [role="dialog"],
-  .enrollment-dialog-backdrop > [role="dialog"],
-  .employee-drawer,
-  .confirmation-strip[role="alertdialog"] { animation: utility-fade-in 180ms ease-out both !important; }
-  [data-tilt],
-  .terminal-totem-3d { transform: none !important; }
-}
+/* Animações reduzidas: só pelo botão "Reduzir animações" do app. */
+html[data-motion-mode="reduced"] .skeleton::after,
+html[data-motion-mode="reduced"] .ui-skeleton::after,
+html[data-motion-mode="reduced"] .face-track-overlay::after,
+html[data-motion-mode="reduced"] .terminal-scan-volume,
+html[data-motion-mode="reduced"] .glass-checkmark-3d,
+html[data-motion-mode="reduced"] .data-flow-cubes > span,
+html[data-motion-mode="reduced"] .activity-line { animation: none !important; }
+  html[data-motion-mode="reduced"] .route-content { animation: utility-fade-in 180ms ease-out both !important; }
+  html[data-motion-mode="reduced"] .form-panel.app-view-transition,
+html[data-motion-mode="reduced"] .configuration-panel.app-view-transition,
+html[data-motion-mode="reduced"] .modal-backdrop,
+html[data-motion-mode="reduced"] .enrollment-dialog-backdrop,
+html[data-motion-mode="reduced"] .employee-drawer-scrim { animation: utility-fade-in 160ms ease-out both !important; }
+  html[data-motion-mode="reduced"] .modal-backdrop > [role="dialog"],
+html[data-motion-mode="reduced"] .enrollment-dialog-backdrop > [role="dialog"],
+html[data-motion-mode="reduced"] .employee-drawer,
+html[data-motion-mode="reduced"] .confirmation-strip[role="alertdialog"] { animation: utility-fade-in 180ms ease-out both !important; }
+  html[data-motion-mode="reduced"] [data-tilt],
+html[data-motion-mode="reduced"] .terminal-totem-3d { transform: none !important; }
+
 
 /* Preferência explícita do produto vence a configuração global do dispositivo. */
 html[data-motion-mode="full"] .form-panel.app-view-transition,

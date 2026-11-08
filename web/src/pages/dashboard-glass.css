@@ -997,13 +997,16 @@ html[data-theme="dark"] .lg-pills button[data-tone="neg"][aria-pressed="true"] {
 
 /* -------------------------------------------------------- reduced motion */
 
-@media (prefers-reduced-motion: reduce) {
-  .lg-root *, .lg-root *::before, .lg-root *::after,
-  .lg-sheet-layer *, .lg-toasts * {
+/* Animações reduzidas: só pelo botão "Reduzir animações" do app. */
+html[data-motion-mode="reduced"] .lg-root *,
+html[data-motion-mode="reduced"] .lg-root *::before,
+html[data-motion-mode="reduced"] .lg-root *::after,
+html[data-motion-mode="reduced"] .lg-sheet-layer *,
+html[data-motion-mode="reduced"] .lg-toasts * {
     animation: none !important;
     transition: none !important;
   }
-}
+
 html[data-motion-mode="reduced"] .lg-root *,
 html[data-motion-mode="reduced"] .lg-root *::before,
 html[data-motion-mode="reduced"] .lg-root *::after {
