@@ -138,6 +138,27 @@ const fallbackMetrics: DashboardMetrics = {
     { hour: '12:00', records: 486 },
     { hour: '17:00', records: 640 },
   ],
+  // Demo-only history (VITE_ENABLE_MOCKS=true); real builds read it from the API.
+  status_today: { ACCEPTED: 2241, REJECTED: 61, MANUAL_REVIEW: 36 },
+  daily: Array.from({ length: 30 }, (_, index) => {
+    const date = new Date(Date.now() - (29 - index) * 86_400_000).toISOString().slice(0, 10);
+    const weekend = [0, 6].includes(new Date(`${date}T15:00:00Z`).getUTCDay());
+    const present = weekend ? 120 + (index % 3) * 40 : 900 + ((index * 37) % 120);
+    return {
+      date,
+      records: present * 2 + (index % 5) * 30,
+      present,
+      accepted: present * 2,
+      rejected: (index * 7) % 40,
+      alerts: index % 9 === 0 ? 2 : 0,
+    };
+  }),
+  recent: [
+    { id: 'r1', employee_name: 'Joao Pereira', worksite_name: 'Obra Batel', punch_type: 'EXIT', status: 'ACCEPTED', occurred_at: new Date().toISOString() },
+    { id: 'r2', employee_name: 'Maria Santos', worksite_name: 'Canteiro CIC', punch_type: 'LUNCH_IN', status: 'MANUAL_REVIEW', occurred_at: new Date(Date.now() - 600_000).toISOString() },
+    { id: 'r3', employee_name: 'Murilo Rocha', worksite_name: 'Reforma Centro', punch_type: 'ENTRY', status: 'REJECTED', occurred_at: new Date(Date.now() - 1_800_000).toISOString() },
+    { id: 'r4', employee_name: 'Ana Clara Lima', worksite_name: 'Obra Batel', punch_type: 'ENTRY', status: 'ACCEPTED', occurred_at: new Date(Date.now() - 3_600_000).toISOString() },
+  ],
 };
 
 const fallbackEmployees: Page<Employee> = {

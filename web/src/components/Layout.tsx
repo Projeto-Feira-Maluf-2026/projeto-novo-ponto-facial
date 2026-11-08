@@ -23,6 +23,7 @@ import { moveIndicator } from '../animations/navigationMotion';
 import { useAuth } from '../auth/AuthContext';
 import { ALL_ROLES, roleForUser, type AppRole } from '../auth/permissions';
 import { BrandMark } from './BrandMark';
+import { GlassShell } from './GlassShell';
 import { usePresentationMode } from '../presentation/PresentationContext';
 import { formatInAppTimeZone } from '../utils/dateTime';
 
@@ -230,6 +231,29 @@ export function Layout({ dark, onLogout, onToggleTheme, children }: LayoutProps)
     presentation.start();
     navigate('/apresentacao');
   };
+
+  if (location.pathname === '/') {
+    // The overview uses the liquid glass shell; every other screen keeps its layout.
+    return (
+      <GlassShell
+        navItems={visibleNavItems}
+        dark={dark}
+        displayName={displayName}
+        email={user?.email}
+        initials={initials}
+        online={online}
+        presentationActive={presentation.active}
+        motionReduced={motionReduced}
+        mainRef={mainRef}
+        onToggleTheme={onToggleTheme}
+        onTogglePresentation={togglePresentation}
+        onToggleMotion={() => setMotionReduced((value) => !value)}
+        onLogout={onLogout}
+      >
+        {children}
+      </GlassShell>
+    );
+  }
 
   return (
     <div className="app-shell">

@@ -29,7 +29,7 @@ class AsyncRowsAdapter:
 
 @pytest.mark.parametrize('scoped', [False, True])
 @pytest.mark.asyncio
-async def test_dashboard_uses_three_scoped_queries_and_preserves_metrics(scoped):
+async def test_dashboard_uses_five_scoped_queries_and_preserves_metrics(scoped):
     engine = create_engine('sqlite://')
     Base.metadata.create_all(engine)
     start, _ = local_day_utc_bounds(datetime.now(SAO_PAULO).date())
@@ -64,7 +64,7 @@ async def test_dashboard_uses_three_scoped_queries_and_preserves_metrics(scoped)
         event.listen(engine, 'before_cursor_execute', lambda *args: queries.append(args[2]))
         metrics = await DashboardService(AsyncRowsAdapter(session)).metrics()
         multiplier = 1 if scoped else 2
-        assert len(queries) == 3
+        assert len(queries) == 5
         assert metrics.total_employees == multiplier
         assert metrics.present_employees == multiplier
         assert metrics.absent_employees == 0
@@ -76,5 +76,21 @@ async def test_dashboard_uses_three_scoped_queries_and_preserves_metrics(scoped)
         assert sum(row['records'] for row in metrics.timeline) == 6 * multiplier
         assert len(metrics.by_worksite) == multiplier
         assert metrics.by_worksite[0] == {'name': 'a', 'records': 6}
+        assert len(metrics.daily) == 30
+        today = metrics.daily[-1]
+        assert today['records'] == 6 * multiplier
+        assert today['present'] == multiplier
+        assert today['accepted'] == 4 * multiplier
+        assert today['rejected'] == multiplier
+        assert today['alerts'] == multiplier
+        assert sum(day['records'] for day in metrics.daily[:-1]) == 0
+        assert metrics.status_today['ACCEPTED'] == 4 * multiplier
+        assert metrics.status_today['MANUAL_REVIEW'] == multiplier
+        assert len(metrics.recent) == 6 * multiplier
+        assert metrics.recent[0]['status'] == 'MANUAL_REVIEW'
+        assert metrics.recent[0]['occurred_at'].endswith('Z')
+        assert {row['employee_name'] for row in metrics.recent} <= {'a', 'b'}
+        if scoped:
+            assert {row['worksite_name'] for row in metrics.recent} == {'a'}
         assert not session.identity_map  # Projection does not hydrate full records.
     engine.dispose()

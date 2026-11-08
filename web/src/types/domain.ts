@@ -12,6 +12,31 @@ export interface DashboardMetrics {
   fraud_alerts: number;
   by_worksite: Array<{ name: string; records: number }>;
   timeline: Array<{ hour: string; records: number }>;
+  /** Additive fields; older API builds may omit them. */
+  status_today?: Partial<Record<AttendanceRecordStatus, number>>;
+  daily?: DashboardDay[];
+  recent?: DashboardRecentRecord[];
+}
+
+export type AttendanceRecordStatus = 'ACCEPTED' | 'REJECTED' | 'MANUAL_REVIEW' | 'OFFLINE_PENDING';
+
+export interface DashboardDay {
+  /** São Paulo calendar day, `yyyy-mm-dd`. */
+  date: string;
+  records: number;
+  present: number;
+  accepted: number;
+  rejected: number;
+  alerts: number;
+}
+
+export interface DashboardRecentRecord {
+  id: string;
+  employee_name: string;
+  worksite_name: string;
+  punch_type: string;
+  status: AttendanceRecordStatus;
+  occurred_at: string;
 }
 
 export interface Employee {
