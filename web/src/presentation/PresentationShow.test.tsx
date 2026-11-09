@@ -144,6 +144,22 @@ describe('PresentationShow', () => {
     expect(activeScene(container)).not.toHaveTextContent('já mandamos');
   });
 
+  it('shows the real punch details and where this punch sits in the day', () => {
+    const { container, rerender } = render(<PresentationShow result={result} onClose={() => undefined} />);
+    expect(activeScene(container)).toHaveTextContent('RegistroEntrada');
+    expect(activeScene(container)).toHaveTextContent('LocalFeira de Tecnologia');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ir para a cena 5 de 9' }));
+    const sequence = screen.getByRole('list', { name: 'Ordem dos registros do dia' });
+    expect(sequence.querySelector('[aria-current="step"]')).toHaveTextContent('Entrada');
+
+    rerender(<PresentationShow result={{ ...result, participants: [{ ...participant, punchType: 'LUNCH_IN' }] }} onClose={() => undefined} />);
+    expect(screen.getByRole('list', { name: 'Ordem dos registros do dia' }).querySelector('[aria-current="step"]')).toHaveTextContent('Volta');
+
+    rerender(<PresentationShow result={{ ...result, participants: [{ ...participant, punchType: null }] }} onClose={() => undefined} />);
+    expect(screen.queryByRole('list', { name: 'Ordem dos registros do dia' })).not.toBeInTheDocument();
+  });
+
   it('credits the five real team members', () => {
     render(<PresentationShow result={result} onClose={() => undefined} />);
     fireEvent.click(screen.getByRole('button', { name: 'Ir para a cena 8 de 9' }));

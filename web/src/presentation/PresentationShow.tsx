@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Check, Eye, Lock, Mail, Moon, Pause, Play, ShieldCheck, Sun, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Eye, Lock, Mail, Moon, Pause, Play, ScanFace, ShieldCheck, Sun, X } from 'lucide-react';
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import type { PunchType } from '../types/domain';
@@ -22,6 +22,16 @@ const punchLabels: Record<PunchType, string> = {
   ENTRY: 'Entrada',
   LUNCH_OUT: 'Saída para o intervalo',
   LUNCH_IN: 'Volta do intervalo',
+  EXIT: 'Saída',
+};
+
+/** Mesma ordem que o servidor usa para escolher o próximo tipo de ponto. */
+const PUNCH_SEQUENCE: PunchType[] = ['ENTRY', 'LUNCH_OUT', 'LUNCH_IN', 'EXIT'];
+
+const punchShortLabels: Record<PunchType, string> = {
+  ENTRY: 'Entrada',
+  LUNCH_OUT: 'Intervalo',
+  LUNCH_IN: 'Volta',
   EXIT: 'Saída',
 };
 
@@ -183,6 +193,11 @@ function FaceMesh() {
         ))}
         <rect className="show-face-scan" x="40" y="40" width="320" height="3" rx="1.5" />
       </svg>
+      <ul className="show-face-checks">
+        {['Rosto encontrado', 'Qualidade conferida', 'Pronto para comparar'].map((label, index) => (
+          <li key={label} style={{ '--i': index } as CSSProperties}><Check size={14} /> {label}</li>
+        ))}
+      </ul>
       <span className="show-visual-caption">Ilustração · nenhuma imagem da câmera aparece aqui</span>
     </div>
   );
@@ -213,20 +228,42 @@ function CodeSignature({ seed }: { seed: string }) {
   );
 }
 
+/** Posições fixas para quem foi reconhecido: o "você" não fica sempre no primeiro cartão. */
+const MATCH_SLOTS = [4, 1, 5, 0, 3];
+
 function MatchBoard({ participants }: { participants: PresentationParticipantResult[] }) {
   const matches = participants.slice(0, 5);
-  const slots = Array.from({ length: 6 }, (_, index) => matches[index] ?? null);
+  const slots: (PresentationParticipantResult | null)[] = Array.from({ length: 6 }, () => null);
+  matches.forEach((participant, index) => { slots[MATCH_SLOTS[index]] = participant; });
+  // A varredura passa primeiro pelos cadastros que não conferem e termina em quem foi reconhecido.
+  let misses = 0;
+  const scanOrder = slots.map((participant) => (participant ? -1 : misses++));
+  let found = 0;
+  const order = scanOrder.map((value) => (value >= 0 ? value : misses + found++));
   return (
     <div className="show-visual show-match" aria-hidden="true">
       <div className="show-match-grid">
         {slots.map((participant, index) => (
-          <div key={participant?.id || `slot-${index}`} className="show-match-card" data-match={participant ? 'true' : undefined} style={{ '--i': index } as CSSProperties}>
+          <div
+            key={participant?.id || `slot-${index}`}
+            className="show-match-card"
+            data-match={participant ? 'true' : undefined}
+            style={{ '--i': index, '--o': order[index] } as CSSProperties}
+          >
             <span className="show-match-avatar">{participant ? initials(participant.name) : ''}</span>
             <span className="show-match-name">{participant ? firstName(participant.name) : 'Cadastro'}</span>
             <span className="show-match-state">{participant ? <><Check size={14} /> É você</> : 'Não confere'}</span>
           </div>
         ))}
       </div>
+      <div className="show-meter" style={{ '--n': misses } as CSSProperties}>
+        <span className="show-meter-label">Semelhança</span>
+        <span className="show-meter-track">
+          <span className="show-meter-fill" />
+          <span className="show-meter-mark"><small>mínimo</small></span>
+        </span>
+      </div>
+      <span className="show-visual-caption">Ilustração · a nota real é calculada no servidor</span>
     </div>
   );
 }
@@ -242,6 +279,31 @@ function emailLine(participants: PresentationParticipantResult[]) {
   return withEmail.length === participants.length
     ? 'E cada um vai receber a confirmação no próprio e-mail.'
     : `${withEmail.length} de vocês vão receber a confirmação por e-mail.`;
+}
+
+function sharedPunchType(participants: PresentationParticipantResult[]) {
+  const first = participants[0]?.punchType;
+  if (!first) return null;
+  return participants.every((participant) => participant.punchType === first) ? first : null;
+}
+
+function PunchSequence({ current }: { current: PunchType }) {
+  const position = PUNCH_SEQUENCE.indexOf(current);
+  return (
+    <ol className="show-sequence" aria-label="Ordem dos registros do dia">
+      {PUNCH_SEQUENCE.map((type, index) => (
+        <li
+          key={type}
+          data-state={index < position ? 'done' : index === position ? 'current' : undefined}
+          aria-current={index === position ? 'step' : undefined}
+          style={{ '--i': index } as CSSProperties}
+        >
+          <span className="show-sequence-dot">{index <= position ? <Check size={13} /> : index + 1}</span>
+          {punchShortLabels[type]}
+        </li>
+      ))}
+    </ol>
+  );
 }
 
 function Receipt({ result }: { result: PresentationResult }) {
@@ -375,6 +437,7 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
   const welcomeText = group
     ? `A câmera reconheceu ${joinNames(names)} de uma vez só, e cada um ganhou o próprio registro.`
     : 'Que bom ter você aqui. A câmera te reconheceu e o seu ponto já está salvo.';
+  const punchType = sharedPunchType(participants);
   const sceneState = (position: number) => (position === index ? 'active' : position < index ? 'before' : 'after');
 
   return (
@@ -472,9 +535,16 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
                 ))}
               </ul>
             )}
-            <p className="show-hint">Nos próximos segundos, a gente mostra o que aconteceu por trás dessa leitura.</p>
+            <dl className="show-facts">
+              <div style={{ '--i': 0 } as CSSProperties}><dt>Registro</dt><dd>{group ? `${participants.length} pessoas` : punchType ? punchLabels[punchType] : 'Ponto'}</dd></div>
+              <div style={{ '--i': 1 } as CSSProperties}><dt>Horário</dt><dd>{formatTime(lead.occurredAt)}</dd></div>
+              <div style={{ '--i': 2 } as CSSProperties}><dt>Local</dt><dd>{result.worksiteName}</dd></div>
+            </dl>
+            <p className="show-hint">Nos próximos segundos, mostramos em quatro passos o que aconteceu por trás dessa leitura.</p>
           </div>
           <div className="show-visual show-badge" aria-hidden="true">
+            <span className="show-ripple" />
+            <span className="show-ripple show-ripple-late" />
             <Burst />
             <svg viewBox="0 0 220 220">
               <circle className="show-badge-ring" cx="110" cy="110" r="92" />
@@ -488,7 +558,7 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
           <div className="show-copy">
             <span className="show-eyebrow">Passo 1 · Encontrar o rosto</span>
             <h2>Primeiro, a câmera <em>te encontrou.</em></h2>
-            <p className="show-lede">Ela marca pontos como olhos, nariz e boca para saber onde está o rosto. Ninguém precisa apertar botão: basta olhar para a tela.</p>
+            <p className="show-lede">Ela localiza olhos, nariz e boca para saber onde está o rosto e confere se a imagem tem luz e foco suficientes. Ninguém precisa apertar botão: basta olhar para a tela.</p>
             {group && <p className="show-note">Com várias pessoas no quadro, cada rosto é separado e analisado sozinho.</p>}
           </div>
           <FaceMesh />
@@ -498,7 +568,7 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
           <div className="show-copy">
             <span className="show-eyebrow">Passo 2 · Transformar em números</span>
             <h2>Depois, o rosto <em>vira um código.</em></h2>
-            <p className="show-lede">Uma inteligência artificial transforma o rosto em 512 números. É como uma impressão digital do rosto, e é ela que o sistema compara, não a foto.</p>
+            <p className="show-lede">Uma rede neural treinada com rostos transforma cada rosto em 512 números. A mesma pessoa gera códigos parecidos; pessoas diferentes, códigos distantes. É esse código que o sistema compara, não a foto.</p>
           </div>
           <CodeSignature seed={participants.map((participant) => participant.name).join('|')} />
         </section>
@@ -507,7 +577,7 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
           <div className="show-copy">
             <span className="show-eyebrow">Passo 3 · Comparar</span>
             <h2>Aí vem a <em>comparação.</em></h2>
-            <p className="show-lede">O código é comparado com o de quem está cadastrado nesta obra. O ponto só é registrado quando a semelhança é forte. Na dúvida, o sistema prefere pedir uma nova leitura do que errar.</p>
+            <p className="show-lede">O código é comparado com as referências de quem está cadastrado nesta obra. O ponto só é registrado se a semelhança passa de uma nota mínima e se nenhum outro cadastro fica parecido demais. Na dúvida, o sistema pede uma nova leitura em vez de arriscar.</p>
           </div>
           <MatchBoard participants={participants} />
         </section>
@@ -517,6 +587,8 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
             <span className="show-eyebrow">Passo 4 · Registrar</span>
             <h2>Pronto, <em>ponto batido.</em></h2>
             <p className="show-lede">Horário, obra e tipo de registro ficaram salvos no histórico, prontos para a equipe conferir. {emailLine(participants)}</p>
+            {punchType && <PunchSequence current={punchType} />}
+            <p className="show-note">O tipo segue a ordem do dia sozinho, e uma segunda leitura logo em seguida não duplica o ponto.</p>
           </div>
           <Receipt result={result} />
         </section>
@@ -568,7 +640,10 @@ export function PresentationShow({ result, onClose }: PresentationShowProps) {
             <span className="show-eyebrow">Obrigado!</span>
             <h2 className="show-greeting"><MotionText text={group ? 'Valeu pela visita!' : `Valeu, ${firstName(lead.name)}!`} /></h2>
             <p className="show-lede">{group ? 'Esperamos que vocês tenham curtido' : 'Esperamos que você tenha curtido'} ver como tudo funciona por dentro.</p>
-            <p className="show-countdown">Voltando para a câmera em <span ref={countdownRef}>{Math.ceil(SCENE_DURATIONS.finale / 1000)}</span>s</p>
+            <p className="show-countdown">
+              <span className="show-countdown-ring" aria-hidden="true"><ScanFace size={16} /></span>
+              <span>Voltando para a câmera em <span ref={countdownRef}>{Math.ceil(SCENE_DURATIONS.finale / 1000)}</span>s</span>
+            </p>
           </div>
         </section>
       </main>
