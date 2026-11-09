@@ -32,8 +32,14 @@ export interface CameraCaptureHandle {
     faceCrop?: boolean;
     sourceFaceBox?: FaceSourceBox | null;
   }) => string | null;
-  captureFaces: (options?: { limit?: number }) => string[];
-  captureFaceSamples: (options?: { limit?: number }) => CapturedFaceSample[];
+  captureFaceSamples: (options?: {
+    limit?: number;
+    // Recorta somente os rostos aceitos pelo filtro; os demais continuam
+    // contando como vizinhos para o recorte não invadir outro rosto.
+    include?: (box: FaceBox) => boolean;
+  }) => CapturedFaceSample[];
+  // Caixas atuais, sem recortar nem codificar imagem: barato a cada quadro.
+  peekFaceBoxes: () => FaceBox[];
   restart: () => Promise<void>;
 }
 
@@ -1217,21 +1223,6 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             return canvas.toDataURL('image/jpeg', 0.92);
           },
-          captureFaces: (options) => {
-            const limit = clamp(options?.limit || MAX_TRACKED_FACES, 1, MAX_TRACKED_FACES);
-            const boxes = normalizedFaceBoxesRef.current.length
-              ? normalizedFaceBoxesRef.current
-              : nativeNormalizedFaceBoxesRef.current;
-            const orderedBoxes = [...boxes].sort((left, right) => left.x - right.x);
-            return orderedBoxes
-              .slice(0, limit)
-              .map((box) => captureNormalizedFace(
-                box,
-                orderedBoxes.length > 1,
-                orderedBoxes.filter((candidate) => candidate !== box),
-              ))
-              .filter(Boolean) as string[];
-          },
           captureFaceSamples: (options) => {
             const limit = clamp(options?.limit || MAX_TRACKED_FACES, 1, MAX_TRACKED_FACES);
             const boxes = normalizedFaceBoxesRef.current.length
@@ -1241,6 +1232,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             return orderedBoxes
               .slice(0, limit)
               .flatMap((box) => {
+                if (options?.include && !options.include(box)) return [];
                 const image = captureNormalizedFace(
                   box,
                   orderedBoxes.length > 1,
@@ -1248,6 +1240,12 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
                 );
                 return image ? [{ image, box }] : [];
               });
+          },
+          peekFaceBoxes: () => {
+            const boxes = normalizedFaceBoxesRef.current.length
+              ? normalizedFaceBoxesRef.current
+              : nativeNormalizedFaceBoxesRef.current;
+            return [...boxes].sort((left, right) => left.x - right.x).slice(0, MAX_TRACKED_FACES);
           },
           restart: () => start(selectedDeviceIdRef.current, true),
         };

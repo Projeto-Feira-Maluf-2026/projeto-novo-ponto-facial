@@ -564,6 +564,8 @@ async def test_batch_punch_processes_every_identified_face(monkeypatch: pytest.M
         register_punch=AsyncMock(side_effect=decisions),
         send_pending_email_notifications=AsyncMock(return_value={}),
         pending_email_notifications={},
+        start_face_inference=lambda punches: [None] * len(punches),
+        discard_face_inference=lambda _tasks: None,
     )
     monkeypatch.setattr(
         "app.api.v1.routes.attendance.AttendanceService",
@@ -640,6 +642,8 @@ async def test_batch_punch_sends_email_after_responding(monkeypatch: pytest.Monk
         register_punch=AsyncMock(return_value=decision),
         send_pending_email_notifications=AsyncMock(return_value={"record-1": True}),
         pending_email_notifications={"record-1": {"recipient": "a@example.com"}},
+        start_face_inference=lambda punches: [None] * len(punches),
+        discard_face_inference=lambda _tasks: None,
     )
     monkeypatch.setattr(
         "app.api.v1.routes.attendance.AttendanceService",

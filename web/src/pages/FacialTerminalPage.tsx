@@ -22,6 +22,14 @@ import {
   type FaceSourceBox,
 } from '../components/CameraCapture';
 import { apiClient } from '../services/api';
+import {
+  countDoneFaces,
+  faceBoxIou,
+  faceNeedsRecognition,
+  refreshFaceMemory,
+  rememberFaceOutcome,
+  type FaceMemoryEntry,
+} from './terminalFaceMemory';
 import { usePresentationMode } from '../presentation/PresentationContext';
 import {
   shouldOfferPresentationResult,
@@ -82,10 +90,10 @@ const GROUP_RESULT_HOLD_MS = 1_200;
 // Em grupo, os rostos que faltam são relidos quase de imediato.
 const PARTIAL_RESULT_HOLD_MS = 100;
 const MAX_FACES_PER_SCAN = 5;
-// Com uma pessoa só, a apresentação espera um instante: o detector do
-// navegador às vezes encontra o segundo rosto alguns quadros depois.
-// Com o grupo inteiro registrado, ela abre na hora.
-const SINGLE_PRESENTATION_MIN_WAIT_MS = 400;
+// Leitura em ondas: depois de registrar quem está no quadro, o grupo fica
+// aberto por este tempo. Quem chegar nesse intervalo é fotografado,
+// reconhecido e entra na mesma apresentação; cada chegada reabre a janela.
+const GROUP_WAVE_WINDOW_MS = 4_000;
 // Quem falha em leituras seguidas (rosto sem cadastro, mal posicionado) não
 // segura a apresentação de quem já foi registrado.
 const GROUP_PRESENTATION_MAX_FAILED_READS = 3;
@@ -95,7 +103,7 @@ const GROUP_PRESENTATION_MAX_FAILED_READS = 3;
 const GROUP_PRESENTATION_WAIT_MS = 4_000;
 const GROUP_PRESENTATION_WAIT_PER_FACE_MS = 2_500;
 // Enquanto alguém novo continua sendo registrado, o grupo segue aberto.
-const GROUP_PRESENTATION_PROGRESS_GRACE_MS = 3_000;
+const GROUP_PRESENTATION_PROGRESS_GRACE_MS = GROUP_WAVE_WINDOW_MS;
 const GROUP_PRESENTATION_MAX_WAIT_MS = 20_000;
 const GROUP_PRESENTATION_CHECK_MS = 150;
 
@@ -110,17 +118,6 @@ type PresentationDraft = {
 };
 const RETRY_RESULT_HOLD_MS = 180;
 const SERVICE_RETRY_HOLD_MS = 1_200;
-
-function faceBoxIou(left: CameraFaceBox, right: CameraFaceBox) {
-  const intersectionLeft = Math.max(left.x, right.x);
-  const intersectionTop = Math.max(left.y, right.y);
-  const intersectionRight = Math.min(left.x + left.width, right.x + right.width);
-  const intersectionBottom = Math.min(left.y + left.height, right.y + right.height);
-  const intersection = Math.max(0, intersectionRight - intersectionLeft)
-    * Math.max(0, intersectionBottom - intersectionTop);
-  const union = left.width * left.height + right.width * right.height - intersection;
-  return union > 0 ? intersection / union : 0;
-}
 
 const loadPresentationShow = () => import('../presentation/PresentationShow');
 const PresentationShow = lazy(() => loadPresentationShow().then((module) => ({
@@ -207,7 +204,7 @@ export function FacialTerminalPage() {
   const resultHoldUntilRef = useRef(0);
   const triggerScanRef = useRef<(() => void) | null>(null);
   const awaitingFaceExitRef = useRef(false);
-  const completedFaceBoxesRef = useRef<CameraFaceBox[]>([]);
+  const faceMemoryRef = useRef<FaceMemoryEntry[]>([]);
   const presentationDraftRef = useRef<PresentationDraft | null>(null);
   const presentationTimerRef = useRef(0);
   const flushPresentationDraftRef = useRef<() => void>(() => undefined);
@@ -326,9 +323,11 @@ export function FacialTerminalPage() {
     if (!draft) return;
     draft.maxFaces = Math.max(draft.maxFaces, localFaceCountRef.current);
     const now = Date.now();
-    const elapsed = now - draft.startedAt;
     const groupSize = Math.min(draft.maxFaces, MAX_FACES_PER_SCAN);
-    const everyoneRegistered = draft.participants.length >= groupSize;
+    // Todos os rostos vistos foram registrados, ou os que faltam já falharam
+    // leituras seguidas (rosto sem cadastro, por exemplo).
+    const settled = draft.participants.length >= groupSize
+      || draft.failedReads >= GROUP_PRESENTATION_MAX_FAILED_READS;
     const deadline = Math.min(
       draft.startedAt + GROUP_PRESENTATION_MAX_WAIT_MS,
       Math.max(
@@ -337,13 +336,14 @@ export function FacialTerminalPage() {
         draft.lastProgressAt + GROUP_PRESENTATION_PROGRESS_GRACE_MS,
       ),
     );
-    if (
-      now >= deadline
-      || (everyoneRegistered && (groupSize > 1 || elapsed >= SINGLE_PRESENTATION_MIN_WAIT_MS))
-      || draft.failedReads >= GROUP_PRESENTATION_MAX_FAILED_READS
-    ) {
+    if (now >= deadline || (settled && now - draft.lastProgressAt >= GROUP_WAVE_WINDOW_MS)) {
       flushPresentationDraftRef.current();
       return;
+    }
+    if (settled) {
+      const count = draft.participants.length;
+      setMode('confirming');
+      setGuidance(`${count} ${count === 1 ? 'pessoa registrada' : 'pessoas registradas'}. Chegou mais alguém? Olhe para a câmera agora.`);
     }
     presentationTimerRef.current = window.setTimeout(() => checkPresentationDraft(), GROUP_PRESENTATION_CHECK_MS);
   }, []);
@@ -360,12 +360,14 @@ export function FacialTerminalPage() {
     localFaceCountRef.current = count;
     if (presentationDraftRef.current) {
       presentationDraftRef.current.maxFaces = Math.max(presentationDraftRef.current.maxFaces, count);
+      // Alguém novo entrou no quadro: a janela do grupo reabre para ele.
+      if (count > previousCount) presentationDraftRef.current.lastProgressAt = Date.now();
     }
     if (count === 0) {
       awaitingFaceExitRef.current = false;
-      completedFaceBoxesRef.current = [];
+      faceMemoryRef.current = [];
       setRecognizedFaceTargets([]);
-    } else if (count > completedFaceBoxesRef.current.length) {
+    } else if (count > countDoneFaces(faceMemoryRef.current)) {
       awaitingFaceExitRef.current = false;
     }
     if ((!wasPresent && count > 0) || count > previousCount) triggerScanRef.current?.();
@@ -424,10 +426,23 @@ export function FacialTerminalPage() {
           || candidate.recognizedName
           || 'Funcionário';
         const resolvedEmployeeId = result.employee_id || candidate.employeeId || '';
-        if (result.status !== 'ACCEPTED' && result.status !== 'MANUAL_REVIEW') return;
-        // Only a persisted record can confirm attendance. Never fabricate a
-        // record identifier or timestamp from a recognition-only response.
-        if (!result.record?.id || !result.record.occurred_at) return;
+        const persisted = (result.status === 'ACCEPTED' || result.status === 'MANUAL_REVIEW')
+          // Only a persisted record can confirm attendance. Never fabricate a
+          // record identifier or timestamp from a recognition-only response.
+          && Boolean(result.record?.id && result.record.occurred_at);
+        if (candidate.localFaceBox) {
+          faceMemoryRef.current = rememberFaceOutcome(
+            faceMemoryRef.current,
+            candidate.localFaceBox,
+            persisted ? 'done' : 'failed',
+            Date.now(),
+          );
+        }
+        if (
+          !persisted
+          || !result.record
+          || (result.status !== 'ACCEPTED' && result.status !== 'MANUAL_REVIEW')
+        ) return;
 
         const completedRecord = {
           id: result.record.id,
@@ -444,12 +459,6 @@ export function FacialTerminalPage() {
         }
         if (candidate.localFaceBox) {
           const recognizedBox = candidate.localFaceBox;
-          completedFaceBoxesRef.current = [
-            ...completedFaceBoxesRef.current.filter((box) => (
-              faceBoxIou(box, recognizedBox) < 0.2
-            )),
-            recognizedBox,
-          ];
           setRecognizedFaceTargets((current) => [
             ...current.filter((target) => faceBoxIou(target.box, recognizedBox) < 0.2),
             {
@@ -484,7 +493,7 @@ export function FacialTerminalPage() {
           );
         }
         const allCompleted = completed === validCandidates.length;
-        if (allCompleted && completedFaceBoxesRef.current.length >= localFaceCountRef.current) {
+        if (allCompleted && countDoneFaces(faceMemoryRef.current) >= localFaceCountRef.current) {
           awaitingFaceExitRef.current = true;
         }
         // A apresentação espera todos os rostos do quadro serem registrados
@@ -630,15 +639,39 @@ export function FacialTerminalPage() {
         return;
       }
 
-      const capturedFaces = localFacePresentRef.current
-        ? cameraRef.current?.captureFaceSamples({ limit: MAX_FACES_PER_SCAN }) || []
+      // Primeiro olha só as caixas (sem recortar nem gerar JPEG). A foto é
+      // tirada apenas dos rostos que precisam ir ao servidor agora.
+      const camera = cameraRef.current;
+      const now = Date.now();
+      const facePresent = localFacePresentRef.current;
+      const visibleBoxes = facePresent ? camera?.peekFaceBoxes?.() : [];
+      if (visibleBoxes) {
+        faceMemoryRef.current = refreshFaceMemory(faceMemoryRef.current, visibleBoxes, now);
+      }
+      const needsRecognition = (box: CameraFaceBox) => (
+        faceNeedsRecognition(faceMemoryRef.current, box, now)
+      );
+      const capturedFaces = facePresent && (!visibleBoxes || visibleBoxes.some(needsRecognition))
+        ? camera?.captureFaceSamples({ limit: MAX_FACES_PER_SCAN, include: needsRecognition }) || []
         : [];
-      const pendingFaces = capturedFaces.filter(({ box }) => (
-        completedFaceBoxesRef.current.every((completed) => faceBoxIou(completed, box) < 0.2)
-      ));
+      if (!visibleBoxes && capturedFaces.length) {
+        faceMemoryRef.current = refreshFaceMemory(
+          faceMemoryRef.current,
+          capturedFaces.map(({ box }) => box),
+          now,
+        );
+      }
+      const pendingFaces = capturedFaces.filter(({ box }) => needsRecognition(box));
       if (!pendingFaces.length) {
-        setMode(localFacePresentRef.current ? 'ready' : 'starting');
-        setGuidance(localFacePresentRef.current ? 'Rosto já registrado nesta leitura.' : 'Aguardando rosto…');
+        // Um rosto que falhou e aguarda nova tentativa mantém a última
+        // orientação na tela, em vez de parecer "já registrado".
+        const waitingRetry = faceMemoryRef.current.some((entry) => (
+          entry.state === 'failing' && entry.lastSeenAt === now
+        ));
+        if (!waitingRetry && !presentationDraftRef.current) {
+          setMode(facePresent ? 'ready' : 'starting');
+          setGuidance(facePresent ? 'Rosto já registrado nesta leitura.' : 'Aguardando rosto…');
+        }
         schedule();
         return;
       }

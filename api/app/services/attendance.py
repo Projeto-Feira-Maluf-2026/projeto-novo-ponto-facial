@@ -109,6 +109,14 @@ def attendance_confidence(match_confidence: float, quality_score: float) -> floa
     return round((match * 0.75) + (quality * 0.25), 4)
 
 
+def submitted_face_images(payload: PunchCreate) -> list[str]:
+    """Distinct images of one punch, in the order the pipeline evaluates them."""
+    return list(dict.fromkeys([
+        *payload.face.images_base64,
+        *([payload.face.image_base64] if payload.face.image_base64 else []),
+    ]))
+
+
 def attendance_frame_is_usable(processed) -> bool:
     """Accept a detected embedding when only distance-sensitive checks failed."""
     if processed.inference.embedding is None:
@@ -176,7 +184,59 @@ class AttendanceService:
             for (record_id, _), result in zip(pending, results, strict=True)
         }
 
-    async def register_punch(self, payload: PunchCreate) -> AttendanceDecision:
+    def process_face_images(self, images: list[str]) -> list:
+        """Decode, detect and embed one punch's images (blocking; run in a thread)."""
+        embeddings = self._face_embeddings()
+        return [embeddings.from_image_base64(image) for image in images]
+
+    def start_face_inference(
+        self,
+        punches: list[PunchCreate],
+    ) -> list[asyncio.Task | None]:
+        """Start the face pipeline for every punch of a group at once.
+
+        Faces still go through the model one at a time, but the database work
+        of each punch overlaps the inference of the next face instead of
+        waiting for it. Results are consumed in order by ``register_punch``;
+        no decision rule changes.
+        """
+        self._face_embeddings()  # create the shared service before the threads
+        # One face at a time, in order: running them side by side only makes
+        # the decoders compete with the model for the same CPU.
+        one_at_a_time = asyncio.Semaphore(1)
+
+        async def process(images: list[str]) -> list:
+            async with one_at_a_time:
+                return await asyncio.to_thread(self.process_face_images, images)
+
+        return [
+            asyncio.create_task(process(images))
+            if (images := submitted_face_images(punch))
+            else None
+            for punch in punches
+        ]
+
+    @staticmethod
+    def discard_face_inference(tasks: list[asyncio.Task | None]) -> None:
+        """Drop unused group inference without leaking unretrieved exceptions."""
+        for task in tasks:
+            if task is None:
+                continue
+            if not task.done():
+                task.cancel()
+            task.add_done_callback(lambda done: done.cancelled() or done.exception())
+
+    async def register_punch(
+        self,
+        payload: PunchCreate,
+        processed_frames: list | None = None,
+    ) -> AttendanceDecision:
+        """Register one punch.
+
+        ``processed_frames`` lets a group request hand over the inference it
+        already started in the background for ``submitted_face_images(payload)``;
+        every decision rule below is applied to it unchanged.
+        """
         from app.services.ai.facial_service import face_match_margin
 
         worksite = await self.session.get(Worksite, payload.worksite_id)
@@ -196,19 +256,15 @@ class AttendanceService:
         quality_score = 0.0
         vectors: list[tuple[list[float], float]] = []
         temporal_similarity_median: float | None = None
-        submitted_images = list(dict.fromkeys([
-            *payload.face.images_base64,
-            *([payload.face.image_base64] if payload.face.image_base64 else []),
-        ]))
+        submitted_images = submitted_face_images(payload)
         rejected_frame_reasons: list[str] = []
         pad_decision = None
         if submitted_images:
-            processed_frames = await asyncio.to_thread(
-                lambda: [
-                    self._face_embeddings().from_image_base64(image)
-                    for image in submitted_images
-                ]
-            )
+            if processed_frames is None:
+                processed_frames = await asyncio.to_thread(
+                    self.process_face_images,
+                    submitted_images,
+                )
             if settings.ENVIRONMENT in {"staging", "production"}:
                 from app.services.ai.presentation_attack import evaluate_presentation_attack
 

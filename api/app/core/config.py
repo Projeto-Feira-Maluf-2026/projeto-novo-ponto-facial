@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     FACE_MODEL_VERSION: str | None = None
     FACE_MODEL_SHA256: str | None = None
     FACE_EXECUTION_PROVIDERS: str = "CPUExecutionProvider"
+    # Detector e reconhecimento alternam a cada rosto. Com a espera ativa
+    # padrao do ONNX Runtime, as threads de uma sessao continuam girando e
+    # roubam CPU da outra (medido: ~175 -> ~125 ms por rosto em 4 vCPUs).
+    # true volta ao comportamento antigo sem novo deploy de codigo.
+    FACE_ONNX_THREAD_SPINNING: bool = False
     FACE_EXPECTED_EMBEDDING_DIMENSION: int = 512
     FACE_DETECTION_SIZE: int = 960
     FACE_DETECTION_SIZES: str = "320,640,1280"

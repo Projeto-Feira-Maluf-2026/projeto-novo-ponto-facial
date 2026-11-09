@@ -8,6 +8,7 @@ const scene = vi.hoisted(() => ({
   presentationActive: false,
   setFaceCount: (_count: number) => undefined as void,
   faces: [{ image: 'synthetic-frame', box: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 } }],
+  captures: 0,
 }));
 vi.mock('../services/api', () => ({ apiClient: api }));
 vi.mock('../presentation/PresentationContext', () => ({
@@ -28,7 +29,11 @@ vi.mock('../components/CameraCapture', async () => {
       onFaceCountChange: (count: number) => void;
     }, ref) {
       React.useImperativeHandle(ref, () => ({
-        captureFaceSamples: () => scene.faces,
+        captureFaceSamples: (options?: { include?: (box: unknown) => boolean }) => {
+          scene.captures += 1;
+          return scene.faces.filter(({ box }) => !options?.include || options.include(box));
+        },
+        peekFaceBoxes: () => scene.faces.map(({ box }) => box),
       }));
       React.useEffect(() => {
         scene.setFaceCount = props.onFaceCountChange;
@@ -54,6 +59,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   scene.presentationActive = false;
   scene.faces = [{ image: 'synthetic-frame', box: { x: 0.2, y: 0.2, width: 0.2, height: 0.3 } }];
+  scene.captures = 0;
   localStorage.clear();
   api.employees.mockResolvedValue({ items: [] });
   api.worksites.mockResolvedValue({ items: [{ id: 'worksite-1', name: 'Obra sintética', code: 'TEST', active: true }] });
@@ -75,6 +81,28 @@ describe('confirmação de ponto no terminal', () => {
     const view = render(<FacialTerminalPage />);
     await waitFor(() => expect(view.container.querySelector('.terminal-shell')).toHaveAttribute('data-mode', 'accepted'));
     expect(api.punchBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('não fotografa de novo quem já foi registrado e continua no quadro', async () => {
+    api.punchBatch.mockResolvedValue(response({ id: 'record-1', occurred_at: '2026-10-10T12:00:00Z' }));
+    render(<FacialTerminalPage />);
+    await waitFor(() => expect(api.punchBatch).toHaveBeenCalledTimes(1));
+    const capturesAfterPunch = scene.captures;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(api.punchBatch).toHaveBeenCalledTimes(1);
+    expect(scene.captures).toBe(capturesAfterPunch);
+  });
+
+  it('um rosto sem cadastro espera mais a cada falha em vez de repetir sem parar', async () => {
+    api.punchBatch.mockResolvedValue({
+      decisions: [{ accepted: false, status: 'REJECTED', employee_id: null, reasons: ['LOW_SIMILARITY'] }],
+      processed: 1, accepted: 0, manual_review: 0,
+    });
+    render(<FacialTerminalPage />);
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    // Sem espera progressiva seriam mais de dez leituras neste intervalo.
+    expect(api.punchBatch.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(api.punchBatch.mock.calls.length).toBeLessThanOrEqual(7);
   });
 
   it('uma resposta tardia não substitui a pausa do operador', async () => {
@@ -111,26 +139,48 @@ describe('apresentação com mais de um rosto', () => {
     await waitFor(() => expect(api.punchBatch).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('dialog', { name: 'Apresentação' })).not.toBeInTheDocument();
 
-    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 3_000 });
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 6_000 });
     expect(dialog).toHaveTextContent('Ana Souza | Bruno Lima');
     // A segunda leitura envia somente o rosto que ainda faltava.
     expect(api.punchBatch.mock.calls[1][0]).toHaveLength(1);
     expect(api.punchBatch.mock.calls[1][0][0].face.image_base64).toBe('face-b');
-  });
+  }, 10_000);
 
-  it('abre rápido com quem foi reconhecido quando um rosto falha em leituras seguidas', async () => {
+  it('não segura o grupo por um rosto que falha em leituras seguidas', async () => {
     api.punchBatch
       .mockResolvedValueOnce({ decisions: [accepted('a', 'Ana Souza'), rejected], processed: 2, accepted: 1, manual_review: 0 })
       .mockResolvedValue({ decisions: [rejected], processed: 1, accepted: 0, manual_review: 0 });
     render(<FacialTerminalPage />);
 
-    // Três leituras seguidas sem registrar o rosto que falta bastam: a
-    // apresentação não espera o prazo inteiro do grupo.
-    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 2_000 });
+    // O rosto sem cadastro falha leituras seguidas; o grupo abre ao fim da
+    // janela de chegada, sem esperar o prazo máximo.
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 6_000 });
     expect(dialog).toHaveTextContent('Ana Souza');
     expect(dialog).not.toHaveTextContent('|');
-    expect(api.punchBatch).toHaveBeenCalledTimes(4);
-  });
+    // A espera progressiva evita reenviar o rosto desconhecido a cada quadro.
+    expect(api.punchBatch.mock.calls.length).toBeLessThanOrEqual(9);
+  }, 10_000);
+
+  it('quem chega alguns segundos depois entra no mesmo grupo', async () => {
+    scene.faces = [faceA];
+    api.punchBatch
+      .mockResolvedValueOnce({ decisions: [accepted('a', 'Ana Souza')], processed: 1, accepted: 1, manual_review: 0 })
+      .mockResolvedValueOnce({ decisions: [accepted('b', 'Bruno Lima')], processed: 1, accepted: 1, manual_review: 0 });
+    render(<FacialTerminalPage />);
+    await waitFor(() => expect(api.punchBatch).toHaveBeenCalledTimes(1));
+
+    // Três segundos depois, outra pessoa entra no quadro.
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    expect(screen.queryByRole('dialog', { name: 'Apresentação' })).not.toBeInTheDocument();
+    scene.faces = [faceA, faceB];
+    act(() => scene.setFaceCount(2));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 6_000 });
+    expect(dialog).toHaveTextContent('Ana Souza | Bruno Lima');
+    // A segunda foto leva só quem chegou.
+    expect(api.punchBatch.mock.calls[1][0]).toHaveLength(1);
+    expect(api.punchBatch.mock.calls[1][0][0].face.image_base64).toBe('face-b');
+  }, 12_000);
 
   it('dá tempo para registrar um grupo de cinco pessoas, uma de cada vez', async () => {
     const names = ['Ana Souza', 'Bruno Lima', 'Carla Dias', 'Davi Rocha', 'Elisa Melo'];
@@ -154,9 +204,9 @@ describe('apresentação com mais de um rosto', () => {
     });
     render(<FacialTerminalPage />);
 
-    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 12_000 });
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 16_000 });
     expect(dialog).toHaveTextContent(names.join(' | '));
-  }, 15_000);
+  }, 20_000);
 
   it('uma queda momentânea na contagem de rostos não corta o grupo', async () => {
     let finishSecond!: (value: object) => void;
@@ -175,9 +225,9 @@ describe('apresentação com mais de um rosto', () => {
     await act(async () => {
       finishSecond({ decisions: [accepted('b', 'Bruno Lima')], processed: 1, accepted: 1, manual_review: 0 });
     });
-    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 3_000 });
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 6_000 });
     expect(dialog).toHaveTextContent('Ana Souza | Bruno Lima');
-  }, 10_000);
+  }, 12_000);
 
   it('inclui quem foi registrado para conferência', async () => {
     api.punchBatch.mockResolvedValueOnce({
@@ -189,8 +239,8 @@ describe('apresentação com mais de um rosto', () => {
     });
     render(<FacialTerminalPage />);
 
-    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 3_000 });
+    const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 6_000 });
     expect(dialog).toHaveTextContent('Ana Souza | Bruno Lima');
     expect(api.punchBatch).toHaveBeenCalledTimes(1);
-  });
+  }, 10_000);
 });

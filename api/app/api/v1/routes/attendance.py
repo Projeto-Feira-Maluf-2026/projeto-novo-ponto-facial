@@ -66,9 +66,15 @@ async def punch_batch(
         defer_email_notifications=True,
     )
     decisions: list[AttendanceDecision] = []
+    # Inferencia do grupo inteiro comeca de uma vez; o banco de cada batida
+    # roda enquanto os proximos rostos ainda estao no modelo.
+    inference_tasks = service.start_face_inference(payload.punches)
     try:
-        for punch_payload in payload.punches:
-            decisions.append(await service.register_punch(punch_payload))
+        for punch_payload, inference in zip(payload.punches, inference_tasks, strict=True):
+            decisions.append(await service.register_punch(
+                punch_payload,
+                processed_frames=await inference if inference is not None else None,
+            ))
         # Uma unica transacao para o grupo inteiro: N rostos custam um commit,
         # nao N. Os e-mails continuam saindo somente depois da gravacao.
         await session.commit()
@@ -78,6 +84,8 @@ async def punch_batch(
     except Exception:
         await session.rollback()
         raise
+    finally:
+        service.discard_face_inference(inference_tasks)
 
     # O SMTP levava de 1 a 3 segundos e segurava a resposta do terminal (e,
     # portanto, a apresentacao). O registro ja esta gravado; a confirmacao por
