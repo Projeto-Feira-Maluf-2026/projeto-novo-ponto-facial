@@ -1,16 +1,20 @@
 import {
+  Building2,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Focus,
   Maximize2,
   Minimize2,
   Pause,
   Play,
+  ScanFace,
   ShieldAlert,
   UserRoundCheck,
   WifiOff,
   XCircle,
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -39,6 +43,7 @@ import type {
 import { formatInAppTimeZone, parseApiDate } from '../utils/dateTime';
 import { publishAttendancePulse } from '../utils/attendancePulse';
 import { readTerminalWorksiteId, saveTerminalWorksiteId } from '../utils/terminalPreferences';
+import './facial-terminal.css';
 
 type TerminalMode =
   | 'starting'
@@ -150,6 +155,20 @@ function formatDate(value: Date) {
 
 function formatClock(value: Date) {
   return formatInAppTimeZone(value, { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatSeconds(value: Date) {
+  return formatInAppTimeZone(value, { second: '2-digit' }).padStart(2, '0');
+}
+
+function initialsOf(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : (parts[0] || '?').slice(0, 2);
+  return letters.toUpperCase();
+}
+
+function latestRecordKey(records: { id: string }[]) {
+  return records[0]?.id || 'none';
 }
 
 function attendanceReasonMessage(reasons: string[]) {
@@ -766,48 +785,55 @@ export function FacialTerminalPage() {
   }, [decision?.employee_name, guidance, mode, recognition.employeeName]);
 
   const ResultIcon = resultPresentation.icon;
-  const cameraClass = fullscreen ? 'h-[calc(100vh-164px)] min-h-[560px]' : 'h-[clamp(440px,62vh,690px)]';
-  const latestRecord = recentRecords[0];
+  const tone = resultPresentation.tone;
+  // Quando a orientação só repete o título ("Aguardando rosto…"), mostramos uma dica útil no lugar.
+  const statusDetail = guidance.replace(/[.…]+$/, '').toLowerCase() === resultPresentation.title.toLowerCase()
+    ? 'Fique de frente para a câmera. A leitura é automática.'
+    : guidance;
+  const dateLabel = formatDate(clock);
   const content = (
-    <div className="terminal-shell" data-mode={mode}>
+    <div className="tk-terminal" data-mode={mode} data-tone={tone} data-fullscreen={fullscreen || undefined}>
       <h1 className="sr-only">Ponto automático</h1>
-      <section className="terminal-camera-card" data-mode={mode}>
-        <div className="terminal-toolbar">
-          <div className="terminal-toolbar-identity">
-            <div>
-              <strong className="block text-sm">Terminal de acesso</strong>
-              <span className="mt-0.5 block text-xs text-steel">
-                {selectedWorksite ? `${selectedWorksite.code} · ${selectedWorksite.name}` : 'Obra não configurada'}
-              </span>
+      <section className="tk-stage" aria-label="Câmera do ponto">
+        <header className="tk-toolbar">
+          <div className="tk-identity">
+            <span className="tk-identity-mark" aria-hidden="true"><ScanFace size={18} /></span>
+            <div className="min-w-0">
+              <span className="tk-kicker">Terminal de ponto</span>
+              <strong>{selectedWorksite ? selectedWorksite.name : 'Obra não configurada'}</strong>
             </div>
-            <span className={`status-pill ${autoEnabled ? 'status-pill-online' : 'status-pill-neutral'}`}>
-              <span className="status-dot status-dot-pulse" />
+            <span className="tk-live" data-on={autoEnabled || undefined}>
+              <span className="tk-live-dot" />
               {autoEnabled ? 'Leitura automática' : 'Pausado'}
             </span>
           </div>
-          <div className="terminal-toolbar-actions">
-            <label className="sr-only" htmlFor="terminal-worksite">Obra deste terminal</label>
-            <select
-              id="terminal-worksite"
-              value={worksiteId}
-              onChange={(event) => {
-                const nextWorksiteId = event.target.value;
-                setWorksiteId(nextWorksiteId);
-                saveTerminalWorksiteId(nextWorksiteId);
-              }}
-              className="input-field"
-            >
-              <option value="">Selecionar obra</option>
-              {worksites.map((worksite) => (
-                <option key={worksite.id} value={worksite.id}>
-                  {worksite.code} · {worksite.name}
-                </option>
-              ))}
-            </select>
+          <div className="tk-actions">
+            <label className="tk-select">
+              <Building2 size={15} aria-hidden="true" />
+              <span className="sr-only">Obra deste terminal</span>
+              <select
+                id="terminal-worksite"
+                aria-label="Obra deste terminal"
+                value={worksiteId}
+                onChange={(event) => {
+                  const nextWorksiteId = event.target.value;
+                  setWorksiteId(nextWorksiteId);
+                  saveTerminalWorksiteId(nextWorksiteId);
+                }}
+              >
+                <option value="">Selecionar obra</option>
+                {worksites.map((worksite) => (
+                  <option key={worksite.id} value={worksite.id}>
+                    {worksite.code} · {worksite.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={15} aria-hidden="true" />
+            </label>
             <button
               type="button"
               onClick={() => setAutoEnabled((current) => !current)}
-              className="icon-button"
+              className="tk-icon-button"
               aria-label={autoEnabled ? 'Pausar leitura automática' : 'Iniciar leitura automática'}
               aria-pressed={autoEnabled}
               title={autoEnabled ? 'Pausar leitura' : 'Iniciar leitura'}
@@ -817,7 +843,7 @@ export function FacialTerminalPage() {
             <button
               type="button"
               onClick={() => setFullscreen((current) => !current)}
-              className="icon-button"
+              className="tk-icon-button"
               aria-label={fullscreen ? 'Sair da tela cheia' : 'Usar tela cheia'}
               aria-pressed={fullscreen}
               title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
@@ -825,12 +851,12 @@ export function FacialTerminalPage() {
               {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
             </button>
           </div>
-        </div>
+        </header>
 
-        <div className="terminal-camera-frame" data-mode={mode}>
+        <div className="tk-camera" data-mode={mode} data-tone={tone}>
           <CameraCapture
             ref={cameraRef}
-            className={cameraClass}
+            className="tk-camera-view"
             fitMode="contain"
             faceOverlay={faceOverlay}
             faceOverlayTargets={recognizedFaceTargets}
@@ -841,56 +867,81 @@ export function FacialTerminalPage() {
             onFaceCountChange={handleLocalFaceCount}
             trackingPaused={presentationExperienceOpen}
           />
-        </div>
-
-        <div className="terminal-status-strip">
-          <div className="terminal-primary-status">
-            <div
-              className={`terminal-status-symbol ${
-                mode === 'accepted'
-                  ? 'is-success'
-                  : mode === 'attention' || mode === 'review'
-                    ? 'is-warning'
-                    : ''
-              }`}
-            >
-              <ResultIcon size={20} />
-            </div>
-            <div className="min-w-0" role="status" aria-live="polite" aria-atomic="true">
-              <strong>{resultPresentation.title}</strong>
-              <span>{guidance}</span>
-            </div>
+          <div className="tk-hud" aria-hidden="true">
+            <span className="tk-corner tk-corner-tl" />
+            <span className="tk-corner tk-corner-tr" />
+            <span className="tk-corner tk-corner-bl" />
+            <span className="tk-corner tk-corner-br" />
+            <span className="tk-beam" />
+            <span className="tk-flash" key={mode === 'accepted' ? `ok-${latestRecordKey(recentRecords)}` : 'idle'} />
           </div>
-          <div className="terminal-compact-meta">
-            <time className="terminal-compact-clock" dateTime={clock.toISOString()}>
-              <strong>{formatClock(clock)}</strong>
-              <span>{formatDate(clock)}</span>
-            </time>
-            {latestRecord && (
-              <div className="terminal-latest-record">
-                <span>Último registro</span>
-                <strong>{latestRecord.employee}</strong>
-                <small>
-                  {latestRecord.punchType ? punchLabels[latestRecord.punchType] : 'Ponto'} ·{' '}
-                  {formatClock(latestRecord.occurredAt)}
-                  {latestRecord.email === 'sent' ? ' · E-mail enviado' : latestRecord.email === 'queued' ? ' · E-mail a caminho' : ''}
-                </small>
-              </div>
-            )}
-            {!online && (
-              <span className="terminal-offline-note">
-                <WifiOff size={16} /> Sem conexão
-              </span>
-            )}
+          <div className="tk-callout" data-tone={tone}>
+            <span className="tk-callout-icon" key={`${mode}-${resultPresentation.title}`}>
+              <ResultIcon size={22} />
+            </span>
+            <div className="min-w-0" role="status" aria-live="polite" aria-atomic="true">
+              <strong key={resultPresentation.title}>{resultPresentation.title}</strong>
+              <span>{statusDetail}</span>
+            </div>
           </div>
         </div>
       </section>
+
+      <aside className="tk-side" aria-label="Informações do terminal">
+        <div className="tk-card tk-clock">
+          <time dateTime={clock.toISOString()}>
+            <strong>{formatClock(clock)}</strong>
+            <small>{formatSeconds(clock)}</small>
+          </time>
+          <span>{dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)}</span>
+          {!online && (
+            <span className="tk-offline">
+              <WifiOff size={15} /> Sem conexão. Os registros voltam quando a internet voltar.
+            </span>
+          )}
+        </div>
+
+        <ol className="tk-card tk-steps" aria-label="Como bater o ponto">
+          <li><span>1</span><div><strong>Olhe para a câmera</strong><small>De frente, sem boné nem óculos escuros.</small></div></li>
+          <li><span>2</span><div><strong>Espere um instante</strong><small>O sistema reconhece sozinho, sem apertar nada.</small></div></li>
+          <li><span>3</span><div><strong>Confira o seu nome</strong><small>Ele aparece aqui quando o ponto é salvo.</small></div></li>
+        </ol>
+
+        <div className="tk-card tk-recent">
+          <header>
+            <strong>Últimos registros</strong>
+            <span>{recentRecords.length ? `${recentRecords.length} nesta sessão` : 'Nesta sessão'}</span>
+          </header>
+          {recentRecords.length ? (
+            <ul>
+              {recentRecords.map((record) => (
+                <li key={record.id} data-status={record.status}>
+                  <span className="tk-avatar">{initialsOf(record.employee)}</span>
+                  <div className="min-w-0">
+                    <strong>{record.employee}</strong>
+                    <small>
+                      {record.status === 'MANUAL_REVIEW' ? 'Em conferência' : record.punchType ? punchLabels[record.punchType] : 'Ponto'}
+                      {record.email === 'sent' ? ' · E-mail enviado' : record.email === 'queued' ? ' · E-mail a caminho' : ''}
+                    </small>
+                  </div>
+                  <time dateTime={record.occurredAt.toISOString()}>{formatClock(record.occurredAt)}</time>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="tk-empty">Os pontos registrados neste terminal aparecem aqui.</p>
+          )}
+        </div>
+      </aside>
     </div>
   );
 
   return (
     <>
-      {fullscreen ? <div className="facial-terminal-fullscreen">{content}</div> : content}
+      {fullscreen
+        // Fora da rota (que tem transform/blur de transição), para a tela cheia cobrir menu e topo.
+        ? createPortal(<div className="tk-fullscreen">{content}</div>, document.querySelector('.lg-root') || document.body)
+        : content}
       {presentationExperienceOpen && presentationResult && (
         <Suspense fallback={null}>
           <PresentationShow

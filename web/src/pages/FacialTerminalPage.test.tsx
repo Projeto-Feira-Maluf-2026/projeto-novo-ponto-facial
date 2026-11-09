@@ -66,14 +66,14 @@ describe('confirmação de ponto no terminal', () => {
     api.punchBatch.mockResolvedValue(response());
     const view = render(<FacialTerminalPage />);
     await screen.findByText('Registro não concluído');
-    expect(view.container.querySelector('.terminal-shell')).toHaveAttribute('data-mode', 'attention');
+    expect(view.container.querySelector('.tk-terminal')).toHaveAttribute('data-mode', 'attention');
     expect(screen.queryByText('Entrada registrada com sucesso.')).not.toBeInTheDocument();
   });
 
   it('confirma somente depois de receber ID e instante do registro', async () => {
     api.punchBatch.mockResolvedValue(response({ id: 'record-1', occurred_at: '2026-10-10T12:00:00Z' }));
     const view = render(<FacialTerminalPage />);
-    await waitFor(() => expect(view.container.querySelector('.terminal-shell')).toHaveAttribute('data-mode', 'accepted'));
+    await waitFor(() => expect(view.container.querySelector('.tk-terminal')).toHaveAttribute('data-mode', 'accepted'));
     expect(api.punchBatch).toHaveBeenCalledTimes(1);
   });
 
@@ -84,7 +84,7 @@ describe('confirmação de ponto no terminal', () => {
     await waitFor(() => expect(api.punchBatch).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole('button', { name: 'Pausar leitura automática' }));
     await act(async () => { finish(response({ id: 'record-1', occurred_at: '2026-10-10T12:00:00Z' })); });
-    expect(view.container.querySelector('.terminal-shell')).toHaveAttribute('data-mode', 'paused');
+    expect(view.container.querySelector('.tk-terminal')).toHaveAttribute('data-mode', 'paused');
   });
 });
 
