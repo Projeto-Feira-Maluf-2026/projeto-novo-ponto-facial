@@ -71,16 +71,30 @@ def test_submitted_face_images_keeps_order_and_drops_repeats() -> None:
     assert submitted_face_images(payload) == ["a", "b"]
 
 
-def test_cpu_sessions_are_recreated_without_thread_spinning(monkeypatch) -> None:
-    import onnxruntime as ort
+class _FakeSessionOptions:
+    def __init__(self) -> None:
+        self.config: dict[str, str] = {}
 
+    def add_session_config_entry(self, key: str, value: str) -> None:
+        self.config[key] = value
+
+
+def _fake_onnxruntime(monkeypatch, session_factory):
+    """The CI test env has no onnxruntime (it is in the ``ai`` extra)."""
+    import sys
+
+    module = SimpleNamespace(SessionOptions=_FakeSessionOptions, InferenceSession=session_factory)
+    monkeypatch.setitem(sys.modules, "onnxruntime", module)
+
+
+def test_cpu_sessions_are_recreated_without_thread_spinning(monkeypatch) -> None:
     created = []
 
     class FakeSession:
         def __init__(self, model_file, sess_options=None, providers=None) -> None:
             created.append((model_file, sess_options, providers))
 
-    monkeypatch.setattr(ort, "InferenceSession", FakeSession)
+    _fake_onnxruntime(monkeypatch, FakeSession)
     detection = SimpleNamespace(session=object(), model_file="det.onnx")
     recognition = SimpleNamespace(session=object(), model_file="rec.onnx")
 
@@ -92,17 +106,14 @@ def test_cpu_sessions_are_recreated_without_thread_spinning(monkeypatch) -> None
     assert [entry[0] for entry in created] == ["det.onnx", "rec.onnx"]
     assert all(entry[2] == ["CPUExecutionProvider"] for entry in created)
     assert all(
-        entry[1].get_session_config_entry("session.intra_op.allow_spinning") == "0"
-        for entry in created
+        entry[1].config == {"session.intra_op.allow_spinning": "0"} for entry in created
     )
     assert isinstance(detection.session, FakeSession)
     assert isinstance(recognition.session, FakeSession)
 
 
 def test_gpu_sessions_are_left_untouched(monkeypatch) -> None:
-    import onnxruntime as ort
-
-    monkeypatch.setattr(ort, "InferenceSession", lambda *args, **kwargs: pytest.fail("recreated"))
+    _fake_onnxruntime(monkeypatch, lambda *args, **kwargs: pytest.fail("recreated"))
     original = object()
     model = SimpleNamespace(session=original, model_file="rec.onnx")
 
