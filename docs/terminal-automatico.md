@@ -49,3 +49,15 @@ A consistência temporal agora é revalidada pela API e reduz decisões baseadas
 - `web/src/components/Layout.tsx`: navegação responsiva;
 - `web/src/styles.css`: sistema visual, estados e responsividade;
 - `web/src/services/api.ts`: cancelamento de requisições de reconhecimento.
+
+## Modo feira (notebook, 12/11/2026)
+
+`powershell -ExecutionPolicy Bypass -File scripts/feira-local.ps1` roda a API facial e o site no
+próprio notebook (só o banco continua no Supabase). Sem ida e volta à nuvem e sem container frio.
+O script tenta a GPU integrada via `onnxruntime-directml`, mede CPU x GPU com
+`scripts/benchmark_face_runtime.py` e fica com o mais rápido; se a GPU falhar, segue na CPU.
+`-SemGpu` pula a tentativa. `npm run setup` restaura o onnxruntime de CPU.
+
+Quadra aberta: o terminal ignora rostos com menos de 10% da altura do vídeo
+(`MIN_READABLE_FACE_HEIGHT`, ~2,5 m numa webcam comum). Quem passa ao fundo não é lido nem segura
+o grupo da apresentação.

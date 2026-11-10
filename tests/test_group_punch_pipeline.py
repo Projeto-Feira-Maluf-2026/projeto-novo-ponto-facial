@@ -74,6 +74,8 @@ def test_submitted_face_images_keeps_order_and_drops_repeats() -> None:
 class _FakeSessionOptions:
     def __init__(self) -> None:
         self.config: dict[str, str] = {}
+        self.enable_mem_pattern = True
+        self.execution_mode = "parallel"
 
     def add_session_config_entry(self, key: str, value: str) -> None:
         self.config[key] = value
@@ -83,7 +85,11 @@ def _fake_onnxruntime(monkeypatch, session_factory):
     """The CI test env has no onnxruntime (it is in the ``ai`` extra)."""
     import sys
 
-    module = SimpleNamespace(SessionOptions=_FakeSessionOptions, InferenceSession=session_factory)
+    module = SimpleNamespace(
+        SessionOptions=_FakeSessionOptions,
+        InferenceSession=session_factory,
+        ExecutionMode=SimpleNamespace(ORT_SEQUENTIAL="sequential"),
+    )
     monkeypatch.setitem(sys.modules, "onnxruntime", module)
 
 
@@ -98,9 +104,10 @@ def test_cpu_sessions_are_recreated_without_thread_spinning(monkeypatch) -> None
     detection = SimpleNamespace(session=object(), model_file="det.onnx")
     recognition = SimpleNamespace(session=object(), model_file="rec.onnx")
 
-    insightface_provider._without_thread_spinning(
+    insightface_provider._tune_sessions(
         [detection, recognition],
         ["CPUExecutionProvider"],
+        spinning=False,
     )
 
     assert [entry[0] for entry in created] == ["det.onnx", "rec.onnx"]
@@ -112,17 +119,55 @@ def test_cpu_sessions_are_recreated_without_thread_spinning(monkeypatch) -> None
     assert isinstance(recognition.session, FakeSession)
 
 
-def test_gpu_sessions_are_left_untouched(monkeypatch) -> None:
+def test_cuda_and_spinning_cpu_sessions_are_left_untouched(monkeypatch) -> None:
     _fake_onnxruntime(monkeypatch, lambda *args, **kwargs: pytest.fail("recreated"))
     original = object()
     model = SimpleNamespace(session=original, model_file="rec.onnx")
 
-    insightface_provider._without_thread_spinning(
+    insightface_provider._tune_sessions(
         [model],
         ["CUDAExecutionProvider", "CPUExecutionProvider"],
+        spinning=False,
     )
+    insightface_provider._tune_sessions([model], ["CPUExecutionProvider"], spinning=True)
 
     assert model.session is original
+
+
+def test_directml_sessions_get_the_options_directml_requires(monkeypatch) -> None:
+    created = []
+
+    def factory(model_file, sess_options=None, providers=None):
+        created.append((sess_options, providers))
+        return SimpleNamespace(providers=providers)
+
+    _fake_onnxruntime(monkeypatch, factory)
+    model = SimpleNamespace(session=object(), model_file="rec.onnx")
+    providers = ["DmlExecutionProvider", "CPUExecutionProvider"]
+
+    insightface_provider._tune_sessions([model], providers, spinning=False)
+
+    options, used = created[0]
+    assert used == providers
+    assert options.enable_mem_pattern is False
+    assert options.execution_mode == "sequential"
+    assert model.session.providers == providers
+
+
+def test_directml_failure_falls_back_to_cpu(monkeypatch) -> None:
+    def factory(model_file, sess_options=None, providers=None):
+        if "DmlExecutionProvider" in providers:
+            raise RuntimeError("driver")
+        return SimpleNamespace(providers=providers)
+
+    _fake_onnxruntime(monkeypatch, factory)
+    model = SimpleNamespace(session=object(), model_file="rec.onnx")
+
+    insightface_provider._tune_sessions(
+        [model], ["DmlExecutionProvider", "CPUExecutionProvider"], spinning=False,
+    )
+
+    assert model.session.providers == ["CPUExecutionProvider"]
 
 
 @pytest.mark.asyncio

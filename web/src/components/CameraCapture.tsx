@@ -435,6 +435,15 @@ interface CameraCaptureProps {
   onFaceCountChange?: (count: number) => void;
   /** Suspende o rastreamento local (ex.: apresentação aberta) sem desligar a câmera. */
   trackingPaused?: boolean;
+  /**
+   * Altura mínima do rosto, em fração da altura do vídeo. Rostos menores
+   * (gente passando ao fundo) não contam, não são desenhados nem recortados.
+   */
+  minFaceHeight?: number;
+}
+
+export function readableFaceBoxes(boxes: FaceBox[], minFaceHeight: number) {
+  return minFaceHeight > 0 ? boxes.filter((box) => box.height >= minFaceHeight) : boxes;
 }
 
 export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>(
@@ -449,6 +458,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     onFacePresenceChange,
     onFaceCountChange,
     trackingPaused = false,
+    minFaceHeight = 0,
   }, ref) => {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -468,6 +478,8 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const onFaceCountChangeRef = useRef(onFaceCountChange);
     const trackingPausedRef = useRef(trackingPaused);
     trackingPausedRef.current = trackingPaused;
+    const minFaceHeightRef = useRef(minFaceHeight);
+    minFaceHeightRef.current = minFaceHeight;
     const normalizedFaceBoxRef = useRef<FaceBox | null>(null);
     const normalizedFaceBoxesRef = useRef<FaceBox[]>([]);
     const nativeNormalizedFaceBoxesRef = useRef<FaceBox[]>([]);
@@ -912,8 +924,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
           faceBoxesFromLandmarks(detectedLandmarks),
           distantCandidates.filter((candidate) => candidate.hits >= 2).map((candidate) => candidate.box),
         );
-        const normalizedBoxes = stabilizeFaceBoxes(stabilizedBoxes, mergedBoxes);
-        stabilizedBoxes = normalizedBoxes;
+        const stabilized = stabilizeFaceBoxes(stabilizedBoxes, mergedBoxes);
+        stabilizedBoxes = stabilized;
+        const normalizedBoxes = readableFaceBoxes(stabilized, minFaceHeightRef.current);
         if (!normalizedBoxes.length) {
           normalizedFaceBoxRef.current = null;
           normalizedFaceBoxesRef.current = [];
@@ -1092,13 +1105,16 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         try {
           const faces = await detector.detect(video);
           if (!cancelled) {
-            nativeNormalizedFaceBoxesRef.current = faces.map(({ boundingBox }) => ({
+            const readableFaces = faces.filter(({ boundingBox }) => (
+              boundingBox.height / video.videoHeight >= minFaceHeightRef.current
+            ));
+            nativeNormalizedFaceBoxesRef.current = readableFaces.map(({ boundingBox }) => ({
               x: boundingBox.x / video.videoWidth,
               y: boundingBox.y / video.videoHeight,
               width: boundingBox.width / video.videoWidth,
               height: boundingBox.height / video.videoHeight,
             }));
-            setFaceBoxes(faces
+            setFaceBoxes(readableFaces
               .map(({ boundingBox }) => projectFaceBoxToVideo(boundingBox))
               .filter(Boolean) as FaceBox[]);
           }

@@ -90,6 +90,10 @@ const GROUP_RESULT_HOLD_MS = 1_200;
 // Em grupo, os rostos que faltam são relidos quase de imediato.
 const PARTIAL_RESULT_HOLD_MS = 100;
 const MAX_FACES_PER_SCAN = 5;
+// Só lê quem está perto da câmera: o rosto precisa ocupar ao menos 10% da
+// altura do vídeo (~70 px em 720p, por volta de 2,5 m numa webcam comum).
+// Gente passando ao fundo é ignorada e não segura o grupo.
+const MIN_READABLE_FACE_HEIGHT = 0.1;
 // Leitura em ondas: depois de registrar quem está no quadro, o grupo fica
 // aberto por este tempo. Quem chegar nesse intervalo é fotografado,
 // reconhecido e entra na mesma apresentação; cada chegada reabre a janela.
@@ -869,6 +873,7 @@ export function FacialTerminalPage() {
             faceOverlayTargets={recognizedFaceTargets}
             detectedFaceBox={detectedFaceBox}
             onReadyChange={setCameraReady}
+            minFaceHeight={MIN_READABLE_FACE_HEIGHT}
             onErrorChange={setCameraError}
             onFacePresenceChange={handleLocalFacePresence}
             onFaceCountChange={handleLocalFaceCount}

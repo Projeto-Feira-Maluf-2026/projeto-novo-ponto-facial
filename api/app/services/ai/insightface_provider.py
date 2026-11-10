@@ -37,15 +37,22 @@ def _model_file(model: Any) -> Path | None:
     return Path(value).resolve() if value else None
 
 
-def _without_thread_spinning(models: list[Any], providers: list[str]) -> None:
-    """Recreate CPU sessions so idle intra-op threads sleep instead of spinning.
+def _tune_sessions(models: list[Any], providers: list[str], *, spinning: bool) -> None:
+    """Recreate ONNX sessions with options suited to the selected providers.
 
-    Only the session options change: same ONNX file, same providers, same
-    input/output names, so embeddings and detections are bit-for-bit the same.
+    Only session options change: same ONNX file and input/output names.
+
+    - CPU only: idle intra-op threads sleep instead of spinning, because the
+      detector and the recognizer alternate and stole CPU from each other.
+    - DirectML (integrated GPU on Windows, ``onnxruntime-directml``): DirectML
+      requires memory patterns off and sequential execution; CPU stays as the
+      fallback for any operator the GPU cannot run.
+    - Anything else (e.g. CUDA) is left exactly as InsightFace created it.
     """
     import onnxruntime as ort
 
-    if providers != ["CPUExecutionProvider"]:
+    directml = "DmlExecutionProvider" in providers
+    if not directml and (providers != ["CPUExecutionProvider"] or spinning):
         return
     for model in models:
         session = getattr(model, "session", None)
@@ -53,12 +60,24 @@ def _without_thread_spinning(models: list[Any], providers: list[str]) -> None:
         if session is None or not model_file:
             continue
         options = ort.SessionOptions()
-        options.add_session_config_entry("session.intra_op.allow_spinning", "0")
-        model.session = ort.InferenceSession(
-            model_file,
-            sess_options=options,
-            providers=providers,
-        )
+        if not spinning:
+            options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+        if directml:
+            options.enable_mem_pattern = False
+            options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        try:
+            model.session = ort.InferenceSession(
+                model_file,
+                sess_options=options,
+                providers=providers,
+            )
+        except Exception:
+            if not directml:
+                raise
+            # Driver de GPU com problema nao pode derrubar o terminal na feira:
+            # segue na CPU, que e o caminho medido e testado.
+            logger.exception("DirectML indisponivel; usando CPU para %s", model_file)
+            _tune_sessions([model], ["CPUExecutionProvider"], spinning=spinning)
 
 
 def _reliable_face_candidates(
@@ -240,7 +259,8 @@ class InsightFaceArcFaceProvider(FaceProvider):
                     allowed_modules=["detection", "recognition"],
                     providers=selected_providers,
                 )
-                ctx_id = 0 if "CUDAExecutionProvider" in selected_providers else -1
+                # ctx_id < 0 makes InsightFace force its sessions back to CPU.
+                ctx_id = 0 if selected_providers != ["CPUExecutionProvider"] else -1
                 app.prepare(
                     ctx_id=ctx_id,
                     det_thresh=self.minimum_detection_confidence,
@@ -264,11 +284,11 @@ class InsightFaceArcFaceProvider(FaceProvider):
                 )
                 if recognition_model is None or detection_model is None:
                     raise RuntimeError("Pacote nao contem os modulos detection e recognition")
-                if not settings.FACE_ONNX_THREAD_SPINNING:
-                    _without_thread_spinning(
-                        [detection_model, recognition_model],
-                        selected_providers,
-                    )
+                _tune_sessions(
+                    [detection_model, recognition_model],
+                    selected_providers,
+                    spinning=settings.FACE_ONNX_THREAD_SPINNING,
+                )
 
                 recognition_path = _model_file(recognition_model)
                 detection_path = _model_file(detection_model)
