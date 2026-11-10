@@ -5,6 +5,7 @@
       "dependabot/**": false
     }
   },
+  "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]",
   "services": {
     "face-api": {
       "root": ".",
