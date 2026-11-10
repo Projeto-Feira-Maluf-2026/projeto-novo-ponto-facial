@@ -7,7 +7,7 @@
   },
   "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]",
   "services": {
-    "face-api-v2": {
+    "face-api-nova": {
       "root": ".",
       "entrypoint": "Dockerfile.vercel",
       "runtime": "container"
@@ -17,7 +17,7 @@
     {
       "source": "/(.*)",
       "destination": {
-        "service": "face-api-v2"
+        "service": "face-api-nova"
       }
     }
   ]
