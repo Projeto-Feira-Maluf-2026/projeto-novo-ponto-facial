@@ -942,13 +942,16 @@ export function FacialTerminalPage() {
         // Fora da rota (que tem transform/blur de transição), para a tela cheia cobrir menu e topo.
         ? createPortal(<div className="tk-fullscreen">{content}</div>, document.querySelector('.lg-root') || document.body)
         : content}
-      {presentationExperienceOpen && presentationResult && (
+      {presentationExperienceOpen && presentationResult && createPortal(
+        // Mesmo lugar da tela cheia: dentro da rota, o transform da transição
+        // prendia a apresentação por baixo do terminal em tela cheia (z 900).
         <Suspense fallback={null}>
           <PresentationShow
             result={presentationResult}
             onClose={closePresentationResult}
           />
-        </Suspense>
+        </Suspense>,
+        document.querySelector('.lg-root') || document.body,
       )}
     </>
   );
