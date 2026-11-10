@@ -395,24 +395,49 @@
   padding: clamp(16px, 4vh, 48px) clamp(16px, 6vw, 96px) clamp(24px, 6vh, 72px);
   opacity: 0;
   visibility: hidden;
-  transform: translate3d(0, 28px, 0);
-  /* A cena que sai some rápido; a próxima só entra depois, sem textos sobrepostos. */
+  transform: translate3d(56px, 0, 0);
+  /*
+   * A cena que sai desliza para a esquerda enquanto a próxima já vem da direita:
+   * as duas se cruzam por um instante curto, como num travelling, sem tela vazia.
+   * O texto da cena que sai some antes, para nunca haver duas frases legíveis.
+   */
   transition:
-    opacity 0.32s ease-in,
-    transform 0.4s ease-in,
-    visibility 0s linear 0.4s;
+    opacity 0.38s ease-in,
+    transform 0.7s cubic-bezier(0.55, 0, 0.75, 0.2),
+    visibility 0s linear 0.7s;
 }
 
-.show-scene[data-state="before"] { transform: translate3d(0, -28px, 0) scale(0.985); }
+.show-scene[data-state="before"] { transform: translate3d(-56px, 0, 0); }
 
 .show-scene[data-state="active"] {
   opacity: 1;
   visibility: visible;
   transform: none;
   transition:
-    opacity 0.6s var(--show-ease) 0.3s,
-    transform 0.9s var(--show-ease) 0.3s,
+    opacity 0.55s var(--show-ease) 0.16s,
+    transform 1s var(--show-ease) 0.12s,
     visibility 0s linear 0s;
+}
+
+/* Profundidade: a ilustração anda mais que o texto na troca de cena. */
+.show-scene .show-visual {
+  transform: translate3d(90px, 0, 0) scale(0.96);
+  transition: transform 0.7s cubic-bezier(0.55, 0, 0.75, 0.2);
+}
+
+.show-scene[data-state="before"] .show-visual { transform: translate3d(-110px, 0, 0) scale(0.96); }
+
+.show-scene[data-state="active"] .show-visual {
+  transform: none;
+  transition: transform 1.25s var(--show-ease) 0.12s;
+  animation: show-float 7s ease-in-out 1.4s infinite;
+}
+
+.show-scene[data-state="before"] .show-copy { opacity: 0; transition: opacity 0.22s ease-in; }
+
+@keyframes show-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -10px; }
 }
 
 .show-scene-split,
@@ -497,7 +522,7 @@
 .show-hint {
   max-width: 40ch;
   margin: 18px 0 0;
-  color: var(--show-faint);
+  color: var(--show-muted);
   font-size: clamp(15px, 1.15vw, 18px);
   line-height: 1.45;
 }
@@ -853,22 +878,38 @@
   animation-delay: calc(0.4s + var(--i) * 0.1s);
 }
 
+/* Varredura: um cartão por vez é "conferido"; quem não confere apaga, quem confere acende. */
 .show-scene[data-state="active"] .show-match-card:not([data-match]) {
-  animation: show-pop 0.6s var(--show-spring) both, show-dim 0.6s ease forwards;
-  animation-delay: calc(0.4s + var(--i) * 0.1s), calc(2s + var(--i) * 0.28s);
+  animation: show-pop 0.6s var(--show-spring) both, show-check 0.5s ease, show-dim 0.5s ease forwards;
+  animation-delay:
+    calc(0.4s + var(--i) * 0.08s),
+    calc(1.6s + var(--o) * 0.42s),
+    calc(2s + var(--o) * 0.42s);
 }
 
 .show-scene[data-state="active"] .show-match-card[data-match] {
-  animation: show-pop 0.6s var(--show-spring) both, show-found 2.6s ease-in-out infinite;
-  animation-delay: calc(0.4s + var(--i) * 0.1s), 3.6s;
+  animation: show-pop 0.6s var(--show-spring) both, show-lock 0.7s var(--show-spring) forwards, show-found 2.6s ease-in-out infinite;
+  animation-delay:
+    calc(0.4s + var(--i) * 0.08s),
+    calc(1.6s + var(--o) * 0.42s),
+    calc(2.4s + var(--o) * 0.42s);
 }
 
 .show-scene[data-state="active"] .show-match-state {
-  animation: show-rise 0.5s var(--show-ease) forwards;
-  animation-delay: calc(2s + var(--i) * 0.28s);
+  animation: show-rise 0.45s var(--show-ease) forwards;
+  animation-delay: calc(1.9s + var(--o) * 0.42s);
 }
 
-.show-scene[data-state="active"] .show-match-card[data-match] .show-match-state { animation-delay: 3.4s; }
+@keyframes show-check {
+  0%, 100% { border-color: rgba(var(--show-ink-rgb), 0.12); }
+  40% { border-color: rgba(var(--show-ink-rgb), 0.5); transform: scale(1.04); }
+}
+
+@keyframes show-lock {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.1); border-color: var(--show-accent); }
+  100% { transform: scale(1.04); border-color: var(--show-accent); background: rgba(var(--show-glow-rgb), 0.12); }
+}
 
 @keyframes show-dim {
   to { opacity: 0.32; transform: scale(0.94); }
@@ -1462,4 +1503,300 @@
   z-index: -1;
   border-radius: 50%;
   background: radial-gradient(closest-side, var(--show-bg) 55%, rgba(var(--show-veil-rgb), 0));
+}
+
+
+/* ---------- Boas-vindas: resumo do registro e ondas do selo ---------- */
+
+.show-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  gap: clamp(10px, 1.4vw, 18px);
+  margin: clamp(20px, 3vh, 32px) 0 0;
+}
+
+.show-facts > div {
+  min-width: 0;
+  padding: 12px 18px 13px;
+  border: 1px solid rgba(var(--show-ink-rgb), 0.12);
+  border-radius: 16px;
+  background: var(--show-card);
+}
+
+.show-scene[data-state="active"] .show-facts > div {
+  animation: show-pop 0.6s var(--show-spring) both;
+  animation-delay: calc(0.9s + var(--i) * 0.12s);
+}
+
+.show-facts dt {
+  color: var(--show-sage);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.show-facts dd {
+  overflow: hidden;
+  margin: 2px 0 0;
+  font-family: "Lexend Variable", sans-serif;
+  font-size: clamp(16px, 1.4vw, 21px);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 30ch;
+}
+
+.show-badge { place-items: center; }
+
+.show-ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(64%, 240px);
+  aspect-ratio: 1;
+  border: 2px solid rgba(var(--show-glow-rgb), 0.45);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6);
+  pointer-events: none;
+}
+
+.show-scene[data-state="active"] .show-ripple { animation: show-ripple 3.2s cubic-bezier(0.2, 0.6, 0.3, 1) 2s infinite; }
+.show-scene[data-state="active"] .show-ripple-late { animation-delay: 3.6s; }
+
+@keyframes show-ripple {
+  0% { opacity: 0.8; transform: translate(-50%, -50%) scale(0.7); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9); }
+}
+
+/* ---------- Passo 1: checagens ---------- */
+
+.show-face-checks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: -6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.show-face-checks li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid rgba(var(--show-glow-rgb), 0.35);
+  border-radius: 999px;
+  background: var(--show-card);
+  color: var(--show-accent);
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0;
+}
+
+.show-scene[data-state="active"] .show-face-checks li {
+  animation: show-pop 0.55s var(--show-spring) forwards;
+  animation-delay: calc(2.6s + var(--i) * 0.9s);
+}
+
+/* Os pontos do rosto "piscam" devagar depois de aparecer: o rosto continua vivo. */
+.show-scene[data-state="active"] .show-face-point {
+  animation: show-point 0.5s var(--show-spring) forwards, show-twinkle 2.8s ease-in-out infinite;
+  animation-delay: calc(0.5s + var(--i) * 0.035s), calc(3.2s + var(--i) * 0.11s);
+}
+
+@keyframes show-twinkle {
+  0%, 100% { opacity: 0.92; }
+  50% { opacity: 0.4; }
+}
+
+/* ---------- Passo 2: o código respira ---------- */
+
+.show-scene[data-state="active"] .show-code-ring > span::before {
+  animation: show-bar 0.7s var(--show-spring) forwards, show-bar-pulse 2.4s ease-in-out infinite;
+  animation-delay: calc(0.5s + var(--i) * 0.018s), calc(2.4s + var(--i) * 0.033s);
+}
+
+@keyframes show-bar-pulse {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.62); }
+}
+
+/* ---------- Passo 3: medidor de semelhança ---------- */
+
+.show-meter {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  width: min(100%, 560px);
+  margin-top: 6px;
+}
+
+.show-meter-label {
+  color: var(--show-sage);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.show-meter-track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(var(--show-ink-rgb), 0.1);
+}
+
+.show-meter-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(var(--show-glow-rgb), 0.5), var(--show-accent));
+  transform: scaleX(0.08);
+  transform-origin: left center;
+}
+
+/* Sobe e desce baixo enquanto os outros cadastros são conferidos, e passa do mínimo no final. */
+.show-scene[data-state="active"] .show-meter-fill {
+  animation: show-meter-search 0.84s ease-in-out 1.6s 3 alternate, show-meter-pass 1s var(--show-ease) forwards;
+  animation-delay: 1.6s, calc(1.9s + var(--n) * 0.42s);
+}
+
+@keyframes show-meter-search {
+  from { transform: scaleX(0.12); }
+  to { transform: scaleX(0.42); }
+}
+
+@keyframes show-meter-pass {
+  from { transform: scaleX(0.3); }
+  to { transform: scaleX(0.9); }
+}
+
+/* Linha da nota mínima (0,62 numa escala de 0 a 1, como no servidor). */
+.show-meter-mark {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: 62%;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--show-ink);
+}
+
+.show-meter-mark small {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  color: var(--show-faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+}
+
+.show-match .show-visual-caption { margin-top: 14px; }
+
+/* ---------- Passo 4: ordem do dia ---------- */
+
+.show-sequence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: clamp(18px, 2.6vh, 26px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.show-sequence li {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 8px;
+  border: 1px solid rgba(var(--show-ink-rgb), 0.12);
+  border-radius: 999px;
+  background: var(--show-card);
+  color: var(--show-faint);
+  font-size: clamp(14px, 1.1vw, 16px);
+  font-weight: 700;
+}
+
+.show-sequence-dot {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(var(--show-ink-rgb), 0.08);
+  font-size: 12px;
+}
+
+.show-sequence li[data-state="done"] { color: var(--show-muted); }
+.show-sequence li[data-state="done"] .show-sequence-dot { background: rgba(var(--show-glow-rgb), 0.22); color: var(--show-accent); }
+
+.show-sequence li[data-state="current"] {
+  border-color: var(--show-accent);
+  color: var(--show-ink);
+}
+
+.show-sequence li[data-state="current"] .show-sequence-dot { background: var(--show-accent); color: var(--show-on-ink); }
+
+.show-scene[data-state="active"] .show-sequence li {
+  animation: show-pop 0.5s var(--show-spring) both;
+  animation-delay: calc(1.1s + var(--i) * 0.16s);
+}
+
+.show-scene[data-state="active"] .show-sequence li[data-state="current"] {
+  animation: show-pop 0.5s var(--show-spring) both, show-found 2.4s ease-in-out infinite;
+  animation-delay: calc(1.1s + var(--i) * 0.16s), 2.2s;
+}
+
+/* ---------- Os dados: ícones acendem em sequência ---------- */
+
+.show-scene[data-state="active"] .show-care-list svg {
+  animation: show-icon-glow 3.6s ease-in-out infinite;
+  animation-delay: calc(1.6s + var(--i) * 1.2s);
+}
+
+@keyframes show-icon-glow {
+  0%, 70%, 100% { transform: none; }
+  15% { transform: scale(1.22) rotate(-6deg); }
+  30% { transform: scale(1); }
+}
+
+/* ---------- Encerramento: anel de contagem ---------- */
+
+.show-countdown { display: inline-flex; align-items: center; gap: 10px; }
+
+.show-countdown-ring {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, var(--show-bg) 78%, transparent 80%),
+    conic-gradient(var(--show-accent) calc(var(--scene-progress) * 360deg), rgba(var(--show-ink-rgb), 0.12) 0);
+  color: var(--show-accent);
+}
+
+@media (max-width: 900px) {
+  /* A regra de colunas das boas-vindas vem depois do bloco responsivo; aqui ela volta a ser uma coluna só. */
+  .show-scene-welcome { grid-template-columns: minmax(0, 1fr); }
+  .show-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .show-facts > div:last-child { grid-column: 1 / -1; }
+  .show-facts dd { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .show-ripple { display: none; }
+  .show-scene .show-visual,
+  .show-scene[data-state="before"] .show-visual { transform: none; translate: none; }
+  .show-face-checks li,
+  .show-match-state { opacity: 1; }
 }
