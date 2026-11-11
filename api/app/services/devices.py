@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 import ipaddress
 import logging
 import socket
+import time
 from urllib.parse import quote, urlsplit
 
 from cryptography.fernet import InvalidToken
@@ -293,6 +294,30 @@ def test_camera_connection(config: CameraConfig) -> CameraTestResponse:
     )
 
 
+SNAPSHOT_MAX_FRAMES = 60
+SNAPSHOT_FRAME_BUDGET_SECONDS = 3.0
+# Mean brightness (0-255) below this is treated as a black frame: streams often open
+# on a fade from black or a gray/black frame before the first keyframe.
+SNAPSHOT_DARK_THRESHOLD = 16.0
+
+
+def _first_visible_frame(capture, *, clock=time.monotonic):
+    """Read frames until one is not black, within a small frame and time budget.
+
+    Returns the first visible frame, else the last frame read, else None.
+    """
+    deadline = clock() + SNAPSHOT_FRAME_BUDGET_SECONDS
+    last = None
+    for _ in range(SNAPSHOT_MAX_FRAMES):
+        ok, frame = capture.read()
+        if not ok or frame is None:
+            break
+        last = frame
+        if float(frame.mean()) >= SNAPSHOT_DARK_THRESHOLD or clock() >= deadline:
+            break
+    return last
+
+
 def read_camera_jpeg(config: CameraConfig) -> bytes:
     import cv2
 
@@ -302,9 +327,11 @@ def read_camera_jpeg(config: CameraConfig) -> bytes:
     if not capture.isOpened():
         capture.release()
         raise ConnectionError("Nao foi possivel abrir o stream da camera")
-    ok, frame = capture.read()
-    capture.release()
-    if not ok or frame is None:
+    try:
+        frame = _first_visible_frame(capture)
+    finally:
+        capture.release()
+    if frame is None:
         raise ConnectionError("Camera nao retornou imagem")
     ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
     if not ok:
