@@ -6,7 +6,7 @@ from urllib.parse import quote, urlsplit
 
 from cryptography.fernet import InvalidToken
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +15,7 @@ from app.core.errors import ConflictError, InvalidReferenceError
 from app.core.security import password_hash, verify_password
 from app.core.rate_limit import check_rate_limit
 from app.core.time import as_utc_naive
-from app.models.entities import CaptureDevice, Worksite
+from app.models.entities import AttendanceRecord, CaptureDevice, SuspiciousAttempt, Worksite
 from app.models.enums import DeviceStatus
 from app.schemas.devices import (
     CameraConfig,
@@ -110,6 +110,22 @@ class DeviceService:
         await self.session.commit()
         await self.session.refresh(device)
         return device
+
+    async def delete(self, device_id: str) -> None:
+        """Remove a camera; past punches and alerts stay, only losing the camera link."""
+        device = await self.session.get(CaptureDevice, device_id)
+        if not device:
+            raise LookupError("Camera nao encontrada")
+        try:
+            for model in (AttendanceRecord, SuspiciousAttempt):
+                await self.session.execute(
+                    update(model).where(model.device_id == device_id).values(device_id=None)
+                )
+            await self.session.execute(delete(CaptureDevice).where(CaptureDevice.id == device_id))
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
 
 
 def sanitize_device_metadata(metadata: dict | None) -> dict | None:

@@ -36,7 +36,11 @@ def test_vercel_installs_from_the_committed_npm_lockfile() -> None:
 def test_dependency_bot_previews_do_not_fill_the_deployment_queue(path) -> None:
     config = json.loads((PROJECT_ROOT / path).read_text(encoding="utf-8"))
     # Main and developer previews keep Vercel's enabled default; only bot refs skip.
-    assert config["git"]["deploymentEnabled"] == {"dependabot/**": False}
+    # The face API also skips claude/** branches: its container registry has an image cap.
+    expected = {"dependabot/**": False}
+    if path == "api/vercel.json":
+        expected["claude/**"] = False
+    assert config["git"]["deploymentEnabled"] == expected
 
 
 def test_historical_secret_baseline_cannot_ignore_new_commits_or_whole_paths() -> None:
