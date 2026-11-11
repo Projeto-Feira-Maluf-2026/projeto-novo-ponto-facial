@@ -307,3 +307,34 @@ def test_correction_requires_explicit_offset_and_rejects_future() -> None:
     sao_paulo = timezone(timedelta(hours=-3))
     correction = AttendanceCorrection(reason="Ajuste", occurred_at=datetime(2026, 10, 1, 8, 0, tzinfo=sao_paulo))
     assert correction.occurred_at.utcoffset() == timedelta(hours=-3)
+
+
+class _FakeCapture:
+    def __init__(self, frames):
+        self.frames = list(frames)
+
+    def read(self):
+        if not self.frames:
+            return False, None
+        return True, self.frames.pop(0)
+
+
+def test_snapshot_skips_black_opening_frames() -> None:
+    import numpy as np
+
+    from app.services.devices import _first_visible_frame
+
+    black = np.zeros((4, 4, 3), dtype=np.uint8)
+    visible = np.full((4, 4, 3), 120, dtype=np.uint8)
+    frame = _first_visible_frame(_FakeCapture([black, black, visible, black]))
+    assert frame is visible
+
+
+def test_snapshot_returns_last_frame_when_stream_stays_dark() -> None:
+    import numpy as np
+
+    from app.services.devices import _first_visible_frame
+
+    dark = [np.full((4, 4, 3), 3, dtype=np.uint8) for _ in range(3)]
+    assert _first_visible_frame(_FakeCapture(dark)) is dark[-1]
+    assert _first_visible_frame(_FakeCapture([])) is None
