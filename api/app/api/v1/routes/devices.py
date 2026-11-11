@@ -60,6 +60,19 @@ async def create_device(
     return to_device_read(device)
 
 
+@router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_device(
+    device_id: str,
+    _: UserRead = Depends(require_scopes(Scope.DEVICES_WRITE)),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    try:
+        await DeviceService(session).delete(device_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/test-camera", response_model=CameraTestResponse)
 async def test_camera(
     payload: CameraTestRequest,

@@ -738,3 +738,21 @@ html[data-motion-mode="reduced"] .lg-root :is(.lg-glass, .lg-kpis .lg-kpi) { tra
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
+
+/* Excluir câmera: primeiro clique arma, segundo confirma */
+.camera-delete-button {
+  gap: 6px;
+  transition: background 0.2s ease, color 0.2s ease, width 0.2s ease;
+}
+.camera-delete-button:hover { color: #ff6b6b !important; }
+.camera-delete-button.is-confirming {
+  width: auto !important;
+  padding: 0 10px !important;
+  background: #e5484d !important;
+  border-color: #e5484d !important;
+  color: #fff !important;
+  font-size: 12px;
+  font-weight: 700;
+}
+.camera-delete-button:disabled { opacity: 0.5; cursor: progress; }
+.camera-card-actions > span { margin-right: auto; }

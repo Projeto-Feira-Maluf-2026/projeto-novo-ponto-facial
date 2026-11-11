@@ -329,6 +329,10 @@ export const apiClient = {
     invalidateReads('devices', 'dashboard');
     return response.data;
   },
+  deleteDevice: async (deviceId: string) => {
+    await api.delete(`/devices/${deviceId}`);
+    invalidateReads('devices', 'dashboard');
+  },
   testCamera: async (camera: CameraConfig) => {
     const response = await faceApi.post<CameraTestResponse>('/devices/test-camera', { camera });
     return response.data;

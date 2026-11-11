@@ -8,6 +8,7 @@ import {
   Router,
   Save,
   ShieldCheck,
+  Trash2,
   Wifi,
   WifiOff,
 } from 'lucide-react';
@@ -77,6 +78,8 @@ export function DevicesPage() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [loadingDevices, setLoadingDevices] = useState(true);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadDevices = useCallback(async () => {
     setLoadingDevices(true);
@@ -193,6 +196,35 @@ export function DevicesPage() {
       setMessage(describeApiError(error, 'carregar a prévia da câmera'));
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!confirmDeleteId) return undefined;
+    const timer = window.setTimeout(() => setConfirmDeleteId(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [confirmDeleteId]);
+
+  const deleteCamera = async (device: Device) => {
+    if (confirmDeleteId !== device.id) {
+      setConfirmDeleteId(device.id);
+      return;
+    }
+    setConfirmDeleteId(null);
+    setDeletingId(device.id);
+    setMessage('');
+    try {
+      await apiClient.deleteDevice(device.id);
+      if (selected?.id === device.id) {
+        setSelected(null);
+        setPreviewUrl('');
+      }
+      setMessage(`Câmera ${device.name} excluída.`);
+      await loadDevices();
+    } catch (error) {
+      setMessage(describeApiError(error, 'excluir a câmera'));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -364,6 +396,17 @@ export function DevicesPage() {
                   <div className="camera-card-actions">
                     <span>{device.last_seen_at ? `Visto ${formatInAppTimeZone(parseApiDate(device.last_seen_at), { dateStyle: 'short', timeStyle: 'short' })}` : 'Sem sinal há algum tempo'}</span>
                     <button type="button" onClick={() => testSavedCamera(device)} className="icon-button" title="Testar câmera" aria-label={`Testar ${device.name}`}><RefreshCcw size={16} /></button>
+                    <button
+                      type="button"
+                      onClick={() => deleteCamera(device)}
+                      disabled={deletingId === device.id}
+                      className={`icon-button camera-delete-button${confirmDeleteId === device.id ? ' is-confirming' : ''}`}
+                      title={confirmDeleteId === device.id ? 'Clique de novo para excluir' : 'Excluir câmera'}
+                      aria-label={confirmDeleteId === device.id ? `Confirmar exclusão de ${device.name}` : `Excluir ${device.name}`}
+                    >
+                      <Trash2 size={16} />
+                      {confirmDeleteId === device.id && <span>Excluir?</span>}
+                    </button>
                   </div>
                 </article>
               );
