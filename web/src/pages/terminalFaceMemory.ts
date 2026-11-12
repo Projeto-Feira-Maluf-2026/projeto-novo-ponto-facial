@@ -70,6 +70,11 @@ export function faceNeedsRecognition(memory: FaceMemoryEntry[], box: FaceBox, no
   return entry.state === 'failing' && entry.retryAt <= now;
 }
 
+/** O rosto já foi ao servidor ao menos uma vez (e falhou ou foi registrado). */
+export function faceWasTried(memory: FaceMemoryEntry[], box: FaceBox) {
+  return Boolean(matchingEntry(memory, box));
+}
+
 export function rememberFaceOutcome(
   memory: FaceMemoryEntry[],
   box: FaceBox,

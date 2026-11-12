@@ -30,6 +30,7 @@ import {
   countDoneFaces,
   faceBoxIou,
   faceNeedsRecognition,
+  faceWasTried,
   refreshFaceMemory,
   rememberFaceOutcome,
   type FaceMemoryEntry,
@@ -95,10 +96,10 @@ const GROUP_RESULT_HOLD_MS = 1_200;
 // Em grupo, os rostos que faltam são relidos quase de imediato.
 const PARTIAL_RESULT_HOLD_MS = 100;
 const MAX_FACES_PER_SCAN = 5;
-// Só lê quem está perto da câmera: o rosto precisa ocupar ao menos 10% da
-// altura do vídeo (~70 px em 720p, por volta de 2,5 m numa webcam comum).
-// Gente passando ao fundo é ignorada e não segura o grupo.
-const MIN_READABLE_FACE_HEIGHT = 0.1;
+// Rosto mínimo para ler: 6,5% da altura do vídeo (~70 px em 1080p, por volta
+// de 3,5 a 4 m numa webcam comum). Na feira, 10% obrigava a pessoa a chegar
+// muito perto; menor que isso, quem só passa ao fundo começaria a ser lido.
+const MIN_READABLE_FACE_HEIGHT = 0.065;
 // Leitura em ondas: depois de registrar quem está no quadro, o grupo fica
 // aberto por este tempo. Quem chegar nesse intervalo é fotografado,
 // reconhecido e entra na mesma apresentação; cada chegada reabre a janela.
@@ -126,6 +127,12 @@ type PresentationDraft = {
   maxFaces: number;
 };
 const RETRY_RESULT_HOLD_MS = 180;
+// Rosto escuro (contraluz): abaixo de 30% de luminância a tela vira luz de
+// preenchimento e a câmera sobe a exposição; só desliga acima de 40% por um
+// tempo, para não piscar a cada quadro.
+const LOW_LIGHT_ON = 0.3;
+const LOW_LIGHT_OFF = 0.4;
+const LOW_LIGHT_RELEASE_MS = 1_500;
 const SERVICE_RETRY_HOLD_MS = 1_200;
 
 const loadPresentationShow = () => import('../presentation/PresentationShow');
@@ -239,6 +246,9 @@ export function FacialTerminalPage() {
   const [cameraError, setCameraError] = useState('');
   const [autoEnabled, setAutoEnabled] = useState(true);
   const [mode, setMode] = useState<TerminalMode>('starting');
+  const [lowLight, setLowLight] = useState(false);
+  const lowLightRef = useRef(false);
+  const lowLightBrightSinceRef = useRef(0);
   const [analysis, setAnalysis] = useState<FaceAnalyzeResponse | null>(null);
   const [recognition, setRecognition] = useState<LiveRecognition>(initialRecognition);
   const [recognizedFaceTargets, setRecognizedFaceTargets] = useState<FaceOverlayTarget[]>([]);
@@ -564,9 +574,11 @@ export function FacialTerminalPage() {
           }
         }
 
-        // Enquanto o grupo se forma, a câmera continua lendo sem pausa.
+        // Um rosto por vez: enquanto houver alguém no quadro ainda sem
+        // registro, o próximo vai ao servidor logo em seguida.
+        const othersWaiting = countDoneFaces(faceMemoryRef.current) < localFaceCountRef.current;
         resultHoldUntilRef.current = Date.now() + (
-          presentationDraftRef.current
+          presentationDraftRef.current || othersWaiting
             ? PARTIAL_RESULT_HOLD_MS
             : allCompleted
               ? validCandidates.length > 1 ? GROUP_RESULT_HOLD_MS : SINGLE_RESULT_HOLD_MS
@@ -668,6 +680,24 @@ export function FacialTerminalPage() {
       const now = Date.now();
       const facePresent = localFacePresentRef.current;
       const visibleBoxes = facePresent ? camera?.peekFaceBoxes?.() : [];
+      const faceLight = facePresent ? camera?.measureFaceLight?.() ?? null : null;
+      if (faceLight !== null) {
+        if (!lowLightRef.current && faceLight < LOW_LIGHT_ON) {
+          lowLightRef.current = true;
+          lowLightBrightSinceRef.current = 0;
+          setLowLight(true);
+          camera?.setLowLightBoost?.(true);
+        } else if (lowLightRef.current && faceLight > LOW_LIGHT_OFF) {
+          lowLightBrightSinceRef.current ||= now;
+          if (now - lowLightBrightSinceRef.current >= LOW_LIGHT_RELEASE_MS) {
+            lowLightRef.current = false;
+            setLowLight(false);
+            camera?.setLowLightBoost?.(false);
+          }
+        } else if (lowLightRef.current) {
+          lowLightBrightSinceRef.current = 0;
+        }
+      }
       if (visibleBoxes) {
         faceMemoryRef.current = refreshFaceMemory(faceMemoryRef.current, visibleBoxes, now);
       }
@@ -684,7 +714,18 @@ export function FacialTerminalPage() {
           now,
         );
       }
-      const pendingFaces = capturedFaces.filter(({ box }) => needsRecognition(box));
+      // Registro um por um: cada pessoa vai sozinha ao servidor e aparece na
+      // tela assim que é reconhecida, sem esperar o rosto mais difícil do
+      // grupo. Primeiro quem ainda não foi tentado, depois o rosto maior
+      // (o mais perto); quem falhou volta na fila após o recuo curto.
+      const pendingFaces = capturedFaces
+        .filter(({ box }) => needsRecognition(box))
+        .sort((left, right) => (
+          Number(faceWasTried(faceMemoryRef.current, left.box))
+            - Number(faceWasTried(faceMemoryRef.current, right.box))
+          || right.box.width * right.box.height - left.box.width * left.box.height
+        ))
+        .slice(0, 1);
       if (!pendingFaces.length) {
         // Um rosto que falhou e aguarda nova tentativa mantém a última
         // orientação na tela, em vez de parecer "já registrado".
@@ -701,8 +742,9 @@ export function FacialTerminalPage() {
 
       requestInFlightRef.current = true;
       setMode('scanning');
-      setGuidance(pendingFaces.length > 1
-        ? `Reconhecendo ${pendingFaces.length} pessoas ao mesmo tempo…`
+      const doneSoFar = countDoneFaces(faceMemoryRef.current);
+      setGuidance(localFaceCountRef.current > 1
+        ? `Reconhecendo pessoa ${Math.min(doneSoFar + 1, localFaceCountRef.current)} de ${localFaceCountRef.current}…`
         : 'Reconhecendo o rosto…');
 
       try {
@@ -890,7 +932,7 @@ export function FacialTerminalPage() {
           </div>
         </header>
 
-        <div className="tk-camera" data-mode={mode} data-tone={tone}>
+        <div className="tk-camera" data-mode={mode} data-tone={tone} data-low-light={lowLight || undefined}>
           <CameraCapture
             ref={cameraRef}
             className="tk-camera-view"
@@ -905,6 +947,11 @@ export function FacialTerminalPage() {
             onFaceCountChange={handleLocalFaceCount}
             trackingPaused={presentationExperienceOpen}
           />
+          {lowLight ? (
+            <div className="tk-fill-light" role="status">
+              <span>Rosto escuro: a tela acendeu para iluminar você</span>
+            </div>
+          ) : null}
           <div className="tk-hud" aria-hidden="true">
             <span className="tk-corner tk-corner-tl" />
             <span className="tk-corner tk-corner-tr" />

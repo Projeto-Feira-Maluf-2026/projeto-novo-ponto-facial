@@ -1,5 +1,6 @@
 import { FaceDetector, FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import type { FaceTrackingRequest, FaceTrackingResponse } from './faceTrackingProtocol';
+import { distantScanRegion, mapRegionDetection } from './distantFaceTiles';
 
 // No camera frames leave this worker. Only transient landmarks/boxes are returned.
 const scope = self as unknown as {
@@ -9,6 +10,7 @@ const scope = self as unknown as {
 let landmarker: FaceLandmarker | null = null;
 let detector: FaceDetector | null = null;
 let lastDistantScan = 0;
+let distantPass = 0;
 scope.onmessage = async (event) => {
   // Dedicated-worker messages carry an empty origin; anything else is not our page.
   if (event.origin !== '' && event.origin !== self.location.origin) return;
@@ -51,11 +53,19 @@ scope.onmessage = async (event) => {
     if (detector && data.timestamp - lastDistantScan >= 180) {
       lastDistantScan = data.timestamp;
       const scale = Math.min(1, 640 / Math.max(width, height));
-      width = Math.max(1, Math.round(width * scale));
-      height = Math.max(1, Math.round(height * scale));
-      const canvas = new OffscreenCanvas(width, height);
-      canvas.getContext('2d')?.drawImage(frame, 0, 0, width, height);
-      detections = detector.detect(canvas).detections;
+      const region = distantScanRegion(distantPass, frame.width, frame.height);
+      distantPass += 1;
+      width = Math.max(1, Math.round(frame.width * scale));
+      height = Math.max(1, Math.round(frame.height * scale));
+      const canvasWidth = Math.max(1, Math.round(region.width * scale));
+      const canvasHeight = Math.max(1, Math.round(region.height * scale));
+      const canvas = new OffscreenCanvas(canvasWidth, canvasHeight);
+      canvas.getContext('2d')?.drawImage(
+        frame, region.x, region.y, region.width, region.height, 0, 0, canvasWidth, canvasHeight,
+      );
+      detections = detector.detect(canvas).detections.map((detection) => mapRegionDetection(
+        detection, region, scale, canvasWidth, canvasHeight, width, height,
+      ));
     }
     scope.postMessage({ type: 'result', result, detections, width, height, timestamp: data.timestamp });
   } catch {

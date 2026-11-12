@@ -332,7 +332,8 @@ def test_production_operations_are_blocked_without_calibrated_thresholds() -> No
 
 
 def test_mirrored_retry_reuses_validated_pixels_without_decoding_again() -> None:
-    pixels = np.zeros((4, 5, 3), dtype=np.uint8)
+    # Rosto bem iluminado: o realce de contraluz nao entra e os pixels chegam intactos.
+    pixels = np.full((4, 5, 3), 128, dtype=np.uint8)
     pixels[:, 0] = 10
     pixels[:, -1] = 240
     image = ValidatedFaceImage(

@@ -30,7 +30,7 @@ export async function openCameraStream(
   const device = requestedDeviceId ? { deviceId: { exact: requestedDeviceId } } : {};
   try {
     return await open({ ...device, facingMode: { ideal: 'user' },
-      width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } });
+      width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } });
   } catch (error) {
     if (!isRecoverableCameraError(error)) throw error;
   }

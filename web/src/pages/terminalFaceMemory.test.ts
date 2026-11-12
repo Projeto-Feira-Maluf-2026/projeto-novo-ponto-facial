@@ -52,3 +52,12 @@ describe('memória de rostos do terminal', () => {
     expect(faceNeedsRecognition(memory, box(0.1), 5_000)).toBe(false);
   });
 });
+
+describe('fila de rostos', () => {
+  it('sabe quem já foi tentado', async () => {
+    const { faceWasTried, rememberFaceOutcome } = await import('./terminalFaceMemory');
+    const box = { x: 0.2, y: 0.2, width: 0.2, height: 0.3 };
+    expect(faceWasTried([], box)).toBe(false);
+    expect(faceWasTried(rememberFaceOutcome([], box, 'failed', 0), box)).toBe(true);
+  });
+});

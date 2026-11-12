@@ -4,11 +4,11 @@
 
 A tela `Ponto automático` foi desenhada para funcionar em uma câmera fixa, sem seleção manual de funcionário, tipo de ponto ou botão de confirmação. O colaborador se aproxima, olha para a câmera e recebe uma resposta visual imediata.
 
-## Fluxo de operação (atualizado em 09/11/2026)
+## Fluxo de operação (atualizado em 12/11/2026, depois da feira)
 
 1. O terminal inicia a câmera e seleciona a obra vinculada.
 2. O MediaPipe, no próprio navegador, acompanha até cinco rostos a cada quadro. Nada vai ao servidor enquanto ninguém novo aparece.
-3. Quando surge um rosto que ainda não foi tratado, o terminal tira uma foto só desse rosto (recorte de 384 a 576 px) e envia todos os novos da mesma leitura juntos em `POST /attendance/punch/batch`.
+3. Quando surge um rosto que ainda não foi tratado, o terminal tira uma foto só desse rosto (recorte de 384 a 576 px) e envia um rosto por pedido em `POST /attendance/punch/batch`. Cada pessoa aparece na tela assim que é reconhecida; a próxima vai logo em seguida. A fila prioriza quem ainda não foi tentado e, entre esses, o rosto maior (mais perto).
 4. Quem já foi registrado é seguido de quadro em quadro (`web/src/pages/terminalFaceMemory.ts`) e não é fotografado de novo enquanto continua diante da câmera. Quem sai do quadro é esquecido depois de 0,9 s.
 5. Um rosto que falha (sem cadastro, mal posicionado) é tentado de novo com espera crescente: 150 ms nas três primeiras falhas, 600 ms até a quinta e 1,5 s depois disso. Assim ele não atrasa quem acabou de chegar.
 6. Leitura em ondas: com o modo apresentação ligado, o grupo fica aberto por 4 s depois do último registro ou da última chegada (`GROUP_WAVE_WINDOW_MS`). Quem aparecer nesse intervalo é fotografado, reconhecido e entra na mesma apresentação. O prazo máximo do grupo é 20 s.
@@ -58,6 +58,15 @@ O script tenta a GPU integrada via `onnxruntime-directml`, mede CPU x GPU com
 `scripts/benchmark_face_runtime.py` e fica com o mais rápido; se a GPU falhar, segue na CPU.
 `-SemGpu` pula a tentativa. `npm run setup` restaura o onnxruntime de CPU.
 
-Quadra aberta: o terminal ignora rostos com menos de 10% da altura do vídeo
-(`MIN_READABLE_FACE_HEIGHT`, ~2,5 m numa webcam comum). Quem passa ao fundo não é lido nem segura
-o grupo da apresentação.
+Quadra aberta: o terminal ignora rostos com menos de 6,5% da altura do vídeo
+(`MIN_READABLE_FACE_HEIGHT`, ~3,5 a 4 m numa webcam comum, com a câmera em 1080p). Quem passa mais
+ao fundo não é lido nem segura o grupo da apresentação. O detector de rostos distantes alterna entre
+o quadro inteiro e a faixa central (`web/src/components/distantFaceTiles.ts`), onde um rosto distante
+chega ~1,7x maior ao modelo.
+
+Contraluz (sol atrás das pessoas): quando o rosto fica abaixo de 30% de luminância, a borda da tela
+vira uma luz de preenchimento branca e o terminal pede à câmera mais exposição (se o driver permitir).
+No servidor, um rosto com mediana abaixo de 35% recebe ganho em luz linear antes da detecção e do
+embedding (`exposure_corrected_face` em `api/app/services/ai/facial_service.py`). Em rostos reais
+escurecidos por contraluz sintético, isso levou de 1 para 6 de 6 rostos lidos, com a similaridade
+de impostores abaixo de 0,21 (limiar de aceite 0,62).
