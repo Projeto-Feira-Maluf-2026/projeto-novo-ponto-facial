@@ -96,10 +96,11 @@ const GROUP_RESULT_HOLD_MS = 1_200;
 // Em grupo, os rostos que faltam são relidos quase de imediato.
 const PARTIAL_RESULT_HOLD_MS = 100;
 const MAX_FACES_PER_SCAN = 5;
-// Rosto mínimo para ler: 6,5% da altura do vídeo (~70 px em 1080p, por volta
-// de 3,5 a 4 m numa webcam comum). Na feira, 10% obrigava a pessoa a chegar
-// muito perto; menor que isso, quem só passa ao fundo começaria a ser lido.
-const MIN_READABLE_FACE_HEIGHT = 0.065;
+// Rosto mínimo para ler: 4,5% da altura do vídeo (~49 px em 1080p, por volta
+// de 5 m numa webcam comum). No teste com 1000 fotos de grupo, 6,5% deixava de
+// fora 1 em cada 8 pessoas cadastradas; o servidor continua exigindo o mesmo
+// nível de semelhança, então rosto pequeno demais só não é reconhecido.
+const MIN_READABLE_FACE_HEIGHT = 0.045;
 // Leitura em ondas: depois de registrar quem está no quadro, o grupo fica
 // aberto por este tempo. Quem chegar nesse intervalo é fotografado,
 // reconhecido e entra na mesma apresentação; cada chegada reabre a janela.

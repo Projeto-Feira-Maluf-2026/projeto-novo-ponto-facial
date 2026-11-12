@@ -10,6 +10,8 @@ const scope = self as unknown as {
 let landmarker: FaceLandmarker | null = null;
 let detector: FaceDetector | null = null;
 let lastDistantScan = 0;
+// Detector leve (BlazeFace ~5 a 15 ms): a cada 120 ms ele olha uma região do ciclo.
+const DISTANT_SCAN_INTERVAL_MS = 120;
 let distantPass = 0;
 scope.onmessage = async (event) => {
   // Dedicated-worker messages carry an empty origin; anything else is not our page.
@@ -50,7 +52,7 @@ scope.onmessage = async (event) => {
     let detections;
     let width = frame.width;
     let height = frame.height;
-    if (detector && data.timestamp - lastDistantScan >= 180) {
+    if (detector && data.timestamp - lastDistantScan >= DISTANT_SCAN_INTERVAL_MS) {
       lastDistantScan = data.timestamp;
       const scale = Math.min(1, 640 / Math.max(width, height));
       const region = distantScanRegion(distantPass, frame.width, frame.height);

@@ -6,13 +6,29 @@ import type { Detection } from '@mediapipe/tasks-vision';
 // pessoas ficam diante do terminal: o mesmo rosto chega ~1,7x maior ao modelo.
 export type DetectionRegion = { x: number; y: number; width: number; height: number };
 
+// Ciclo das passadas: quadro inteiro, faixa central e os quatro quadrantes
+// (com sobreposição, para um rosto na divisa caber inteiro em um deles). No
+// teste com 1000 fotos de grupo, os quadrantes fizeram o navegador ver 5 pontos
+// a mais das pessoas cadastradas; um rosto pequeno chega ~2x maior ao modelo.
+export const DISTANT_SCAN_CYCLE = 6;
+
 export function distantScanRegion(pass: number, frameWidth: number, frameHeight: number): DetectionRegion {
-  if (pass % 2 === 0) return { x: 0, y: 0, width: frameWidth, height: frameHeight };
+  const step = ((pass % DISTANT_SCAN_CYCLE) + DISTANT_SCAN_CYCLE) % DISTANT_SCAN_CYCLE;
+  if (step === 0) return { x: 0, y: 0, width: frameWidth, height: frameHeight };
+  if (step === 1) {
+    return {
+      x: frameWidth * 0.2,
+      y: frameHeight * 0.08,
+      width: frameWidth * 0.6,
+      height: frameHeight * 0.62,
+    };
+  }
+  const quadrant = step - 2;
   return {
-    x: frameWidth * 0.2,
-    y: frameHeight * 0.08,
-    width: frameWidth * 0.6,
-    height: frameHeight * 0.62,
+    x: quadrant % 2 === 0 ? 0 : frameWidth * 0.45,
+    y: quadrant < 2 ? 0 : frameHeight * 0.4,
+    width: frameWidth * 0.55,
+    height: frameHeight * 0.6,
   };
 }
 

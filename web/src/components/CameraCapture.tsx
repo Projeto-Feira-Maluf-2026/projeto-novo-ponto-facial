@@ -92,7 +92,9 @@ const MAX_TRACKED_FACES = 5;
 const LANDMARK_FRAME_INTERVAL_MS = 40;
 const DISTANT_SCAN_INTERVAL_MS = 180;
 // Cobre duas passadas do detector distante (quadro inteiro e faixa central).
-const DISTANT_DETECTION_TTL_MS = 450;
+// Um ciclo de passadas (6 regiões a cada 120 ms) leva ~720 ms: a caixa vista só num
+// quadrante precisa durar até a próxima volta para somar as duas detecções.
+const DISTANT_DETECTION_TTL_MS = 1_000;
 const DISTANT_DETECTOR_MAX_EDGE = 640;
 const TRACKING_MAX_WIDTH = 1280;
 const CAMERA_RELEASE_DELAY_MS = 180;

@@ -34,6 +34,18 @@ describe('exposição em contraluz', () => {
 });
 
 describe('rostos distantes', () => {
+  it('percorre quadro inteiro, faixa central e quatro quadrantes sobrepostos', () => {
+    const regions = Array.from({ length: 7 }, (_, pass) => distantScanRegion(pass, 1000, 1000));
+    expect(regions[0]).toEqual({ x: 0, y: 0, width: 1000, height: 1000 });
+    expect(regions.slice(2, 6)).toEqual([
+      { x: 0, y: 0, width: 550, height: 600 },
+      { x: 450, y: 0, width: 550, height: 600 },
+      { x: 0, y: 400, width: 550, height: 600 },
+      { x: 450, y: 400, width: 550, height: 600 },
+    ]);
+    expect(regions[6]).toEqual(regions[0]);
+  });
+
   it('a passada da faixa central devolve caixa e pontos no quadro inteiro', () => {
     const region = distantScanRegion(1, 1920, 1080);
     const scale = 640 / 1920;

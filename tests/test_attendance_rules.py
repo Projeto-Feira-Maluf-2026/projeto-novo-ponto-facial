@@ -97,6 +97,28 @@ def test_attendance_still_rejects_face_cut_by_the_image_border() -> None:
     assert attendance_frame_is_usable(processed) is False
 
 
+def _cut_face(points):
+    import numpy as np
+    return SimpleNamespace(
+        image=SimpleNamespace(image_bgr=np.zeros((384, 384, 3), dtype=np.uint8)),
+        inference=SimpleNamespace(
+            embedding=[1.0, 0.0],
+            landmarks=[SimpleNamespace(x=x, y=y) for x, y in points],
+        ),
+        quality=SimpleNamespace(accepted=False, reasons=["FACE_OUT_OF_FRAME", "IMAGE_TOO_BLURRY"]),
+    )
+
+
+def test_group_crop_touching_the_border_is_usable_when_eyes_nose_and_mouth_are_inside() -> None:
+    inside = [(140, 160), (240, 160), (190, 210), (150, 260), (230, 260)]
+    assert attendance_frame_is_usable(_cut_face(inside)) is True
+
+
+def test_face_with_a_landmark_outside_the_crop_is_still_rejected() -> None:
+    eye_cut = [(4, 160), (240, 160), (190, 210), (150, 260), (230, 260)]
+    assert attendance_frame_is_usable(_cut_face(eye_cut)) is False
+
+
 @pytest.mark.asyncio
 async def test_punch_ignores_location_and_does_not_require_geofence() -> None:
     worksite = SimpleNamespace(

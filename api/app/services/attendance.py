@@ -140,7 +140,28 @@ def attendance_frame_is_usable(processed) -> bool:
         getattr(reason, "value", str(reason))
         for reason in processed.quality.reasons
     }
+    # Em grupo o recorte e apertado para nao pegar o vizinho, e a caixa do rosto
+    # encosta na borda (testa ou queixo). Se olhos, nariz e boca estao dentro da
+    # imagem, o alinhamento do embedding e o mesmo: no teste com 1000 fotos de
+    # grupo essa recusa era a maior perda depois da deteccao.
+    if "FACE_OUT_OF_FRAME" in reasons and _face_landmarks_inside(processed):
+        reasons.discard("FACE_OUT_OF_FRAME")
+        if not reasons:
+            return True
     return bool(reasons) and reasons.issubset(ATTENDANCE_RECOVERABLE_QUALITY_REASONS)
+
+
+def _face_landmarks_inside(processed) -> bool:
+    landmarks = list(getattr(processed.inference, "landmarks", None) or [])
+    image_bgr = getattr(getattr(processed, "image", None), "image_bgr", None)
+    if len(landmarks) < 5 or image_bgr is None:
+        return False
+    height, width = image_bgr.shape[:2]
+    margin = 0.03 * min(height, width)
+    return all(
+        margin <= point.x <= width - margin and margin <= point.y <= height - margin
+        for point in landmarks
+    )
 
 
 class AttendanceService:
