@@ -92,7 +92,13 @@ def ensure_model_files(model_dir: Path, *, download: bool) -> list[Path] | None:
 
 
 def crop_for_model(image_bgr: np.ndarray, face_box, scale: float, size: int) -> np.ndarray:
-    """Face-centered crop with ``scale`` x the box, clamped to the image (as trained)."""
+    """Face-centered crop with ``scale`` x the box, as the models were trained.
+
+    Like the reference implementation, a window that would leave the image is
+    shifted back inside it and keeps its size and proportion; cutting it at the
+    border instead stretched the face when it was resized, and the models read
+    that distortion as a photo.
+    """
     height, width = image_bgr.shape[:2]
     x, y, box_width, box_height = (float(value) for value in face_box)
     box_width = max(box_width, 1.0)
@@ -100,11 +106,22 @@ def crop_for_model(image_bgr: np.ndarray, face_box, scale: float, size: int) -> 
     scale = min((height - 1) / box_height, (width - 1) / box_width, scale)
     new_width, new_height = box_width * scale, box_height * scale
     center_x, center_y = x + box_width / 2, y + box_height / 2
-    left = max(0, int(center_x - new_width / 2))
-    top = max(0, int(center_y - new_height / 2))
-    right = min(width - 1, int(center_x + new_width / 2))
-    bottom = min(height - 1, int(center_y + new_height / 2))
-    crop = image_bgr[top:bottom + 1, left:right + 1]
+    left, top = center_x - new_width / 2, center_y - new_height / 2
+    right, bottom = center_x + new_width / 2, center_y + new_height / 2
+    if left < 0:
+        right -= left
+        left = 0
+    if top < 0:
+        bottom -= top
+        top = 0
+    if right > width - 1:
+        left -= right - width + 1
+        right = width - 1
+    if bottom > height - 1:
+        top -= bottom - height + 1
+        bottom = height - 1
+    left, top = max(0, int(left)), max(0, int(top))
+    crop = image_bgr[top:int(bottom) + 1, left:int(right) + 1]
     return cv2.resize(crop, (size, size))
 
 

@@ -31,6 +31,17 @@ def test_crop_is_clamped_to_the_image_and_resized() -> None:
     assert crop_for_model(image, (0, 0, 100, 100), 4.0, 80).shape == (80, 80, 3)
 
 
+def test_crop_near_the_border_is_shifted_not_stretched() -> None:
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+    image[:, :50] = 255
+    # Rosto encostado na borda esquerda: a janela de 2,7x volta para dentro da
+    # imagem inteira (54 px), em vez de ser cortada e esticada no redimensionamento.
+    crop = crop_for_model(image, (0, 40, 20, 20), 2.7, 54)
+    assert crop.shape == (54, 54, 3)
+    assert crop[27, :48].min() == 255
+    assert crop[27, 51:].max() == 0
+
+
 def test_live_probability_is_the_second_class() -> None:
     assert live_probability(np.array([[0.0, 10.0, 0.0]])) > 0.99
     assert live_probability(np.array([[10.0, 0.0, 10.0]])) < 0.01

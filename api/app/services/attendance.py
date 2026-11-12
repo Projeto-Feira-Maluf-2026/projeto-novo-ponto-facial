@@ -280,9 +280,12 @@ class AttendanceService:
                 )
             # Antifraude: foto ou video mostrado a camera. Em staging/producao
             # sem modelo a batida fecha (503); fora delas, sem modelo, segue.
+            # Recorte sem nenhum rosto aproveitavel ja sera recusado adiante por
+            # falta de evidencia: nao ha o que validar, e nao vira um 503.
             strict_pad = settings.ENVIRONMENT in {"staging", "production"}
             pad_frames = presentation_attack_frames(processed_frames)
-            if strict_pad or (pad_frames and settings.FACE_PAD_ENABLED):
+            has_usable_face = any(attendance_frame_is_usable(item) for item in processed_frames)
+            if has_usable_face and (strict_pad or (pad_frames and settings.FACE_PAD_ENABLED)):
                 from app.services.ai.presentation_attack import evaluate_presentation_attack
 
                 pad_decision = await asyncio.to_thread(evaluate_presentation_attack, pad_frames)

@@ -800,3 +800,20 @@ async def test_production_punch_fails_closed_without_server_pad(monkeypatch, env
     assert error.value.code == "PAD_UNAVAILABLE"
     session.add.assert_not_called()
     session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("environment", ["staging", "production"])
+async def test_crop_without_a_face_is_rejected_not_a_server_error(monkeypatch, environment):
+    import numpy as np
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ENVIRONMENT", environment)
+    session = SimpleNamespace(get=AsyncMock(return_value=SimpleNamespace(id="w", active=True)),
+                              add=MagicMock(), commit=AsyncMock())
+    processed = SimpleNamespace(image=SimpleNamespace(image_bgr=np.zeros((3, 3, 3), dtype=np.uint8)),
+                                quality=SimpleNamespace(accepted=False, quality_score=0.0, reasons=[]),
+                                inference=SimpleNamespace(embedding=None))
+    service = AttendanceService(session, SimpleNamespace(from_image_base64=MagicMock(return_value=processed)))
+    service._flag_attempt = AsyncMock()
+    decision = await service.register_punch(PunchCreate(worksite_id="w", face={"image_base64": "frame"}))
+    assert decision.accepted is False
