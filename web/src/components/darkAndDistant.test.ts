@@ -71,3 +71,14 @@ describe('rostos distantes', () => {
     expect(updateDistantFaceCandidates(second, [near], 500, 450)).toHaveLength(1);
   });
 });
+
+describe('rastreamento no iPhone', () => {
+  it('usa a thread principal em iPhone e Safari, worker no Chrome', async () => {
+    const { prefersInlineTracking } = await import('./CameraCapture');
+    expect(prefersInlineTracking('Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1', 5)).toBe(true);
+    expect(prefersInlineTracking('Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0 Mobile/15E148 Safari/604.1', 5)).toBe(true);
+    expect(prefersInlineTracking('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15', 0)).toBe(true);
+    expect(prefersInlineTracking('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36', 0)).toBe(false);
+    expect(prefersInlineTracking('Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36', 5)).toBe(false);
+  });
+});

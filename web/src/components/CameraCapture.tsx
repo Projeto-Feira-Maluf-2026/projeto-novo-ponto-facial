@@ -3,7 +3,8 @@ import { isRecoverableCameraError, openCameraStream } from '../utils/cameraStrea
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Detection } from '@mediapipe/tasks-vision';
 import type { FaceLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision';
-import type { FaceTrackingResponse } from './faceTrackingProtocol';
+import type { FaceTrackingRequest, FaceTrackingResponse } from './faceTrackingProtocol';
+import { createFaceTrackingEngine } from './faceTrackingEngine';
 
 export type FaceBox = {
   x: number;
@@ -90,6 +91,8 @@ const MAX_TRACKED_FACES = 5;
 // ~25 FPS mantém o contorno visual colado ao rosto sem tentar executar a
 // inferência síncrona em todos os frames de webcams de 30/60 FPS.
 const LANDMARK_FRAME_INTERVAL_MS = 40;
+// Na thread principal (iPhone) o rastreamento divide o tempo com a tela: ~15 FPS.
+const INLINE_LANDMARK_FRAME_INTERVAL_MS = 66;
 const DISTANT_SCAN_INTERVAL_MS = 180;
 // Cobre duas passadas do detector distante (quadro inteiro e faixa central).
 // Um ciclo de passadas (6 regiões a cada 120 ms) leva ~720 ms: a caixa vista só num
@@ -495,6 +498,18 @@ export function lowLightExposureConstraints(
   return { advanced: [{ exposureCompensation: value } as MediaTrackConstraintSet] };
 }
 
+/** WebKit sem Chrome/Edge/Firefox de desktop: Safari e qualquer navegador de iPhone/iPad. */
+export function prefersInlineTracking(
+  userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent,
+  maxTouchPoints = typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints,
+) {
+  const appleMobile = /iPhone|iPad|iPod/.test(userAgent)
+    || (/Macintosh/.test(userAgent) && maxTouchPoints > 1);
+  const desktopSafari = /Safari\//.test(userAgent)
+    && !/Chrome\/|Chromium\/|CriOS\/|FxiOS\/|Edg\/|EdgiOS\/|OPR\//.test(userAgent);
+  return appleMobile || desktopSafari;
+}
+
 export function readableFaceBoxes(boxes: FaceBox[], minFaceHeight: number) {
   return minFaceHeight > 0 ? boxes.filter((box) => box.height >= minFaceHeight) : boxes;
 }
@@ -820,7 +835,17 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
       let cancelled = false;
       let animationFrame = 0;
       let videoFrameCallback = 0;
-      let worker: Worker | null = null;
+      // Quem roda o MediaPipe: o worker ou, se ele falhar, a própria página.
+      type TrackingTransport = {
+        inline: boolean;
+        post: (message: FaceTrackingRequest, transfer?: Transferable[]) => void;
+        terminate: () => void;
+      };
+      let worker: TrackingTransport | null = null;
+      // No iPhone/iPad (todo navegador lá é WebKit) e no Safari, o MediaPipe
+      // roda de forma confiável na página; nos demais, no worker. Se o modo
+      // escolhido falhar, o outro é tentado uma vez.
+      const trackingModes = prefersInlineTracking() ? [true, false] : [false, true];
       let workerReady = false;
       let framePending = false;
       let workerTimeout = 0;
@@ -1011,13 +1036,18 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
 
       const processFrame = (now: DOMHighResTimeStamp) => {
         if (cancelled || document.hidden || trackingPausedRef.current || !workerReady || framePending
-          || now - lastLandmarkAt < LANDMARK_FRAME_INTERVAL_MS) return;
+          || now - lastLandmarkAt < (worker?.inline ? INLINE_LANDMARK_FRAME_INTERVAL_MS : LANDMARK_FRAME_INTERVAL_MS)) return;
         const video = videoRef.current;
         if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
           || video.currentTime === lastVideoTime) return;
         lastVideoTime = video.currentTime;
         lastLandmarkAt = now;
         framePending = true;
+        if (worker?.inline) {
+          // Na página o MediaPipe lê o vídeo direto, sem cópia do quadro.
+          worker.post({ type: 'frame', frame: video, timestamp: now });
+          return;
+        }
         // A single transferred frame bounds RAM and drops stale work under load.
         // O acompanhamento roda no máximo em 1280 px de largura: a câmera em
         // 1080p só serve para recortar rostos distantes com mais detalhe, sem
@@ -1028,7 +1058,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
               resizeWidth: Math.round(video.videoWidth * trackingScale),
               resizeHeight: Math.round(video.videoHeight * trackingScale),
               resizeQuality: 'medium',
-            })
+            }).catch(() => createImageBitmap(video))
           : createImageBitmap(video);
         void bitmap.then((frame) => {
           if (cancelled || document.hidden || !workerReady || !worker) {
@@ -1037,7 +1067,7 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
             return;
           }
           try {
-            worker.postMessage({ type: 'frame', frame, timestamp: now }, [frame]);
+            worker.post({ type: 'frame', frame, timestamp: now }, [frame]);
             workerTimeout = window.setTimeout(failWorker, 10000);
           } catch {
             frame.close();
@@ -1056,6 +1086,13 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         normalizedFaceBoxRef.current = null;
         normalizedFaceBoxesRef.current = [];
         setDetectedFaceCount(0);
+        // Plano B: o Safari do iPhone, por exemplo, nem sempre roda o MediaPipe
+        // dentro de um worker. Sem isso, a câmera abria e nenhum rosto aparecia.
+        const nextMode = trackingModes.shift();
+        if (nextMode !== undefined) {
+          startTracking(nextMode);
+          return;
+        }
         setLandmarkState('unsupported');
       };
 
@@ -1077,52 +1114,89 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         });
       };
 
-      setLandmarkState('loading');
-      try {
-        if (typeof Worker === 'undefined' || typeof createImageBitmap === 'undefined') {
-          throw new Error('worker_unavailable');
-        }
-        worker = new Worker(new URL('./faceTracking.worker.ts', import.meta.url), { type: 'module' });
-        workerTimeout = window.setTimeout(failWorker, 30000);
-        worker.onerror = failWorker;
-        worker.onmessage = ({ data }: MessageEvent<FaceTrackingResponse>) => {
-          if (cancelled) return;
-          window.clearTimeout(workerTimeout);
-          if (data.type === 'ready') {
-            workerReady = true;
-            setLandmarkState('ready');
-            scheduleFrame();
-          } else if (data.type === 'result') {
-            framePending = false;
-            if (document.hidden) return;
-            if (data.detections) {
-              const detectedBoxes = (data.detections as Detection[])
-                .filter((detection) => isPlausibleDistantFace(detection, data.width, data.height))
-                .flatMap((detection) => {
-                  const box = detection.boundingBox;
-                  if (!box) return [];
-                  const normalized = {
-                    x: clamp(box.originX / data.width, 0, 1),
-                    y: clamp(box.originY / data.height, 0, 1),
-                    width: clamp(box.width / data.width, 0, 1),
-                    height: clamp(box.height / data.height, 0, 1),
-                  };
-                  return normalized.width > 0.012 && normalized.height > 0.02 ? [normalized] : [];
-                });
-              distantCandidates = updateDistantFaceCandidates(distantCandidates, detectedBoxes, performance.now());
-            }
-            drawFaces(data.result);
-          } else {
-            failWorker();
+      const onTrackingMessage = (data: FaceTrackingResponse) => {
+        if (cancelled) return;
+        window.clearTimeout(workerTimeout);
+        if (data.type === 'ready') {
+          workerReady = true;
+          setLandmarkState('ready');
+          scheduleFrame();
+        } else if (data.type === 'result') {
+          framePending = false;
+          if (document.hidden) return;
+          if (data.detections) {
+            const detectedBoxes = (data.detections as Detection[])
+              .filter((detection) => isPlausibleDistantFace(detection, data.width, data.height))
+              .flatMap((detection) => {
+                const box = detection.boundingBox;
+                if (!box) return [];
+                const normalized = {
+                  x: clamp(box.originX / data.width, 0, 1),
+                  y: clamp(box.originY / data.height, 0, 1),
+                  width: clamp(box.width / data.width, 0, 1),
+                  height: clamp(box.height / data.height, 0, 1),
+                };
+                return normalized.width > 0.012 && normalized.height > 0.02 ? [normalized] : [];
+              });
+            distantCandidates = updateDistantFaceCandidates(distantCandidates, detectedBoxes, performance.now());
           }
+          drawFaces(data.result);
+        } else {
+          failWorker();
+        }
+      };
+
+      let trackingGeneration = 0;
+      const startTracking = (inline: boolean) => {
+        setLandmarkState('loading');
+        // Resposta atrasada de um modo já descartado não pode mexer no atual.
+        const generation = ++trackingGeneration;
+        const deliver = (message: FaceTrackingResponse) => {
+          if (generation === trackingGeneration) onTrackingMessage(message);
         };
-        worker.postMessage({
-          type: 'init', wasmUrl: LANDMARK_WASM_PATH,
-          landmarkerUrl: FACE_LANDMARKER_MODEL_PATH, detectorUrl: DISTANT_FACE_DETECTOR_MODEL_PATH,
-        });
-      } catch {
-        failWorker();
-      }
+        try {
+          if (inline) {
+            const engine = createFaceTrackingEngine((message) => {
+              // Entrega fora da pilha atual, como faria um worker.
+              window.setTimeout(() => deliver(message), 0);
+            }, false);
+            let closed = false;
+            worker = {
+              inline: true,
+              post: (message) => {
+                if (!closed) void engine.handle(message);
+              },
+              terminate: () => {
+                closed = true;
+                engine.close();
+              },
+            };
+          } else {
+            if (typeof Worker === 'undefined' || typeof createImageBitmap === 'undefined') {
+              throw new Error('worker_unavailable');
+            }
+            const realWorker = new Worker(new URL('./faceTracking.worker.ts', import.meta.url), { type: 'module' });
+            realWorker.onerror = () => {
+              if (generation === trackingGeneration) failWorker();
+            };
+            realWorker.onmessage = ({ data }: MessageEvent<FaceTrackingResponse>) => deliver(data);
+            worker = {
+              inline: false,
+              post: (message, transfer) => realWorker.postMessage(message, transfer || []),
+              terminate: () => realWorker.terminate(),
+            };
+          }
+          workerTimeout = window.setTimeout(failWorker, inline ? 45000 : 20000);
+          worker.post({
+            type: 'init', wasmUrl: LANDMARK_WASM_PATH,
+            landmarkerUrl: FACE_LANDMARKER_MODEL_PATH, detectorUrl: DISTANT_FACE_DETECTOR_MODEL_PATH,
+          });
+        } catch {
+          failWorker();
+        }
+      };
+
+      startTracking(trackingModes.shift() ?? false);
 
       return () => {
         cancelled = true;
