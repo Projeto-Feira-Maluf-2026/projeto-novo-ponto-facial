@@ -136,6 +136,15 @@ class Settings(BaseSettings):
 
     SUSPICIOUS_SCORE_THRESHOLD: float = 0.55
 
+    # Antifraude passiva (foto ou video mostrado a camera): MiniFASNet V2 e
+    # V1SE em ONNX, media das duas probabilidades de "rosto ao vivo". Abaixo
+    # do minimo a batida e recusada. Medido: rostos reais 0,41 a 0,99; fotos em
+    # tela ou papel simuladas 0,00 a 0,13.
+    FACE_PAD_ENABLED: bool = True
+    FACE_PAD_MIN_LIVE_SCORE: float = 0.30
+    FACE_PAD_MODEL_DIR: str = ""
+    FACE_PAD_AUTO_DOWNLOAD: bool = True
+
     @cached_property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
@@ -162,6 +171,12 @@ class Settings(BaseSettings):
         if os.getenv("VERCEL") and self.FACE_MODEL_ROOT == "~/.insightface":
             return Path("/tmp/.insightface")
         return Path(self.FACE_MODEL_ROOT).expanduser().resolve()
+
+    @cached_property
+    def face_pad_model_dir(self) -> Path:
+        if self.FACE_PAD_MODEL_DIR:
+            return Path(self.FACE_PAD_MODEL_DIR).expanduser().resolve()
+        return self.face_model_root / "models" / "minifasnet"
 
     @cached_property
     def email_smtp_login(self) -> str | None:

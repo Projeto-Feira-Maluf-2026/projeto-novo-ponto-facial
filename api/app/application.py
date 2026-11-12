@@ -38,6 +38,12 @@ async def lifespan(app: FastAPI):
         app.state.face_provider = get_face_provider()
         if settings.FACE_EAGER_INITIALIZE:
             await asyncio.to_thread(app.state.face_provider.initialize)
+            if settings.FACE_PAD_ENABLED and settings.ENVIRONMENT != "test":
+                from app.services.ai.minifasnet_pad import get_minifasnet_provider
+
+                # Antifraude pronta antes da primeira batida (baixa os modelos
+                # na primeira vez, fora do caminho da leitura).
+                await asyncio.to_thread(get_minifasnet_provider)
     yield
     await engine.dispose()
 
