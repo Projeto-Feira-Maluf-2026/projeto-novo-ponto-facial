@@ -71,3 +71,22 @@ No servidor, um rosto com mediana abaixo de 35% recebe ganho em luz linear antes
 embedding (`exposure_corrected_face` em `api/app/services/ai/facial_service.py`). Em rostos reais
 escurecidos por contraluz sintético, isso levou de 1 para 6 de 6 rostos lidos, com a similaridade
 de impostores abaixo de 0,21 (limiar de aceite 0,62).
+
+## Antifraude: foto ou vídeo mostrado à câmera (12/11/2026)
+
+Na feira, uma foto de rosto mostrada na tela de um celular registrou o ponto. Agora cada foto que
+chega ao servidor passa por dois modelos MiniFASNet (V2 e V1SE, ONNX, ~1,7 MB cada,
+`api/app/services/ai/minifasnet_pad.py`) sobre os pixels originais, antes da comparação de
+identidade. A média da probabilidade de "rosto ao vivo" abaixo de `FACE_PAD_MIN_LIVE_SCORE` (0,30)
+recusa a batida com o motivo `presentation_attack_suspected`, registra a tentativa suspeita e o
+terminal mostra "Parece uma foto ou uma tela. O ponto só é registrado com o rosto ao vivo."
+
+Medido em 6 rostos reais: rosto ao vivo 0,53 a 0,99 (também em contraluz), rosto num celular
+simulado 0,00 a 0,21 e foto em papel simulada 0,00 a 0,05; ~10 ms por rosto na CPU.
+
+- Imagem da API no Vercel: os modelos são baixados no build e conferidos por SHA-256.
+- Modo local/feira: baixados na primeira inicialização para `~/.insightface/models/minifasnet`
+  (tempo limite de 20 s). Sem internet ou com arquivo corrompido, o ponto segue sem antifraude fora
+  de staging/produção, em vez de parar; em staging/produção a batida fecha com `PAD_UNAVAILABLE`.
+- Se a antifraude recusar alguém de verdade no dia: `FACE_PAD_MIN_LIVE_SCORE=0.2` no `.env`
+  deixa o corte mais brando; `FACE_PAD_ENABLED=false` desliga a antifraude.

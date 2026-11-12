@@ -94,6 +94,7 @@ const DISTANT_SCAN_INTERVAL_MS = 180;
 // Cobre duas passadas do detector distante (quadro inteiro e faixa central).
 const DISTANT_DETECTION_TTL_MS = 450;
 const DISTANT_DETECTOR_MAX_EDGE = 640;
+const TRACKING_MAX_WIDTH = 1280;
 const CAMERA_RELEASE_DELAY_MS = 180;
 const CAMERA_RECOVERY_RETRIES = 2;
 const SELECTED_CAMERA_STORAGE_KEY = 'ponto-facial:selected-camera';
@@ -1016,7 +1017,18 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
         lastLandmarkAt = now;
         framePending = true;
         // A single transferred frame bounds RAM and drops stale work under load.
-        void createImageBitmap(video).then((frame) => {
+        // O acompanhamento roda no máximo em 1280 px de largura: a câmera em
+        // 1080p só serve para recortar rostos distantes com mais detalhe, sem
+        // aumentar o trabalho do worker a cada quadro.
+        const trackingScale = Math.min(1, TRACKING_MAX_WIDTH / Math.max(1, video.videoWidth));
+        const bitmap = trackingScale < 1
+          ? createImageBitmap(video, {
+              resizeWidth: Math.round(video.videoWidth * trackingScale),
+              resizeHeight: Math.round(video.videoHeight * trackingScale),
+              resizeQuality: 'medium',
+            })
+          : createImageBitmap(video);
+        void bitmap.then((frame) => {
           if (cancelled || document.hidden || !workerReady || !worker) {
             frame.close();
             framePending = false;

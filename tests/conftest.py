@@ -21,5 +21,9 @@ _SYNTHETIC_ENVIRONMENT = {
 # Overwrite, not setdefault: a real DATABASE_URL exported in the shell must not win.
 os.environ.update(_SYNTHETIC_ENVIRONMENT)
 
+# A antifraude real carrega modelos do disco: os testes que precisam dela a
+# ligam explicitamente, para nenhum teste depender do que existe na maquina.
+os.environ["FACE_PAD_ENABLED"] = "false"
+
 # Never send real notifications from a test run, even if the shell exports it.
 os.environ["EMAIL_NOTIFICATIONS_ENABLED"] = "false"

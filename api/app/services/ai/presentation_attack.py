@@ -1,9 +1,8 @@
 """Server-side PAD boundary; temporal client scores never establish live presence.
 
-No validated presentation attack model has been supplied to this project. The
-default provider therefore reports unavailable and cannot authorize attendance.
-An eventual adapter must operate on server-decoded images and be evaluated
-against the deployment's authorized attack protocol before enabling it.
+The provider is MiniFASNet (``minifasnet_pad.py``) when its model files are
+present and verified; otherwise it reports unavailable, which closes attendance
+in staging/production. It operates only on server-decoded images.
 """
 
 from dataclasses import dataclass
@@ -32,8 +31,11 @@ class UnavailablePresentationAttackProvider:
 
 
 def get_presentation_attack_provider() -> PresentationAttackProvider:
-    # Deliberately no mock or permissive environment fallback in this factory.
-    return UnavailablePresentationAttackProvider()
+    # Deliberately no mock or permissive environment fallback in this factory:
+    # the real MiniFASNet adapter, or a provider that reports unavailable.
+    from app.services.ai.minifasnet_pad import get_minifasnet_provider
+
+    return get_minifasnet_provider() or UnavailablePresentationAttackProvider()
 
 
 def evaluate_presentation_attack(

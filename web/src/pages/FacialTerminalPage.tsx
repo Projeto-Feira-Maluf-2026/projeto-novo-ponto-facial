@@ -181,6 +181,9 @@ function latestRecordKey(records: { id: string }[]) {
 
 function attendanceReasonMessage(reasons: string[]) {
   const reasonSet = new Set(reasons.map((reason) => reason.toUpperCase()));
+  if (reasonSet.has('PRESENTATION_ATTACK_SUSPECTED')) {
+    return 'Parece uma foto ou uma tela. O ponto só é registrado com o rosto ao vivo.';
+  }
   if (reasonSet.has('NO_FACE')) {
     return 'Não encontramos o rosto no quadro. A câmera tentará novamente.';
   }

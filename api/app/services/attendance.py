@@ -117,6 +117,19 @@ def submitted_face_images(payload: PunchCreate) -> list[str]:
     ]))
 
 
+def presentation_attack_frames(processed_frames) -> list:
+    """Original pixels and face box of every frame where a face was found."""
+    from app.services.ai.minifasnet_pad import PadFrame
+
+    frames = []
+    for processed in processed_frames:
+        box = getattr(processed.inference, "bounding_box", None)
+        if box is None or box.width <= 0 or box.height <= 0:
+            continue
+        frames.append(PadFrame(processed.image.image_bgr, (box.x, box.y, box.width, box.height)))
+    return frames
+
+
 def attendance_frame_is_usable(processed) -> bool:
     """Accept a detected embedding when only distance-sensitive checks failed."""
     if processed.inference.embedding is None:
@@ -265,16 +278,19 @@ class AttendanceService:
                     self.process_face_images,
                     submitted_images,
                 )
-            if settings.ENVIRONMENT in {"staging", "production"}:
+            # Antifraude: foto ou video mostrado a camera. Em staging/producao
+            # sem modelo a batida fecha (503); fora delas, sem modelo, segue.
+            strict_pad = settings.ENVIRONMENT in {"staging", "production"}
+            pad_frames = presentation_attack_frames(processed_frames)
+            if strict_pad or (pad_frames and settings.FACE_PAD_ENABLED):
                 from app.services.ai.presentation_attack import evaluate_presentation_attack
 
-                pad_decision = await asyncio.to_thread(
-                    evaluate_presentation_attack,
-                    [processed.image.image_bgr for processed in processed_frames],
-                )
+                pad_decision = await asyncio.to_thread(evaluate_presentation_attack, pad_frames)
                 if not pad_decision.evaluated:
-                    raise AppError("PAD_UNAVAILABLE", "Validacao de presenca indisponivel", 503)
-                if not pad_decision.accepted:
+                    if strict_pad:
+                        raise AppError("PAD_UNAVAILABLE", "Validacao de presenca indisponivel", 503)
+                    pad_decision = None
+                elif not pad_decision.accepted:
                     await self._flag_attempt(payload, FraudType.VIDEO_REPLAY, 1.0, [pad_decision.reason])
                     await self.session.commit()
                     return AttendanceDecision(
