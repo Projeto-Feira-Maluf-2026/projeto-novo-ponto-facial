@@ -287,40 +287,27 @@
 
 /* ---------- HUD ---------- */
 
-/* Luz de preenchimento: em contraluz a borda da tela vira um painel branco
-   que ilumina o rosto de quem está diante do terminal. */
-.tk-fill-light {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 14px;
-  border: clamp(18px, 5vmin, 56px) solid #fff;
-  border-radius: inherit;
-  box-shadow: inset 0 0 60px 24px rgb(255 255 255 / 0.85);
-  animation: tk-fill-light-in 220ms ease-out;
+/* Rosto escuro (contraluz): a prévia mostra a imagem clareada, para a pessoa
+   se ver; o realce que vale para o reconhecimento é feito no servidor. */
+.tk-camera[data-low-light] .camera-view.tk-camera-view video {
+  filter: brightness(1.7) contrast(1.08) saturate(1.05);
+  transition: filter 240ms ease-out;
 }
 
-.tk-fill-light span {
+.tk-low-light-badge {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%);
   padding: 6px 14px;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.92);
-  color: #1b1d1c;
+  background: rgb(14 16 15 / 0.78);
+  color: #f4f6f5;
   font-size: 0.82rem;
   font-weight: 600;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 0.18);
-}
-
-@keyframes tk-fill-light-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tk-fill-light { animation: none; }
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .tk-hud {
