@@ -296,7 +296,7 @@
 
 .tk-low-light-badge {
   position: absolute;
-  top: 14px;
+  top: 66px;
   left: 50%;
   z-index: 4;
   transform: translateX(-50%);
