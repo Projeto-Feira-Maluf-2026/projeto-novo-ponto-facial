@@ -217,3 +217,18 @@ async def test_batch_route_hands_each_punch_its_own_inference(monkeypatch) -> No
         ("face-b", ["processed:face-b"]),
     ]
     session.commit.assert_awaited_once()
+
+
+def test_backlit_face_is_brightened_and_lit_face_untouched():
+    import numpy as np
+
+    from app.services.ai.facial_service import exposure_corrected_face
+
+    lit = np.full((64, 64, 3), 140, dtype=np.uint8)
+    assert exposure_corrected_face(lit) is None
+
+    backlit = np.full((64, 64, 3), 250, dtype=np.uint8)
+    backlit[16:48, 16:48] = 40  # rosto na sombra, fundo estourado
+    corrected = exposure_corrected_face(backlit)
+    assert corrected is not None
+    assert float(np.median(corrected[16:48, 16:48])) > 100

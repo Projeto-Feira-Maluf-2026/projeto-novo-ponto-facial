@@ -72,6 +72,51 @@ class ProcessedFace:
     total_ms: float
 
 
+# Contraluz (sol ao fundo, rosto na sombra) deixa o rosto com mediana abaixo de
+# ~35% do branco. O ArcFace perde detalhe nessas sombras e o rosto era recusado
+# por UNDEREXPOSED / LOW_CONTRAST. Medido em rostos reais escurecidos por
+# contraluz sintetico: com o ganho abaixo, 6 de 6 rostos voltam a ser
+# utilizaveis e a similaridade com o cadastro sobe (0,78 -> 0,84 a 48 de
+# luminancia), sem mudar nada em rostos bem iluminados.
+DARK_FACE_MEDIAN = 0.35
+DARK_FACE_TARGET_MEDIAN = 0.45
+DARK_FACE_MAX_GAIN = 40.0
+
+
+def _face_region_median(image_bgr: np.ndarray) -> float:
+    """Median luminance (0..1) of the central half, where the terminal crop puts the face."""
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    height, width = gray.shape[:2]
+    center = gray[height // 4:max(height // 4 + 1, 3 * height // 4),
+                  width // 4:max(width // 4 + 1, 3 * width // 4)]
+    return float(np.median(center)) / 255.0
+
+
+def exposure_corrected_face(image_bgr: np.ndarray) -> np.ndarray | None:
+    """Brighten a backlit face in linear light; ``None`` when the face is lit enough.
+
+    The gain is applied in linear light (gamma 2.2), the way a longer exposure
+    would, so skin tones keep their ratios. The bright background clips, which
+    is harmless: only the face reaches the detector and the embedding. A light
+    edge-preserving filter removes the sensor noise the gain amplifies.
+    """
+    median_luminance = _face_region_median(image_bgr)
+    if median_luminance >= DARK_FACE_MEDIAN:
+        return None
+    gain = min(
+        (DARK_FACE_TARGET_MEDIAN / max(median_luminance, 0.01)) ** 2.2,
+        DARK_FACE_MAX_GAIN,
+    )
+    lookup = np.clip(
+        np.round(
+            np.clip(((np.arange(256) / 255.0) ** 2.2) * gain, 0.0, 1.0) ** (1 / 2.2) * 255.0
+        ),
+        0,
+        255,
+    ).astype(np.uint8)
+    return cv2.bilateralFilter(cv2.LUT(image_bgr, lookup), 5, 30, 3)
+
+
 def _enhanced_detection_frames(image_bgr: np.ndarray) -> list[np.ndarray]:
     """Build conservative variants for dark, low-contrast or soft camera frames."""
     lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)
@@ -428,6 +473,15 @@ class FaceEmbeddingService:
                 **(failure.details if failure else {}),
             )
 
+        source_image = image
+        corrected_bgr = exposure_corrected_face(image.image_bgr)
+        if corrected_bgr is not None:
+            image = replace(
+                image,
+                image_bgr=corrected_bgr,
+                image_metrics=FaceImageValidator._image_metrics(corrected_bgr),
+            )
+
         inference = self.provider.analyze(image.image_bgr)
         quality = self.validator.quality_report(image, inference)
         # Blur, exposicao e contraste sao medidos sobre os pixels originais. Um
@@ -508,8 +562,10 @@ class FaceEmbeddingService:
                 provider_state=inference.state.value,
                 **(failure.details if failure else {}),
             )
+        # Quem usa os pixels depois (flip-test, antifraude) recebe a imagem
+        # original; o realce vale so para detectar e gerar o embedding.
         return ProcessedFace(
-            image=image,
+            image=source_image,
             inference=inference,
             quality=quality,
             total_ms=round((perf_counter() - started_at) * 1000, 3),

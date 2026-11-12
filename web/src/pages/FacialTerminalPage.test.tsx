@@ -230,17 +230,18 @@ describe('apresentação com mais de um rosto', () => {
   }, 12_000);
 
   it('inclui quem foi registrado para conferência', async () => {
-    api.punchBatch.mockResolvedValueOnce({
-      decisions: [
-        accepted('a', 'Ana Souza'),
-        { ...accepted('b', 'Bruno Lima'), accepted: false, status: 'MANUAL_REVIEW' },
-      ],
-      processed: 2, accepted: 1, manual_review: 1,
-    });
+    api.punchBatch
+      .mockResolvedValueOnce({ decisions: [accepted('a', 'Ana Souza')], processed: 1, accepted: 1, manual_review: 0 })
+      .mockResolvedValueOnce({
+        decisions: [{ ...accepted('b', 'Bruno Lima'), accepted: false, status: 'MANUAL_REVIEW' }],
+        processed: 1, accepted: 0, manual_review: 1,
+      });
     render(<FacialTerminalPage />);
 
     const dialog = await screen.findByRole('dialog', { name: 'Apresentação' }, { timeout: 6_000 });
     expect(dialog).toHaveTextContent('Ana Souza | Bruno Lima');
-    expect(api.punchBatch).toHaveBeenCalledTimes(1);
+    // Um rosto por pedido: cada pessoa aparece assim que é reconhecida.
+    expect(api.punchBatch).toHaveBeenCalledTimes(2);
+    expect(api.punchBatch.mock.calls.every(([punches]) => punches.length === 1)).toBe(true);
   }, 10_000);
 });

@@ -40,6 +40,10 @@ export interface CameraCaptureHandle {
   }) => CapturedFaceSample[];
   // Caixas atuais, sem recortar nem codificar imagem: barato a cada quadro.
   peekFaceBoxes: () => FaceBox[];
+  // Luminância mediana (0 a 1) do maior rosto visível, ou null sem rosto.
+  measureFaceLight: () => number | null;
+  // Rosto escuro (contraluz): pede à câmera mais exposição, se ela permitir.
+  setLowLightBoost: (enabled: boolean) => void;
   restart: () => Promise<void>;
 }
 
@@ -87,7 +91,8 @@ const MAX_TRACKED_FACES = 5;
 // inferência síncrona em todos os frames de webcams de 30/60 FPS.
 const LANDMARK_FRAME_INTERVAL_MS = 40;
 const DISTANT_SCAN_INTERVAL_MS = 180;
-const DISTANT_DETECTION_TTL_MS = 280;
+// Cobre duas passadas do detector distante (quadro inteiro e faixa central).
+const DISTANT_DETECTION_TTL_MS = 450;
 const DISTANT_DETECTOR_MAX_EDGE = 640;
 const CAMERA_RELEASE_DELAY_MS = 180;
 const CAMERA_RECOVERY_RETRIES = 2;
@@ -176,8 +181,9 @@ export function updateDistantFaceCandidates(
   now: number,
   ttl = DISTANT_DETECTION_TTL_MS,
 ) {
-  if (!detected.length) return previous.filter((candidate) => candidate.expiresAt > now);
-  return mergeFaceBoxes(detected).map((box) => {
+  const alive = previous.filter((candidate) => candidate.expiresAt > now);
+  if (!detected.length) return alive;
+  const refreshed = mergeFaceBoxes(detected).map((box) => {
     const prior = previous
       .filter((candidate) => boxesRepresentSameFace(candidate.box, box))
       .sort((left, right) => faceBoxIou(right.box, box) - faceBoxIou(left.box, box))[0];
@@ -187,6 +193,12 @@ export function updateDistantFaceCandidates(
       hits: Math.min((prior?.hits || 0) + 1, 4),
     };
   });
+  // As passadas alternam entre o quadro inteiro e a faixa central: um rosto
+  // visto só numa delas continua valendo até expirar, em vez de sumir na outra.
+  const kept = alive.filter((candidate) => (
+    !refreshed.some((current) => boxesRepresentSameFace(current.box, candidate.box))
+  ));
+  return [...refreshed, ...kept].slice(0, MAX_TRACKED_FACES);
 }
 
 export function mergeFaceBoxes(boxes: FaceBox[], limit = MAX_TRACKED_FACES) {
@@ -442,6 +454,44 @@ interface CameraCaptureProps {
   minFaceHeight?: number;
 }
 
+/** Luminância mediana (0 a 1) de pixels RGBA, com o peso de cor do olho humano. */
+export function faceLightFromPixels(data: Uint8ClampedArray) {
+  const values: number[] = [];
+  for (let index = 0; index + 2 < data.length; index += 4) {
+    values.push((0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2]) / 255);
+  }
+  if (!values.length) return null;
+  values.sort((left, right) => left - right);
+  return values[Math.floor(values.length / 2)];
+}
+
+type ExposureCapabilities = MediaTrackCapabilities & {
+  exposureCompensation?: { min: number; max: number; step?: number };
+};
+type ExposureSettings = MediaTrackSettings & { exposureCompensation?: number };
+
+/**
+ * Restrição que sobe a compensação de exposição para 75% da faixa da câmera
+ * (contraluz) ou devolve o valor original. Null quando a câmera não expõe esse
+ * controle ao navegador: aí só o realce do servidor e a luz da tela ajudam.
+ */
+export function lowLightExposureConstraints(
+  track: Pick<MediaStreamTrack, 'getCapabilities' | 'getSettings'>,
+  enabled: boolean,
+  baseExposure: { current: number | null },
+): MediaTrackConstraints | null {
+  const range = (track.getCapabilities?.() as ExposureCapabilities | undefined)?.exposureCompensation;
+  if (!range || !(range.max > range.min)) return null;
+  const current = (track.getSettings?.() as ExposureSettings | undefined)?.exposureCompensation;
+  if (enabled && baseExposure.current === null) {
+    baseExposure.current = typeof current === 'number' ? current : (range.min + range.max) / 2;
+  }
+  const value = enabled
+    ? range.min + (range.max - range.min) * 0.75
+    : baseExposure.current ?? (range.min + range.max) / 2;
+  return { advanced: [{ exposureCompensation: value } as MediaTrackConstraintSet] };
+}
+
 export function readableFaceBoxes(boxes: FaceBox[], minFaceHeight: number) {
   return minFaceHeight > 0 ? boxes.filter((box) => box.height >= minFaceHeight) : boxes;
 }
@@ -464,6 +514,9 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const landmarkCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const lightProbeRef = useRef<HTMLCanvasElement | null>(null);
+    const lowLightBoostRef = useRef(false);
+    const baseExposureRef = useRef<number | null>(null);
     const mountedRef = useRef(true);
     const restartTimerRef = useRef(0);
     const startPromiseRef = useRef<Promise<void> | null>(null);
@@ -1245,10 +1298,12 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
               ? normalizedFaceBoxesRef.current
               : nativeNormalizedFaceBoxesRef.current;
             const orderedBoxes = [...boxes].sort((left, right) => left.x - right.x);
+            // O filtro vem antes do limite: com o grupo cheio, quem ainda
+            // falta registrar não pode ficar de fora por estar mais à direita.
             return orderedBoxes
+              .filter((box) => !options?.include || options.include(box))
               .slice(0, limit)
               .flatMap((box) => {
-                if (options?.include && !options.include(box)) return [];
                 const image = captureNormalizedFace(
                   box,
                   orderedBoxes.length > 1,
@@ -1262,6 +1317,39 @@ export const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>
               ? normalizedFaceBoxesRef.current
               : nativeNormalizedFaceBoxesRef.current;
             return [...boxes].sort((left, right) => left.x - right.x).slice(0, MAX_TRACKED_FACES);
+          },
+          measureFaceLight: () => {
+            const video = videoRef.current;
+            const boxes = normalizedFaceBoxesRef.current.length
+              ? normalizedFaceBoxesRef.current
+              : nativeNormalizedFaceBoxesRef.current;
+            if (!hasCurrentFrame() || !video || !video.videoWidth || !boxes.length) return null;
+            const face = boxes.reduce((largest, box) => (
+              box.width * box.height > largest.width * largest.height ? box : largest
+            ));
+            // Só o miolo do rosto (sem cabelo nem fundo) em 24x24: custa
+            // menos de um milissegundo e não depende do fundo estourado.
+            const sourceX = (face.x + face.width * 0.2) * video.videoWidth;
+            const sourceY = (face.y + face.height * 0.25) * video.videoHeight;
+            const sourceWidth = face.width * 0.6 * video.videoWidth;
+            const sourceHeight = face.height * 0.55 * video.videoHeight;
+            if (sourceWidth < 4 || sourceHeight < 4) return null;
+            const probe = lightProbeRef.current || document.createElement('canvas');
+            lightProbeRef.current = probe;
+            probe.width = 24;
+            probe.height = 24;
+            const context = probe.getContext('2d', { willReadFrequently: true });
+            if (!context) return null;
+            context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, 24, 24);
+            return faceLightFromPixels(context.getImageData(0, 0, 24, 24).data);
+          },
+          setLowLightBoost: (enabled: boolean) => {
+            const track = streamRef.current?.getVideoTracks()[0];
+            if (!track || lowLightBoostRef.current === enabled) return;
+            lowLightBoostRef.current = enabled;
+            const constraints = lowLightExposureConstraints(track, enabled, baseExposureRef);
+            if (!constraints) return;
+            track.applyConstraints(constraints).catch(() => undefined);
           },
           restart: () => start(selectedDeviceIdRef.current, true),
         };
