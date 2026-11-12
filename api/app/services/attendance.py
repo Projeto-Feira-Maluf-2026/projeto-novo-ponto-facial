@@ -272,6 +272,7 @@ class AttendanceService:
         submitted_images = submitted_face_images(payload)
         rejected_frame_reasons: list[str] = []
         pad_decision = None
+        pad_suspected = False
         if submitted_images:
             if processed_frames is None:
                 processed_frames = await asyncio.to_thread(
@@ -293,6 +294,13 @@ class AttendanceService:
                     if strict_pad:
                         raise AppError("PAD_UNAVAILABLE", "Validacao de presenca indisponivel", 503)
                     pad_decision = None
+                elif not pad_decision.accepted and settings.FACE_PAD_ACTION == "review":
+                    # Modo revisao (padrao): o teste com 1000 fotos de grupo mostrou
+                    # que o modelo recusa rostos reais demais em recortes de grupo.
+                    # A suspeita fica registrada e o ponto entra "em conferencia",
+                    # sem barrar ninguem na fila.
+                    await self._flag_attempt(payload, FraudType.VIDEO_REPLAY, 1.0, [pad_decision.reason])
+                    pad_suspected = True
                 elif not pad_decision.accepted:
                     await self._flag_attempt(payload, FraudType.VIDEO_REPLAY, 1.0, [pad_decision.reason])
                     await self.session.commit()
@@ -556,6 +564,8 @@ class AttendanceService:
         )
         confidence = attendance_confidence(match_confidence, quality_score)
         status = AttendanceStatus.ACCEPTED if confidence >= settings.SUSPICIOUS_SCORE_THRESHOLD else AttendanceStatus.MANUAL_REVIEW
+        if pad_suspected:
+            status = AttendanceStatus.MANUAL_REVIEW
         record = AttendanceRecord(
             id=str(uuid4()),
             employee_id=employee.id,
@@ -579,6 +589,7 @@ class AttendanceService:
                 "match_confidence_score": match_confidence,
                 "liveness_evaluated": bool(pad_decision and pad_decision.evaluated),
                 "pad_model_version": pad_decision.model_version if pad_decision else None,
+                "pad_suspected": pad_suspected,
                 "time_source": "server",
                 "client_occurred_at": (payload.occurred_at.isoformat() if payload.occurred_at else None),
                 "client_punch_type": payload.punch_type.value if payload.punch_type else None,
@@ -644,7 +655,11 @@ class AttendanceService:
             liveness_evaluated=bool(pad_decision and pad_decision.evaluated),
             liveness_score=pad_decision.score if pad_decision else None,
             quality_score=quality_score,
-            reasons=[] if status == AttendanceStatus.ACCEPTED else ["manual_review"],
+            reasons=(
+                [] if status == AttendanceStatus.ACCEPTED
+                else ["manual_review", "presentation_attack_suspected"] if pad_suspected
+                else ["manual_review"]
+            ),
             temporal_evidence_count=len(vectors),
             temporal_similarity_median=(
                 round(temporal_similarity_median, 4)

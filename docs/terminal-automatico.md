@@ -78,8 +78,16 @@ Na feira, uma foto de rosto mostrada na tela de um celular registrou o ponto. Ag
 chega ao servidor passa por dois modelos MiniFASNet (V2 e V1SE, ONNX, ~1,7 MB cada,
 `api/app/services/ai/minifasnet_pad.py`) sobre os pixels originais, antes da comparação de
 identidade. A média da probabilidade de "rosto ao vivo" abaixo de `FACE_PAD_MIN_LIVE_SCORE` (0,30)
-recusa a batida com o motivo `presentation_attack_suspected`, registra a tentativa suspeita e o
-terminal mostra "Parece uma foto ou uma tela. O ponto só é registrado com o rosto ao vivo."
+marca a batida como suspeita (`presentation_attack_suspected`) e registra a tentativa suspeita.
+
+Por padrão (`FACE_PAD_ACTION=review`) a suspeita não barra ninguém: se o rosto for reconhecido, o
+ponto entra "Em conferência" (`MANUAL_REVIEW`, `pad_suspected` nos metadados) para a equipe revisar.
+Com `FACE_PAD_ACTION=block` a batida é recusada e o terminal mostra "Parece uma foto ou uma tela".
+
+O modo revisão veio do teste com 1000 fotos de grupo (relatório em
+`relatorios/teste-extremo-1000-fotos.md` nos arquivos do projeto): por quadro, o modelo aprova 86%
+dos rostos reais sozinhos, mas só 60% dos rostos reais em recorte de grupo, e ainda aprova 15 a 17%
+das fotos falsas simuladas. Como bloqueio ele travaria a fila; como alerta ele ajuda.
 
 Medido em 6 rostos reais: rosto ao vivo 0,53 a 0,99 (também em contraluz), rosto num celular
 simulado 0,00 a 0,21 e foto em papel simulada 0,00 a 0,05; ~10 ms por rosto na CPU.
@@ -88,5 +96,5 @@ simulado 0,00 a 0,21 e foto em papel simulada 0,00 a 0,05; ~10 ms por rosto na C
 - Modo local/feira: baixados na primeira inicialização para `~/.insightface/models/minifasnet`
   (tempo limite de 20 s). Sem internet ou com arquivo corrompido, o ponto segue sem antifraude fora
   de staging/produção, em vez de parar; em staging/produção a batida fecha com `PAD_UNAVAILABLE`.
-- Se a antifraude recusar alguém de verdade no dia: `FACE_PAD_MIN_LIVE_SCORE=0.2` no `.env`
-  deixa o corte mais brando; `FACE_PAD_ENABLED=false` desliga a antifraude.
+- `FACE_PAD_MIN_LIVE_SCORE` muda o corte da suspeita; `FACE_PAD_ENABLED=false` desliga a
+  antifraude fora de staging/produção.

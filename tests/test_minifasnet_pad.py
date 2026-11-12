@@ -101,8 +101,9 @@ def test_frames_without_face_box_are_skipped() -> None:
 
 
 @pytest.mark.asyncio
-async def test_photo_on_screen_does_not_register_the_punch(monkeypatch) -> None:
+async def test_photo_on_screen_does_not_register_the_punch_in_block_mode(monkeypatch) -> None:
     monkeypatch.setattr(settings, "FACE_PAD_ENABLED", True)
+    monkeypatch.setattr(settings, "FACE_PAD_ACTION", "block")
     rejected = PresentationAttackDecision(
         False, True, 0.02, "presentation_attack_suspected", "test-only",
     )
@@ -138,4 +139,53 @@ async def test_photo_on_screen_does_not_register_the_punch(monkeypatch) -> None:
     assert decision.status == AttendanceStatus.REJECTED
     assert decision.reasons == ["presentation_attack_suspected"]
     service._match_employee.assert_not_awaited()
+    service._flag_attempt.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_photo_suspicion_sends_the_punch_to_review_by_default(monkeypatch) -> None:
+    from app.models.enums import EmployeeStatus
+
+    monkeypatch.setattr(settings, "FACE_PAD_ENABLED", True)
+    assert settings.FACE_PAD_ACTION == "review"
+    suspected = PresentationAttackDecision(
+        False, True, 0.12, "presentation_attack_suspected", "test-only",
+    )
+    monkeypatch.setattr(
+        "app.services.ai.presentation_attack.evaluate_presentation_attack",
+        MagicMock(return_value=suspected),
+    )
+    processed = SimpleNamespace(
+        image=SimpleNamespace(image_bgr=np.zeros((10, 10, 3), dtype=np.uint8)),
+        quality=SimpleNamespace(accepted=True, quality_score=0.9, reasons=[]),
+        inference=SimpleNamespace(
+            embedding=[1.0, 0.0],
+            bounding_box=SimpleNamespace(x=2, y=2, width=5, height=5),
+        ),
+    )
+    employee = SimpleNamespace(id="e", name="Employee", registration="r", photo_url=None,
+                               email=None, status=EmployeeStatus.ACTIVE)
+    session = SimpleNamespace(
+        get=AsyncMock(return_value=SimpleNamespace(id="worksite-1", active=True, name="Obra")),
+        execute=AsyncMock(), scalar=AsyncMock(return_value=None), add=MagicMock(),
+        commit=AsyncMock(), refresh=AsyncMock(),
+    )
+    service = AttendanceService(
+        session, SimpleNamespace(from_image_base64=MagicMock(return_value=processed)),
+    )
+    service._flag_attempt = AsyncMock()
+    service._match_employee = AsyncMock(return_value=(employee, 0.9, None, 0.95, None))
+    service._infer_next_punch = AsyncMock(return_value=PunchType.ENTRY)
+
+    decision = await service.register_punch(PunchCreate(
+        worksite_id="worksite-1", face={"image_base64": "data:image/jpeg;base64,rosto"},
+    ))
+
+    # Ninguem e barrado: o ponto entra em conferencia, com a suspeita registrada.
+    assert decision.status == AttendanceStatus.MANUAL_REVIEW
+    assert decision.employee_id == "e"
+    assert "presentation_attack_suspected" in decision.reasons
+    record = session.add.call_args.args[0]
+    assert record.status == AttendanceStatus.MANUAL_REVIEW
+    assert record.metadata_json["pad_suspected"] is True
     service._flag_attempt.assert_awaited_once()

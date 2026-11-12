@@ -1,6 +1,7 @@
 from functools import cached_property
 import os
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
@@ -142,6 +143,8 @@ class Settings(BaseSettings):
     # tela ou papel simuladas 0,00 a 0,13.
     FACE_PAD_ENABLED: bool = True
     FACE_PAD_MIN_LIVE_SCORE: float = 0.30
+    # review: suspeita de foto vira ponto "em conferencia"; block: recusa a batida.
+    FACE_PAD_ACTION: Literal["review", "block"] = "review"
     FACE_PAD_MODEL_DIR: str = ""
     FACE_PAD_AUTO_DOWNLOAD: bool = True
 
