@@ -64,8 +64,9 @@ ao fundo não é lido nem segura o grupo da apresentação. O detector de rostos
 o quadro inteiro e a faixa central (`web/src/components/distantFaceTiles.ts`), onde um rosto distante
 chega ~1,7x maior ao modelo.
 
-Contraluz (sol atrás das pessoas): quando o rosto fica abaixo de 30% de luminância, a borda da tela
-vira uma luz de preenchimento branca e o terminal pede à câmera mais exposição (se o driver permitir).
+Contraluz (sol atrás das pessoas): quando o rosto fica abaixo de 30% de luminância, a prévia da
+câmera é mostrada clareada, com o aviso "Contraluz", e o terminal pede à câmera mais exposição (se o
+driver permitir).
 No servidor, um rosto com mediana abaixo de 35% recebe ganho em luz linear antes da detecção e do
 embedding (`exposure_corrected_face` em `api/app/services/ai/facial_service.py`). Em rostos reais
 escurecidos por contraluz sintético, isso levou de 1 para 6 de 6 rostos lidos, com a similaridade

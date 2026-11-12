@@ -127,9 +127,9 @@ type PresentationDraft = {
   maxFaces: number;
 };
 const RETRY_RESULT_HOLD_MS = 180;
-// Rosto escuro (contraluz): abaixo de 30% de luminância a tela vira luz de
-// preenchimento e a câmera sobe a exposição; só desliga acima de 40% por um
-// tempo, para não piscar a cada quadro.
+// Rosto escuro (contraluz): abaixo de 30% de luminância a prévia é clareada e
+// a câmera sobe a exposição; só desliga acima de 40% por um tempo, para não
+// piscar a cada quadro.
 const LOW_LIGHT_ON = 0.3;
 const LOW_LIGHT_OFF = 0.4;
 const LOW_LIGHT_RELEASE_MS = 1_500;
@@ -948,8 +948,8 @@ export function FacialTerminalPage() {
             trackingPaused={presentationExperienceOpen}
           />
           {lowLight ? (
-            <div className="tk-fill-light" role="status">
-              <span>Rosto escuro: a tela acendeu para iluminar você</span>
+            <div className="tk-low-light-badge" role="status">
+              Contraluz: imagem clareada para reconhecer o rosto
             </div>
           ) : null}
           <div className="tk-hud" aria-hidden="true">
